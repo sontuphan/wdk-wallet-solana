@@ -1,7 +1,7 @@
 {
   "name": "@wdk/wallet-solana",
   "version": "1.0.0-beta.1",
-  "description": "A simple package to manage Solana wallets.",
+  "description": "A simple package to manage BIP-32 wallets for Solana blockchains.",
   "main": "index.js",
   "type": "module",
   "repository": {
