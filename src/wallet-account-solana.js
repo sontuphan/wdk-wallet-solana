@@ -240,18 +240,18 @@ export default class WalletAccountSolana {
   }
 
   /**
-   * Sends a transaction with arbitrary data.
-   *
-   * @param {SolanaTransaction} tx - The transaction to send.
-   * @returns {Promise<string>} The transaction's hash.
+   * Creates a transaction message for sending SOL or quoting fees.
+   * @private
+   * @param {SolanaTransaction} tx - The transaction details
+   * @param {string} version - The transaction message version ('legacy' or 0)
+   * @returns {Promise<Object>} The transaction message and instructions
    */
-  async sendTransaction(tx) {
-    if (!this.#rpc || !this.#rpcSubscriptions) {
+  async #createTransactionMessage(tx, version = 0) {
+    if (!this.#rpc) {
       throw new Error(
-        "The wallet must be connected to a provider to send transactions."
+        "The wallet must be connected to a provider to create transactions."
       );
     }
-
 
     const { to, value, data } = tx;
     const recipient = address(to);
@@ -272,12 +272,29 @@ export default class WalletAccountSolana {
     }
 
     const transactionMessage = pipe(
-      createTransactionMessage({ version: 0 }),
+      createTransactionMessage({ version }),
       (tx) => setTransactionMessageFeePayerSigner(this.#signer, tx),
-      (tx) =>
-        setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+      (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
       (tx) => appendTransactionMessageInstructions(instructions, tx)
     );
+
+    return { transactionMessage, instructions };
+  }
+
+  /**
+   * Sends a transaction with arbitrary data.
+   *
+   * @param {SolanaTransaction} tx - The transaction to send.
+   * @returns {Promise<string>} The transaction's hash.
+   */
+  async sendTransaction(tx) {
+    if (!this.#rpc || !this.#rpcSubscriptions) {
+      throw new Error(
+        "The wallet must be connected to a provider to send transactions."
+      );
+    }
+
+    const { transactionMessage } = await this.#createTransactionMessage(tx);
 
     const signedTransaction = await signTransactionMessageWithSigners(
       transactionMessage
@@ -288,14 +305,12 @@ export default class WalletAccountSolana {
       rpcSubscriptions: this.#rpcSubscriptions,
     });
 
-    sendAndConfirm(signedTransaction, {
-      commitment: "confirmed",
+    await sendAndConfirm(signedTransaction, {
+      commitment: "processed",
     });
 
-    const transactionSignature =
-      getSignatureFromTransaction(signedTransaction);
+    const transactionSignature = getSignatureFromTransaction(signedTransaction);
     return transactionSignature;
-
   }
 
   /**
@@ -311,31 +326,7 @@ export default class WalletAccountSolana {
       );
     }
 
-
-    const { to, value, data } = tx;
-    const recipient = address(to);
-
-    const { value: latestBlockhash } = await this.#rpc
-      .getLatestBlockhash()
-      .send();
-
-    const transferInstruction = getTransferSolInstruction({
-      source: this.#signer,
-      destination: recipient,
-      amount: lamports(BigInt(value)),
-    });
-
-    const instructions = [transferInstruction];
-    if (data) {
-      instructions.push(getAddMemoInstruction({ memo: data }));
-    }
-
-    const transactionMessage = pipe(
-      createTransactionMessage({ version: "legacy" }),
-      (m) => setTransactionMessageFeePayerSigner(this.#signer, m),
-      (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-      (m) => appendTransactionMessageInstructions(instructions, m)
-    );
+    const { transactionMessage } = await this.#createTransactionMessage(tx, "legacy");
 
     const base64EncodedMessage = pipe(
       transactionMessage,
@@ -346,7 +337,6 @@ export default class WalletAccountSolana {
 
     const fee = await this.#rpc.getFeeForMessage(base64EncodedMessage).send();
     return Number(fee.value);
-
   }
 
   /**
