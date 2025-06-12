@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-"use strict";
+'use strict'
 
-import { createSolanaRpc } from "@solana/kit";
-import * as bip39 from "bip39";
-import WalletAccountSolana from "./wallet-account-solana.js";
+import { createSolanaRpc } from '@solana/kit'
+import * as bip39 from 'bip39'
+import WalletAccountSolana from './wallet-account-solana.js'
 import sodium from 'sodium-universal'
-const FEE_RATE_NORMAL_MULTIPLIER = 1.1,
-  FEE_RATE_FAST_MULTIPLIER = 2.0;
+const FEE_RATE_NORMAL_MULTIPLIER = 1.1
+const FEE_RATE_FAST_MULTIPLIER = 2.0
 
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
 export default class WalletManagerSolana {
-  _seedBuffer;
-  _rpc;
-  _rpcUrl;
-  _wsUrl;
+  _seedBuffer
+  _rpc
+  _rpcUrl
+  _wsUrl
   _accounts
 
   /**
@@ -36,27 +36,27 @@ export default class WalletManagerSolana {
    * @param {string|Uint8Array} seed - The wallet's seed, either as a [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase or a Uint8Array.
    * @param {SolanaWalletConfig} [config] - The configuration object.
    */
-  constructor(seed, config = {}) {
+  constructor (seed, config = {}) {
     if (typeof seed === 'string') {
       if (!WalletManagerSolana.isValidSeedPhrase(seed)) {
-        throw new Error("The seed phrase is invalid.");
+        throw new Error('The seed phrase is invalid.')
       }
-      seed = bip39.mnemonicToSeedSync(seed);
+      seed = bip39.mnemonicToSeedSync(seed)
     }
-    this._seedBuffer = seed;
+    this._seedBuffer = seed
     this._accounts = new Set()
 
-    const { rpcUrl, wsUrl } = config;
+    const { rpcUrl, wsUrl } = config
 
     if (rpcUrl) {
-      this._rpcUrl = rpcUrl;
-      this._rpc = createSolanaRpc(rpcUrl);
+      this._rpcUrl = rpcUrl
+      this._rpc = createSolanaRpc(rpcUrl)
     }
 
     if (wsUrl) {
-      this._wsUrl = wsUrl;
+      this._wsUrl = wsUrl
     } else if (rpcUrl) {
-      this._wsUrl = rpcUrl.replace("http", "ws");
+      this._wsUrl = rpcUrl.replace('http', 'ws')
     }
   }
 
@@ -65,8 +65,8 @@ export default class WalletManagerSolana {
    *
    * @returns {string} The seed phrase.
    */
-  static getRandomSeedPhrase() {
-    return bip39.generateMnemonic();
+  static getRandomSeedPhrase () {
+    return bip39.generateMnemonic()
   }
 
   /**
@@ -75,8 +75,8 @@ export default class WalletManagerSolana {
    * @param {string} seedPhrase - The seed phrase.
    * @returns {boolean} True if the seed phrase is valid.
    */
-  static isValidSeedPhrase(seedPhrase) {
-    return bip39.validateMnemonic(seedPhrase);
+  static isValidSeedPhrase (seedPhrase) {
+    return bip39.validateMnemonic(seedPhrase)
   }
 
   /**
@@ -84,8 +84,8 @@ export default class WalletManagerSolana {
    *
    * @type {Uint8Array}
    */
-  get seed() {
-    return this._seedBuffer;
+  get seed () {
+    return this._seedBuffer
   }
 
   /**
@@ -97,8 +97,8 @@ export default class WalletManagerSolana {
    * @param {number} [index] - The index of the account to get (default: 0).
    * @returns {Promise<WalletAccountSolana>} The account.
    */
-  async getAccount(index = 0) {
-    return await this.getAccountByPath(`${index}'/0'`);
+  async getAccount (index = 0) {
+    return await this.getAccountByPath(`${index}'/0'`)
   }
 
   /**
@@ -110,11 +110,11 @@ export default class WalletManagerSolana {
    * @param {string} path - The derivation path (e.g. "0'/0/0").
    * @returns {Promise<WalletAccountSolana>} The account.
    */
-  async getAccountByPath(path) {
+  async getAccountByPath (path) {
     const account = await WalletAccountSolana.create(this._seedBuffer, path, {
       rpcUrl: this._rpcUrl,
-      wsUrl: this._wsUrl,
-    });
+      wsUrl: this._wsUrl
+    })
 
     this._accounts.add(account)
 
@@ -126,37 +126,35 @@ export default class WalletManagerSolana {
    *
    * @returns {Promise<{ normal: number, fast: number }>} The fee rates (in lamports).
    */
-  async getFeeRates() {
+  async getFeeRates () {
     if (!this._rpc) {
       throw new Error(
-        "The wallet must be connected to a provider to get fee rates."
-      );
+        'The wallet must be connected to a provider to get fee rates.'
+      )
     }
 
-
     // Get recent prioritization fees
-    const fees = await this._rpc.getRecentPrioritizationFees().send();
+    const fees = await this._rpc.getRecentPrioritizationFees().send()
 
     // Find the highest non-zero fee, or use default
-    const nonZeroFees = fees.filter(fee => fee.prioritizationFee > 0n);
+    const nonZeroFees = fees.filter(fee => fee.prioritizationFee > 0n)
     const baseFee = nonZeroFees.length > 0
       ? Number(nonZeroFees.reduce((max, fee) => fee.prioritizationFee > max ? fee.prioritizationFee : max, 0n))
-      : 5000;
+      : 5000
 
-    const normalFee = Math.round(baseFee * FEE_RATE_NORMAL_MULTIPLIER);
-    const fastFee = Math.round(baseFee * FEE_RATE_FAST_MULTIPLIER);
+    const normalFee = Math.round(baseFee * FEE_RATE_NORMAL_MULTIPLIER)
+    const fastFee = Math.round(baseFee * FEE_RATE_FAST_MULTIPLIER)
 
     return {
       normal: normalFee,
       fast: fastFee
-    };
-
+    }
   }
 
   /**
  * Disposes the wallet manager, erasing the seed buffer.
  */
-  dispose() {
+  dispose () {
     for (const account of this._accounts) account.dispose()
     this._accounts.clear()
 

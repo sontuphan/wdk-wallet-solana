@@ -11,13 +11,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-"use strict";
+'use strict'
 
 /** @typedef {import('./src/wallet-manager-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
 /** @typedef {import('./src/wallet-account-solana.js').KeyPair} KeyPair */
 /** @typedef {import('./src/wallet-account-solana.js').SolanaTransaction} SolanaTransaction */
 
-export { default } from "./src/wallet-manager-solana.js";
+export { default } from './src/wallet-manager-solana.js'
 
-export { default as WalletAccountSolana } from "./src/wallet-account-solana.js";
+export { default as WalletAccountSolana } from './src/wallet-account-solana.js'

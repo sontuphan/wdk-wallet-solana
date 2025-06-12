@@ -13,8 +13,8 @@
   },
   "scripts": {
     "build:types": "rimraf *.d.ts **/*.d.ts; tsc",
-    "lint": "standard",
-    "lint:fix": "standard --fix",
+    "lint": "standard --env jest",
+    "lint:fix": "standard --fix --env jest",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "test:setup": "node scripts/start-validator.js"
