@@ -51,8 +51,6 @@ describe('WalletAccountSolana', () => {
         it('should throw error for invalid seed phrase', () => {
             expect(() => new WalletAccountSolana('invalid seed', VALID_PATH, VALID_CONFIG)).toThrow('The seed phrase is invalid.');
         });
-
-
     });
 
     describe('address', () => {
@@ -102,26 +100,26 @@ describe('WalletAccountSolana', () => {
     describe('transactions', () => {
         it('should quote a transaction', async () => {
             const tx = { to: VALID_ADDRESS, value: 1000000 };
-            const quote = await wallet.quoteTransaction(tx);
+            const quote = await wallet.quoteSendTransaction(tx);
             expect(typeof quote).toBe('number');
             expect(quote).toBeGreaterThan(0);
         });
 
         it('should quote a transaction with memo', async () => {
             const tx = { to: VALID_ADDRESS, value: 1000000, data: 'memo' };
-            const quote = await wallet.quoteTransaction(tx);
+            const quote = await wallet.quoteSendTransaction(tx);
             expect(typeof quote).toBe('number');
             expect(quote).toBeGreaterThan(0);
         });
 
         it('should throw error when quoting transaction with invalid rpc', async () => {
             const walletWithoutRpc = new WalletAccountSolana(VALID_SEED, VALID_PATH);
-            await expect(walletWithoutRpc.quoteTransaction({ to: VALID_ADDRESS, value: 1000000 })).rejects.toThrow('The wallet must be connected to a provider to quote transactions.');
+            await expect(walletWithoutRpc.quoteSendTransaction({ to: VALID_ADDRESS, value: 1000000 })).rejects.toThrow('The wallet must be connected to a provider to quote transactions.');
         });
 
         it('should throw error when quoting transaction with invalid address', async () => {
             const tx = { to: 'invalid', value: 1000000 };
-            await expect(wallet.quoteTransaction(tx)).rejects.toThrow();
+            await expect(wallet.quoteSendTransaction(tx)).rejects.toThrow();
         });
 
         it('should throw error when sending transaction without RPC', async () => {
@@ -131,9 +129,10 @@ describe('WalletAccountSolana', () => {
 
         it('should send a transaction with memo', async () => {
             const tx = { to: VALID_ADDRESS, value: 1000000, data: 'memo' };
-            const txHash = await wallet.sendTransaction(tx);
-            expect(txHash).toBeDefined();
-            expect(typeof txHash).toBe('string');
+            const txResult = await wallet.sendTransaction(tx);
+            expect(txResult).toBeDefined();
+            expect(typeof txResult.hash).toBe('string');
+            expect(typeof txResult.fee).toBe('number');
         });
 
         it('should handle transaction errors', async () => {
@@ -163,34 +162,44 @@ describe('WalletAccountSolana', () => {
 
         it('should throw error when getting token balance without RPC', async () => {
             const walletWithoutRpc = new WalletAccountSolana(VALID_SEED, VALID_PATH);
-            await expect(walletWithoutRpc.getTokenBalance(VALID_TOKEN)).rejects.toThrow('The wallet must be connected to a provider to retrieve token balances.');
+            await expect(walletWithoutRpc.getTokenBalance(VALID_TOKEN)).rejects.toThrow('rpcUrl is required to retrieve token balances.');
         });
 
         it('should throw error for invalid token address', async () => {
             await expect(wallet.getTokenBalance('invalid-token')).rejects.toThrow('Non-base58 character');
         });
 
-        it('should send token transaction', async () => {
-            const params = { to: VALID_ADDRESS, tokenMint: VALID_TOKEN, amount: 10 };
-            const txHash = await wallet.sendTokenTransaction(params);
-            expect(txHash).toBeDefined();
-            expect(typeof txHash).toBe('string');
+        it('should return fee for token transfer', async () => {
+            const params = { recipient: VALID_ADDRESS, token: VALID_TOKEN, amount: 10 };
+            const fee = await wallet.quoteTransfer(params);
+            expect(typeof fee).toBe('number');
+            expect(fee).toBeGreaterThan(0);
         });
 
-        it('should throw error when sending token transaction without RPC', async () => {
-            const walletWithoutRpc = new WalletAccountSolana(VALID_SEED, VALID_PATH);
-            const params = { to: VALID_ADDRESS, tokenMint: VALID_TOKEN, amount: 1000000 };
-            await expect(walletWithoutRpc.sendTokenTransaction(params)).rejects.toThrow('The wallet must be connected to a provider to send transactions.');
+        it('should send token transaction', async () => {
+            const params = { recipient: VALID_ADDRESS, token: VALID_TOKEN, amount: 10 };
+            const txResult = await wallet.transfer(params);
+            expect(txResult).toBeDefined();
+            expect(typeof txResult.hash).toBe('string');
+            expect(typeof txResult.fee).toBe('number');
         });
 
         it('should handle token transaction errors', async () => {
-            const params = { to: 'invalid', tokenMint: VALID_TOKEN, amount: 1000000 };
-            await expect(wallet.sendTokenTransaction(params)).rejects.toThrow();
+            const params = { recipient: 'invalid', token: VALID_TOKEN, amount: 1000000 };
+            await expect(wallet.transfer(params)).rejects.toThrow();
         });
 
         it('should throw program id error when sending token transaction', async () => {
-            const params = { to: VALID_ADDRESS, tokenMint: '9gT8yrFzG7e23NE4hRGMoPPBuaNjVKnp8pdH7HkjJnY3', amount: 1000000 };
-            await expect(wallet.sendTokenTransaction(params)).rejects.toThrow('Unable to determine token program ID from mint address.');
+            const params = { recipient: VALID_ADDRESS, token: '9gT8yrFzG7e23NE4hRGMoPPBuaNjVKnp8pdH7HkjJnY3', amount: 1000000 };
+            await expect(wallet.transfer(params)).rejects.toThrow('Unable to determine token program ID from mint address.');
+        });
+    });
+
+    describe('dispose', () => {
+        it('should dispose the wallet account', () => {
+            wallet.dispose();
+            expect(wallet.path).toBeNull();
+            expect(wallet.keyPair.privateKey).toBeNull();
         });
     });
 }); 

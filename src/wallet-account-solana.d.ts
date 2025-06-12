@@ -68,7 +68,7 @@ export default class WalletAccountSolana {
    * @param {SolanaTransaction} tx - The transaction to quote.
    * @returns {Promise<number>} The transaction's fee (in lamports).
    */
-  quoteTransaction(tx: SolanaTransaction): Promise<number>;
+  quoteSendTransaction(tx: SolanaTransaction): Promise<number>;
   /**
    * Returns the account's native token balance.
    *
@@ -82,6 +82,14 @@ export default class WalletAccountSolana {
    * @returns {Promise<number>} The token balance.
    */
   getTokenBalance(tokenAddress: string): Promise<number>;
+
+  /**
+   * Quotes a token transfer.
+   *
+   * @param {TransferOptions} params - The transaction parameters.
+   * @returns {Promise<number>} The transaction's fee (in lamports).
+   */
+  quoteTransfer(params: TransferOptions): Promise<number>;
   /**
    * Sends a token transaction.
    *
@@ -91,18 +99,22 @@ export default class WalletAccountSolana {
    * @param {number} params.amount - The amount of tokens to send.
    * @returns {Promise<string>} The transaction's hash.
    */
-  sendTokenTransaction(params: { to: string; tokenMint: string; amount: number }): Promise<string>;
-  #private;
+  transfer(params: TransferOptions): Promise<string>;
+  /**
+   * Disposes of the wallet account.
+   * @returns {void}
+   */
+  dispose(): void;
 }
 export type KeyPair = {
   /**
    * - The public key.
    */
-  publicKey: string;
+  publicKey: Uint8Array;
   /**
    * - The private key.
    */
-  privateKey: string;
+  privateKey: Uint8Array;
 };
 export type SolanaTransaction = {
   /**
@@ -128,4 +140,21 @@ export type SolanaWalletConfig = {
    * Note: only use this if you want to use a custom ws url.
    */
   wsUrl?: string;
+};
+
+
+export type TransferOptions = {
+  /**
+   * - The recipient's address.
+   */
+  recipient: string;
+  /**
+   * - The token's address.
+   */
+  token: string;
+
+  /**
+   * - The amount of tokens to send.
+   */
+  amount: number;
 };

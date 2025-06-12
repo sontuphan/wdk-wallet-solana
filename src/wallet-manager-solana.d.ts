@@ -15,16 +15,16 @@ export default class WalletManagerSolana {
   /**
    * Creates a new wallet manager for solana blockchains.
    *
-   * @param {string} seedPhrase - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
+   * @param {Uint8Array} seedBuffer - Uint8Array seedBuffer buffer.
    * @param {SolanaWalletConfig} [config] - The configuration object.
    */
-  constructor(seedPhrase: string, config?: SolanaWalletConfig);
+  constructor(seedBuffer: Uint8Array, config?: SolanaWalletConfig);
   /**
    * The seed phrase of the wallet.
    *
    * @type {string}
    */
-  get seedPhrase(): string;
+  get seed(): Uint8Array;
   /**
    * Returns the wallet account at a specific index (see [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
    *
@@ -54,6 +54,12 @@ export default class WalletManagerSolana {
     normal: number;
     fast: number;
   }>;
+
+  /**
+     * Disposes the wallet manager, erasing the seed buffer.
+     */
+  dispose(): void;
+
   #private;
 }
 

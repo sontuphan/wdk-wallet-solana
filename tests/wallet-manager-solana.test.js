@@ -46,7 +46,7 @@ describe('WalletManagerSolana', () => {
         });
 
         it(' should get the seed phrase from the wallet manager', () => {
-            expect(walletManager.seedPhrase).toBeInstanceOf(Uint8Array);
+            expect(walletManager.seed).toBeInstanceOf(Uint8Array);
         });
 
         it('should throw an error if the seed phrase is invalid', () => {
@@ -93,6 +93,13 @@ describe('WalletManagerSolana', () => {
 
             // Restore original RPC
             walletManager['#rpc'] = originalRpc;
+        });
+    });
+
+    describe('dispose', () => {
+        it('should dispose the wallet manager', () => {
+            walletManager.dispose();
+            expect(walletManager.seed).toBeNull();
         });
     });
 }); 

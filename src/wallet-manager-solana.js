@@ -17,17 +17,18 @@
 import { createSolanaRpc } from "@solana/kit";
 import * as bip39 from "bip39";
 import WalletAccountSolana from "./wallet-account-solana.js";
-
+import sodium from 'sodium-universal'
 const FEE_RATE_NORMAL_MULTIPLIER = 1.1,
   FEE_RATE_FAST_MULTIPLIER = 2.0;
 
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
 export default class WalletManagerSolana {
-  #seedPhrase;
-  #rpc;
-  #rpcUrl;
-  #wsUrl;
+  _seedBuffer;
+  _rpc;
+  _rpcUrl;
+  _wsUrl;
+  _accounts
 
   /**
    * Creates a new wallet manager for solana blockchains.
@@ -35,26 +36,27 @@ export default class WalletManagerSolana {
    * @param {string|Uint8Array} seed - The wallet's seed, either as a [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase or a Uint8Array.
    * @param {SolanaWalletConfig} [config] - The configuration object.
    */
-  constructor(seedPhrase, config = {}) {
-    if (typeof seedPhrase === 'string') {
-      if (!WalletManagerSolana.isValidSeedPhrase(seedPhrase)) {
+  constructor(seed, config = {}) {
+    if (typeof seed === 'string') {
+      if (!WalletManagerSolana.isValidSeedPhrase(seed)) {
         throw new Error("The seed phrase is invalid.");
       }
-      seedPhrase = bip39.mnemonicToSeedSync(seedPhrase);
+      seed = bip39.mnemonicToSeedSync(seed);
     }
-    this.#seedPhrase = seedPhrase;
+    this._seedBuffer = seed;
+    this._accounts = new Set()
 
     const { rpcUrl, wsUrl } = config;
 
     if (rpcUrl) {
-      this.#rpcUrl = rpcUrl;
-      this.#rpc = createSolanaRpc(rpcUrl);
+      this._rpcUrl = rpcUrl;
+      this._rpc = createSolanaRpc(rpcUrl);
     }
 
     if (wsUrl) {
-      this.#wsUrl = wsUrl;
+      this._wsUrl = wsUrl;
     } else if (rpcUrl) {
-      this.#wsUrl = rpcUrl.replace("http", "ws");
+      this._wsUrl = rpcUrl.replace("http", "ws");
     }
   }
 
@@ -78,12 +80,12 @@ export default class WalletManagerSolana {
   }
 
   /**
-   * The seed phrase of the wallet.
+   * The seed of the wallet.
    *
-   * @type {string}
+   * @type {Uint8Array}
    */
-  get seedPhrase() {
-    return this.#seedPhrase;
+  get seed() {
+    return this._seedBuffer;
   }
 
   /**
@@ -109,10 +111,14 @@ export default class WalletManagerSolana {
    * @returns {Promise<WalletAccountSolana>} The account.
    */
   async getAccountByPath(path) {
-    return await WalletAccountSolana.create(this.#seedPhrase, path, {
-      rpcUrl: this.#rpcUrl,
-      wsUrl: this.#wsUrl,
+    const account = await WalletAccountSolana.create(this._seedBuffer, path, {
+      rpcUrl: this._rpcUrl,
+      wsUrl: this._wsUrl,
     });
+
+    this._accounts.add(account)
+
+    return account
   }
 
   /**
@@ -121,7 +127,7 @@ export default class WalletManagerSolana {
    * @returns {Promise<{ normal: number, fast: number }>} The fee rates (in lamports).
    */
   async getFeeRates() {
-    if (!this.#rpc) {
+    if (!this._rpc) {
       throw new Error(
         "The wallet must be connected to a provider to get fee rates."
       );
@@ -129,7 +135,7 @@ export default class WalletManagerSolana {
 
 
     // Get recent prioritization fees
-    const fees = await this.#rpc.getRecentPrioritizationFees().send();
+    const fees = await this._rpc.getRecentPrioritizationFees().send();
 
     // Find the highest non-zero fee, or use default
     const nonZeroFees = fees.filter(fee => fee.prioritizationFee > 0n);
@@ -145,5 +151,20 @@ export default class WalletManagerSolana {
       fast: fastFee
     };
 
+  }
+
+  /**
+ * Disposes the wallet manager, erasing the seed buffer.
+ */
+  dispose() {
+    for (const account of this._accounts) account.dispose()
+    this._accounts.clear()
+
+    sodium.sodium_memzero(this._seedBuffer)
+
+    this._seedBuffer = null
+    this._rpc = null
+    this._rpcUrl = null
+    this._wsUrl = null
   }
 }
