@@ -18,16 +18,14 @@ import { createSolanaRpc } from '@solana/kit'
 import * as bip39 from 'bip39'
 import WalletAccountSolana from './wallet-account-solana.js'
 import sodium from 'sodium-universal'
+import AbstractWalletManager from '@wdk/wallet'
+
 const FEE_RATE_NORMAL_MULTIPLIER = 1.1
 const FEE_RATE_FAST_MULTIPLIER = 2.0
 
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
-export default class WalletManagerSolana {
-  /**
-   * @private
-   */
-  _seedBuffer
+export default class WalletManagerSolana extends AbstractWalletManager {
   /**
    * @private
    */
@@ -52,13 +50,8 @@ export default class WalletManagerSolana {
    * @param {SolanaWalletConfig} [config] - The configuration object.
    */
   constructor (seed, config = {}) {
-    if (typeof seed === 'string') {
-      if (!WalletManagerSolana.isValidSeedPhrase(seed)) {
-        throw new Error('The seed phrase is invalid.')
-      }
-      seed = bip39.mnemonicToSeedSync(seed)
-    }
-    this._seedBuffer = seed
+    super(seed, config)
+
     this._accounts = new Set()
 
     const { rpcUrl, wsUrl } = config
@@ -73,34 +66,6 @@ export default class WalletManagerSolana {
     } else if (rpcUrl) {
       this._wsUrl = rpcUrl.replace('http', 'ws')
     }
-  }
-
-  /**
-   * Returns a random [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-   *
-   * @returns {string} The seed phrase.
-   */
-  static getRandomSeedPhrase () {
-    return bip39.generateMnemonic()
-  }
-
-  /**
-   * Checks if a seed phrase is valid.
-   *
-   * @param {string} seedPhrase - The seed phrase.
-   * @returns {boolean} True if the seed phrase is valid.
-   */
-  static isValidSeedPhrase (seedPhrase) {
-    return bip39.validateMnemonic(seedPhrase)
-  }
-
-  /**
-   * The seed of the wallet.
-   *
-   * @type {Uint8Array}
-   */
-  get seed () {
-    return this._seedBuffer
   }
 
   /**
@@ -126,7 +91,7 @@ export default class WalletManagerSolana {
    * @returns {Promise<WalletAccountSolana>} The account.
    */
   async getAccountByPath (path) {
-    const account = await WalletAccountSolana.create(this._seedBuffer, path, {
+    const account = await WalletAccountSolana.create(this.seed, path, {
       rpcUrl: this._rpcUrl,
       wsUrl: this._wsUrl
     })
@@ -173,9 +138,10 @@ export default class WalletManagerSolana {
     for (const account of this._accounts) account.dispose()
     this._accounts.clear()
 
-    sodium.sodium_memzero(this._seedBuffer)
+    sodium.sodium_memzero(this._seed)
 
-    this._seedBuffer = null
+    this._seed = null
+    this._config = null
     this._rpc = null
     this._rpcUrl = null
     this._wsUrl = null

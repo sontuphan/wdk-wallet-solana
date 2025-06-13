@@ -50,6 +50,7 @@ import {
   TOKEN_PROGRAM_ID
 } from '@solana/spl-token'
 import sodium from 'sodium-universal'
+import { IWalletAccount } from '@wdk/wallet'
 
 /**
  * @typedef {Object} KeyPair
@@ -79,7 +80,7 @@ import sodium from 'sodium-universal'
 
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
-export default class WalletAccountSolana {
+export default class WalletAccountSolana extends IWalletAccount {
   /**
    * @private
    */
@@ -139,6 +140,7 @@ export default class WalletAccountSolana {
   }
 
   constructor (seed, path, config = {}) {
+    super(seed)
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
         throw new Error('The seed phrase is invalid.')

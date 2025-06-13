@@ -48,7 +48,7 @@ describe('WalletManagerSolana', () => {
     })
 
     it('should throw an error if the seed phrase is invalid', () => {
-      expect(() => new WalletManagerSolana('invalid seed phrase', testConfig)).toThrow('The seed phrase is invalid.')
+      expect(() => new WalletManagerSolana('invalid seed phrase', testConfig)).toThrow('Invalid seed phrase.')
     })
   })
 

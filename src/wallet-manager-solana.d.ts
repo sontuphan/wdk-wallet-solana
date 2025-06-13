@@ -1,29 +1,12 @@
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 export default class WalletManagerSolana {
     /**
-     * Returns a random [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-     *
-     * @returns {string} The seed phrase.
-     */
-    static getRandomSeedPhrase(): string;
-    /**
-     * Checks if a seed phrase is valid.
-     *
-     * @param {string} seedPhrase - The seed phrase.
-     * @returns {boolean} True if the seed phrase is valid.
-     */
-    static isValidSeedPhrase(seedPhrase: string): boolean;
-    /**
      * Creates a new wallet manager for solana blockchains.
      *
      * @param {string|Uint8Array} seed - The wallet's seed, either as a [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase or a Uint8Array.
      * @param {SolanaWalletConfig} [config] - The configuration object.
      */
     constructor(seed: string | Uint8Array, config?: SolanaWalletConfig);
-    /**
-     * @private
-     */
-    private _seedBuffer;
     /**
      * @private
      */
@@ -40,12 +23,6 @@ export default class WalletManagerSolana {
      * @private
      */
     private _accounts;
-    /**
-     * The seed of the wallet.
-     *
-     * @type {Uint8Array}
-     */
-    get seed(): Uint8Array;
     /**
      * Returns the wallet account at a specific index (see [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
      *
@@ -79,6 +56,8 @@ export default class WalletManagerSolana {
    * Disposes the wallet manager, erasing the seed buffer.
    */
     dispose(): void;
+    _seed: any;
+    _config: any;
 }
 export type SolanaWalletConfig = import("./wallet-account-solana.js").SolanaWalletConfig;
 import WalletAccountSolana from './wallet-account-solana.js';
