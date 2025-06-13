@@ -190,7 +190,7 @@ describe('WalletAccountSolana', () => {
 
     it('should throw program id error when sending token transaction', async () => {
       const params = { recipient: VALID_ADDRESS, token: '9gT8yrFzG7e23NE4hRGMoPPBuaNjVKnp8pdH7HkjJnY3', amount: 1000000 }
-      await expect(wallet.transfer(params)).rejects.toThrow('Unable to determine token program ID from mint address.')
+      await expect(wallet.transfer(params)).rejects.toThrow('Failed to find account')
     })
   })
 

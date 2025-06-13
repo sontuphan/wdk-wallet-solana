@@ -46,8 +46,8 @@ import {
   Transaction
 } from '@solana/web3.js'
 import {
-  getOrCreateAssociatedTokenAccount,
-  createTransferInstruction
+  Token,
+  TOKEN_PROGRAM_ID
 } from '@solana/spl-token'
 import sodium from 'sodium-universal'
 
@@ -430,48 +430,36 @@ export default class WalletAccountSolana {
     const to = new PublicKey(recipient)
     const sender = new PublicKey(this._publicKeyBuffer)
 
-    const programInfo = await this._connection.getParsedAccountInfo(mint)
-    const programId = programInfo?.value?.owner
-    if (!programId) {
-      throw new Error('Unable to determine token program ID from mint address.')
-    }
-
-    const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
+    // Create Token object
+    const tokenClient = new Token(
       this._connection,
-      this._keypair,
       mint,
-      sender,
-      undefined,
-      undefined,
-      undefined,
-      programId
-    )
-    const toTokenAccount = await getOrCreateAssociatedTokenAccount(
-      this._connection,
-      this._keypair,
-      mint,
-      to,
-      undefined,
-      undefined,
-      undefined,
-      programId
+      TOKEN_PROGRAM_ID,
+      this._keypair
     )
 
-    const transferInstruction = createTransferInstruction(
-      fromTokenAccount.address,
-      toTokenAccount.address,
-      sender,
-      amount,
-      [],
-      programId
+    // Get associated token accounts
+    const fromTokenAccount = await tokenClient.getOrCreateAssociatedAccountInfo(sender)
+    const toTokenAccount = await tokenClient.getOrCreateAssociatedAccountInfo(to)
+
+    // Create transfer instruction
+    const transaction = new Transaction().add(
+      Token.createTransferInstruction(
+        TOKEN_PROGRAM_ID,
+        fromTokenAccount.address,
+        toTokenAccount.address,
+        sender,
+        [],
+        amount
+      )
     )
 
-    const transaction = new Transaction().add(transferInstruction)
-
+    // Set transaction properties
     const { blockhash } = await this._connection.getLatestBlockhash()
     transaction.recentBlockhash = blockhash
     transaction.feePayer = sender
 
+    // Sign and return
     transaction.sign(this._keypair)
     return transaction
   }
