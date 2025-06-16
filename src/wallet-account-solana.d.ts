@@ -1,4 +1,5 @@
-export default class WalletAccountSolana {
+/** @implements {IWalletAccount} */
+export default class WalletAccountSolana implements IWalletAccount {
     /**
      * Creates a new solana wallet account.
      *
@@ -73,7 +74,7 @@ export default class WalletAccountSolana {
     /**
      * The account's key pair.
      *
-     * @type {KeyPair}
+     * @returns {KeyPair}
      */
     get keyPair(): KeyPair;
     /**
@@ -100,7 +101,7 @@ export default class WalletAccountSolana {
     /**
      * Creates a transaction message for sending SOL or quoting fees.
      * @private
-     * @param {SolanaTransaction} tx - The transaction details
+     * @param {Transaction} tx - The transaction details
      * @param {string} version - The transaction message version ('legacy' or 0)
      * @returns {Promise<Object>} The transaction message and instructions
      */
@@ -108,17 +109,17 @@ export default class WalletAccountSolana {
     /**
      * Sends a transaction with arbitrary data.
      *
-     * @param {SolanaTransaction} tx - The transaction to send.
-     * @returns {Promise<string>} The transaction's hash.
+     * @param {Transaction} tx - The transaction to send.
+     * @returns {Promise<TransactionResult>} The transaction's hash.
      */
-    sendTransaction(tx: SolanaTransaction): Promise<string>;
+    sendTransaction(tx: Transaction): Promise<TransactionResult>;
     /**
      * Quotes a transaction.
      *
-     * @param {SolanaTransaction} tx - The transaction to quote.
-     * @returns {Promise<number>} The transaction's fee (in lamports).
+     * @param {Transaction} tx - The transaction to quote.
+     * @returns {Promise<Omit<TransactionResult,'hash'>>} The transaction's quotes.
      */
-    quoteSendTransaction(tx: SolanaTransaction): Promise<number>;
+    quoteSendTransaction(tx: Transaction): Promise<Omit<TransactionResult, "hash">>;
     /**
      * Returns the account's native token balance.
      *
@@ -143,42 +144,25 @@ export default class WalletAccountSolana {
      * Quotes a token transfer.
      *
      * @param {TransferOptions} params - The transaction parameters.
-     * @returns {Promise<number>} The transaction's fee (in lamports).
+     * @returns {Promise<Omit<TransactionResult,'hash'>>} The transaction's quotes.
      */
-    quoteTransfer({ recipient, token, amount }: TransferOptions): Promise<number>;
+    quoteTransfer({ recipient, token, amount }: TransferOptions): Promise<Omit<TransactionResult, "hash">>;
     /**
      * Sends a token transaction.
      *
      * @param {TransferOptions} params - The transaction parameters.
-     * @returns {Promise<string>} The transaction's hash.
+     * @returns {Promise<TransactionResult>} The transaction's hash.
      */
-    transfer({ recipient, token, amount }: TransferOptions): Promise<string>;
+    transfer({ recipient, token, amount }: TransferOptions): Promise<TransactionResult>;
     /**
      * Disposes of the wallet account.
      * @returns {void}
      */
     dispose(): void;
 }
-export type KeyPair = {
-    /**
-     * - The public key.
-     */
-    publicKey: string;
-    /**
-     * - The private key.
-     */
-    privateKey: string;
-};
-export type SolanaTransaction = {
-    /**
-     * - The transaction's recipient.
-     */
-    to: string;
-    /**
-     * - The amount of SOL to send to the recipient (in lamports).
-     */
-    value: number;
-};
+export type IWalletAccount = any;
+export type KeyPair = import("@wdk/wallet").KeyPair;
+export type Transaction = import("@wdk/wallet").Transaction;
 export type SolanaWalletConfig = {
     /**
      * - The rpc url of the provider.
@@ -190,17 +174,6 @@ export type SolanaWalletConfig = {
      */
     wsUrl?: string;
 };
-export type TransferOptions = {
-    /**
-     * - The recipient's address.
-     */
-    recipient: string;
-    /**
-     * - The token's address.
-     */
-    token: string;
-    /**
-     * - The amount of tokens to send.
-     */
-    amount: number;
-};
+export type TransferOptions = import("@wdk/wallet").TransferOptions;
+export type TransactionResult = import("@wdk/wallet").TransactionResult;
+export type TransferResult = import("@wdk/wallet").TransferResult;

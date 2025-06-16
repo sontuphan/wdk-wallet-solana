@@ -43,26 +43,21 @@ import {
   Connection,
   PublicKey,
   Keypair,
-  Transaction
+  Transaction as Web3Transaction
 } from '@solana/web3.js'
 import {
   Token,
   TOKEN_PROGRAM_ID
 } from '@solana/spl-token'
 import sodium from 'sodium-universal'
-import { IWalletAccount } from '@wdk/wallet'
 
 /**
- * @typedef {Object} KeyPair
- * @property {string} publicKey - The public key.
- * @property {string} privateKey - The private key.
+ * @typedef {import("@wdk/wallet").IWalletAccount} IWalletAccount
  */
 
-/**
- * @typedef {Object} SolanaTransaction
- * @property {string} to - The transaction's recipient.
- * @property {number} value - The amount of SOL to send to the recipient (in lamports).
- */
+/** @typedef {import('@wdk/wallet').KeyPair} KeyPair */
+
+/** @typedef {import('@wdk/wallet').Transaction} Transaction */
 
 /**
  * @typedef {Object} SolanaWalletConfig
@@ -71,16 +66,16 @@ import { IWalletAccount } from '@wdk/wallet'
  * Note: only use this if you want to use a custom ws url.
  */
 
-/**
- * @typedef {Object} TransferOptions
- * @property {string} recipient - The recipient's address.
- * @property {string} token - The token's address.
- * @property {number} amount - The amount of tokens to send.
- */
+/** @typedef {import('@wdk/wallet').TransferOptions} TransferOptions */
+
+/** @typedef {import('@wdk/wallet').TransactionResult} TransactionResult */
+
+/** @typedef {import('@wdk/wallet').TransferResult} TransferResult */
 
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
-export default class WalletAccountSolana extends IWalletAccount {
+/** @implements {IWalletAccount} */
+export default class WalletAccountSolana {
   /**
    * @private
    */
@@ -140,7 +135,6 @@ export default class WalletAccountSolana extends IWalletAccount {
   }
 
   constructor (seed, path, config = {}) {
-    super(seed)
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
         throw new Error('The seed phrase is invalid.')
@@ -210,7 +204,7 @@ export default class WalletAccountSolana extends IWalletAccount {
   /**
    * The account's key pair.
    *
-   * @type {KeyPair}
+   * @returns {KeyPair}
    */
   get keyPair () {
     return {
@@ -278,7 +272,7 @@ export default class WalletAccountSolana extends IWalletAccount {
   /**
    * Creates a transaction message for sending SOL or quoting fees.
    * @private
-   * @param {SolanaTransaction} tx - The transaction details
+   * @param {Transaction} tx - The transaction details
    * @param {string} version - The transaction message version ('legacy' or 0)
    * @returns {Promise<Object>} The transaction message and instructions
    */
@@ -311,8 +305,8 @@ export default class WalletAccountSolana extends IWalletAccount {
   /**
    * Sends a transaction with arbitrary data.
    *
-   * @param {SolanaTransaction} tx - The transaction to send.
-   * @returns {Promise<string>} The transaction's hash.
+   * @param {Transaction} tx - The transaction to send.
+   * @returns {Promise<TransactionResult>} The transaction's hash.
    */
   async sendTransaction (tx) {
     if (!this._rpc || !this._rpcSubscriptions) {
@@ -351,8 +345,8 @@ export default class WalletAccountSolana extends IWalletAccount {
   /**
    * Quotes a transaction.
    *
-   * @param {SolanaTransaction} tx - The transaction to quote.
-   * @returns {Promise<number>} The transaction's fee (in lamports).
+   * @param {Transaction} tx - The transaction to quote.
+   * @returns {Promise<Omit<TransactionResult,'hash'>>} The transaction's quotes.
    */
   async quoteSendTransaction (tx) {
     if (!this._rpc) {
@@ -370,8 +364,8 @@ export default class WalletAccountSolana extends IWalletAccount {
       getBase64Decoder().decode
     )
 
-    const fee = await this._rpc.getFeeForMessage(base64EncodedMessage).send()
-    return Number(fee.value)
+    const feeInfo = await this._rpc.getInfoForMessage(base64EncodedMessage).send()
+    return { fee: feeInfo.value }
   }
 
   /**
@@ -445,7 +439,7 @@ export default class WalletAccountSolana extends IWalletAccount {
     const toTokenAccount = await tokenClient.getOrCreateAssociatedAccountInfo(to)
 
     // Create transfer instruction
-    const transaction = new Transaction().add(
+    const transaction = new Web3Transaction().add(
       Token.createTransferInstruction(
         TOKEN_PROGRAM_ID,
         fromTokenAccount.address,
@@ -461,7 +455,6 @@ export default class WalletAccountSolana extends IWalletAccount {
     transaction.recentBlockhash = blockhash
     transaction.feePayer = sender
 
-    // Sign and return
     transaction.sign(this._keypair)
     return transaction
   }
@@ -470,20 +463,20 @@ export default class WalletAccountSolana extends IWalletAccount {
    * Quotes a token transfer.
    *
    * @param {TransferOptions} params - The transaction parameters.
-   * @returns {Promise<number>} The transaction's fee (in lamports).
+   * @returns {Promise<Omit<TransactionResult,'hash'>>} The transaction's quotes.
    */
   async quoteTransfer ({ recipient, token, amount }) {
     const transaction = await this._createTransfer({ recipient, token, amount })
     const message = transaction.compileMessage() // Returns a Message object
     const feeInfo = await this._connection.getFeeForMessage(message)
-    return feeInfo.value
+    return { fee: feeInfo.value }
   }
 
   /**
    * Sends a token transaction.
    *
    * @param {TransferOptions} params - The transaction parameters.
-   * @returns {Promise<string>} The transaction's hash.
+   * @returns {Promise<TransactionResult>} The transaction's hash.
    */
   async transfer ({ recipient, token, amount }) {
     const transaction = await this._createTransfer({ recipient, token, amount })

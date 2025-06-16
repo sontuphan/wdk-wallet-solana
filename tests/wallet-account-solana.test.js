@@ -100,15 +100,17 @@ describe('WalletAccountSolana', () => {
     it('should quote a transaction', async () => {
       const tx = { to: VALID_ADDRESS, value: 1000000 }
       const quote = await wallet.quoteSendTransaction(tx)
-      expect(typeof quote).toBe('number')
-      expect(quote).toBeGreaterThan(0)
+      expect(typeof quote).toBe('object')
+      expect(quote.fee).toBeDefined()
+      expect(typeof quote.fee).toBe('number')
+      expect(quote.fee).toBeGreaterThan(0)
     })
 
     it('should quote a transaction with memo', async () => {
       const tx = { to: VALID_ADDRESS, value: 1000000, data: 'memo' }
       const quote = await wallet.quoteSendTransaction(tx)
-      expect(typeof quote).toBe('number')
-      expect(quote).toBeGreaterThan(0)
+      expect(typeof quote).toBe('object')
+      expect(quote.fee).toBeGreaterThan(0)
     })
 
     it('should throw error when quoting transaction with invalid rpc', async () => {
@@ -170,9 +172,9 @@ describe('WalletAccountSolana', () => {
 
     it('should return fee for token transfer', async () => {
       const params = { recipient: VALID_ADDRESS, token: VALID_TOKEN, amount: 10 }
-      const fee = await wallet.quoteTransfer(params)
-      expect(typeof fee).toBe('number')
-      expect(fee).toBeGreaterThan(0)
+      const quote = await wallet.quoteTransfer(params)
+      expect(typeof quote).toBe('object')
+      expect(quote.fee).toBeGreaterThan(0)
     })
 
     it('should send token transaction', async () => {

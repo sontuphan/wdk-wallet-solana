@@ -6,7 +6,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/flaviomoceri/wdk-wallet-solana.git"
+    "url": "git+https://github.com/tetherto/wdk-wallet-solana.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
