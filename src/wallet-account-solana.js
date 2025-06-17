@@ -57,6 +57,12 @@ import sodium from 'sodium-universal'
 
 /** @typedef {import('@wdk/wallet').KeyPair} KeyPair */
 
+/**
+ * @typedef {KeyPair & {
+ *   secretKey: string
+ * }} ExtendedKeyPair
+ */
+
 /** @typedef {import('@wdk/wallet').Transaction} Transaction */
 
 /**
@@ -77,51 +83,6 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 /** @implements {IWalletAccount} */
 export default class WalletAccountSolana {
   /**
-   * @private
-   */
-  _rpc
-  /**
-   * @private
-   */
-  _rpcSubscriptions
-  /**
-   * @private
-   */
-  _path
-  /**
-   * @private
-   */
-  _config
-  /**
-   * @private
-   */
-  _connection
-  /**
-   * @private
-   */
-  _signer
-  /**
-   * @private
-   */
-  _seedBuffer
-  /**
-   * @private
-   */
-  _keypair
-  /**
-   * @private
-   */
-  _secretKeyBuffer
-  /**
-   * @private
-   */
-  _publicKeyBuffer
-  /**
-   * @private
-   */
-  _privateKeyBuffer
-
-  /**
    * Creates a new solana wallet account.
    *
    * @param {string|Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase or Uint8Array.
@@ -134,6 +95,13 @@ export default class WalletAccountSolana {
     return instance
   }
 
+  /**
+ * Intialise a new solana wallet account.
+ *
+ * @param {string|Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase or Uint8Array.
+ * @param {string} path - The BIP-44 derivation path (e.g. "0'/0/0").
+ * @param {SolanaWalletConfig} [config] - The configuration object.
+ */
   constructor (seed, path, config = {}) {
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
@@ -142,8 +110,26 @@ export default class WalletAccountSolana {
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
+    /**
+     * @private
+     * @type {Uint8Array}
+     * @description The seed buffer derived from the BIP-39 seed phrase.
+     */
     this._seedBuffer = seed
+
+    /**
+     * @private
+     * @type {string}
+     * @description The BIP-44 derivation path for this account.
+     * @example "m/44'/501'/0'/0/0"
+     */
     this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${path}`
+
+    /**
+     * @private
+     * @type {SolanaWalletConfig}
+     * @description The configuration object for the wallet account.
+     */
     this._config = config
   }
 
@@ -204,12 +190,13 @@ export default class WalletAccountSolana {
   /**
    * The account's key pair.
    *
-   * @type {KeyPair}
+   * @type {ExtendedKeyPair}
    */
   get keyPair () {
     return {
       privateKey: this._privateKeyBuffer,
-      publicKey: this._publicKeyBuffer
+      publicKey: this._publicKeyBuffer,
+      secretKey: this._secretKeyBuffer
     }
   }
 
@@ -437,8 +424,6 @@ export default class WalletAccountSolana {
     // Get associated token accounts
     const fromTokenAccount = await tokenClient.getOrCreateAssociatedAccountInfo(sender)
     const toTokenAccount = await tokenClient.getOrCreateAssociatedAccountInfo(to)
-    console.log(`From: ${fromTokenAccount.address.toBase58()}`)
-    console.log(`To: ${toTokenAccount.address.toBase58()}`)
 
     // Create transfer instruction
     const transaction = new Web3Transaction().add(
@@ -468,7 +453,6 @@ export default class WalletAccountSolana {
    * @returns {Promise<Omit<TransactionResult,'hash'>>} The transaction's quotes.
    */
   async quoteTransfer ({ recipient, token, amount }) {
-    console.log(`Quoting transfer of ${amount} tokens to ${recipient}...`, token)
     const transaction = await this._createTransfer({ recipient, token, amount })
     const message = transaction.compileMessage() // Returns a Message object
     const feeInfo = await this._connection.getFeeForMessage(message)

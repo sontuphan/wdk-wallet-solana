@@ -61,17 +61,6 @@ async function mintTokens (token, destination, authority, amount) {
   await token.mintTo(destination.address, authority, [], amount)
 }
 
-// // Transfer Tokens
-// async function transferTokens(token, source, destination, owner, amount) {
-//   await token.transfer(source, destination, owner, [], amount)
-// }
-
-// Get Balance
-// async function getTokenBalance(connection, tokenAccount) {
-//   const info = await connection.getTokenAccountBalance(tokenAccount)
-//   return Number(info.value.amount) / Math.pow(10, info.value.decimals)
-// }
-
 // Top-level function
 export async function createTestToken (seedPhrase) {
   try {
@@ -89,32 +78,11 @@ export async function createTestToken (seedPhrase) {
 
     const decimals = 2
     const mint = await createNewMint(connection, keypair, keypair.publicKey, decimals)
-    console.log('Mint:', mint.publicKey.toBase58())
 
     const tokenAccount = await getOrCreateATA(connection, mint, keypair.publicKey)
-    console.log('Token Account:', tokenAccount.address.toBase58())
 
     // Mint 100 tokens (100 * 10^decimals = 10000)
     await mintTokens(mint, tokenAccount, keypair.publicKey, 100 * Math.pow(10, decimals))
-    console.log('Minted tokens')
-
-    // const secondAccount = await initialize(seedPhrase, 1)
-
-    // const destPubkey = new PublicKey(secondAccount.publicKey)
-    // console.log('Second Account Public Key:', destPubkey.toBase58())
-
-    // const destinationTokenAccount = await getOrCreateATA(connection, mint, destPubkey)
-    // console.log('Destination Token Account:', destinationTokenAccount.address.toBase58())
-
-    // //Transfer 12 tokens (12 * 10^decimals)
-    // await transferTokens(mint, tokenAccount.address, destinationTokenAccount.address, keypair.publicKey, 12 * Math.pow(10, decimals))
-    // console.log('Transferred tokens')
-
-    // const balance = await getTokenBalance(connection, tokenAccount.address)
-    // console.log('Sender Token Balance:', balance)
-
-    // const destBalance = await getTokenBalance(connection, destinationTokenAccount.address)
-    // console.log('Destination Token Balance:', destBalance)
 
     return mint.publicKey.toBase58()
   } catch (err) {
@@ -157,5 +125,3 @@ export async function confirmTestTransaction (signature) {
     return false
   }
 }
-
-// createTestToken("uncover learn cheese meat fire tired enact melt heart million soda zebra", "BksCCQkPwNBc4Ku32ESe7k9p6aUxxUYnwRr7LPJh3JA3");

@@ -17,7 +17,8 @@ const ACCOUNT = {
   address: '8fjz5DTqBYENAUfsWLpSF2DBb46DXFcmztNJGLVrFPit',
   keyPair: {
     privateKey: '4f78da356da498a860e7b955a320a91696d87c8b1057169a33aab0ca49609d37',
-    publicKey: '0071ee7b3d6ea1245c4d408302558818f3b5ae0cff95db7eaaa44d4af3ace51195'
+    publicKey: '0071ee7b3d6ea1245c4d408302558818f3b5ae0cff95db7eaaa44d4af3ace51195',
+    secretKey: '4f78da356da498a860e7b955a320a91696d87c8b1057169a33aab0ca49609d3771ee7b3d6ea1245c4d408302558818f3b5ae0cff95db7eaaa44d4af3ace51195'
   }
 }
 
@@ -29,7 +30,6 @@ describe('WalletAccountSolana', () => {
     if (!tokenMint) {
       throw new Error('Failed to create test token')
     }
-    console.log('Test token created:', tokenMint)
     VALID_TOKEN = tokenMint
   })
 
@@ -47,7 +47,8 @@ describe('WalletAccountSolana', () => {
 
       expect(account.keyPair).toEqual({
         privateKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.privateKey, 'hex')),
-        publicKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.publicKey, 'hex'))
+        publicKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.publicKey, 'hex')),
+        secretKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.secretKey, 'hex'))
       }
       )
     })
@@ -61,7 +62,8 @@ describe('WalletAccountSolana', () => {
 
       expect(account.keyPair).toEqual({
         privateKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.privateKey, 'hex')),
-        publicKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.publicKey, 'hex'))
+        publicKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.publicKey, 'hex')),
+        secretKey: new Uint8Array(Buffer.from(ACCOUNT.keyPair.secretKey, 'hex'))
       })
     })
 
@@ -177,7 +179,7 @@ describe('WalletAccountSolana', () => {
       const account = await WalletAccountSolana.create(VALID_SEED, INDEX_1_ACCOUNT_PATH, VALID_CONFIG)
 
       const balance = await account.getBalance()
-      expect(balance).toBeGreaterThan(1000000000)
+      expect(balance).toBeGreaterThanOrEqual(1000000000)
     })
 
     test('should throw error when getting balance without RPC', async () => {

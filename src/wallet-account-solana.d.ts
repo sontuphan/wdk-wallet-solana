@@ -8,57 +8,47 @@ export default class WalletAccountSolana implements IWalletAccount {
      * @param {SolanaWalletConfig} [config] - The configuration object.
      */
     static create(seed: string | Uint8Array, path: string, config?: SolanaWalletConfig): Promise<WalletAccountSolana>;
-    constructor(seed: any, path: any, config?: {});
+    /**
+   * Intialise a new solana wallet account.
+   *
+   * @param {string|Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase or Uint8Array.
+   * @param {string} path - The BIP-44 derivation path (e.g. "0'/0/0").
+   * @param {SolanaWalletConfig} [config] - The configuration object.
+   */
+    constructor(seed: string | Uint8Array, path: string, config?: SolanaWalletConfig);
     /**
      * @private
-     */
-    private _rpc;
-    /**
-     * @private
-     */
-    private _rpcSubscriptions;
-    /**
-     * @private
-     */
-    private _path;
-    /**
-     * @private
-     */
-    private _config;
-    /**
-     * @private
-     */
-    private _connection;
-    /**
-     * @private
-     */
-    private _signer;
-    /**
-     * @private
+     * @type {Uint8Array}
+     * @description The seed buffer derived from the BIP-39 seed phrase.
      */
     private _seedBuffer;
     /**
      * @private
+     * @type {string}
+     * @description The BIP-44 derivation path for this account.
+     * @example "m/44'/501'/0'/0/0"
      */
-    private _keypair;
+    private _path;
     /**
      * @private
+     * @type {SolanaWalletConfig}
+     * @description The configuration object for the wallet account.
      */
-    private _secretKeyBuffer;
-    /**
-     * @private
-     */
-    private _publicKeyBuffer;
-    /**
-     * @private
-     */
-    private _privateKeyBuffer;
+    private _config;
     /**
      * Initializes the wallet account.
      * @private
      * @returns {Promise<void>}
      */
     private _initialize;
+    _secretKeyBuffer: Uint8Array<ArrayBuffer>;
+    _privateKeyBuffer: Uint8Array<any>;
+    _publicKeyBuffer: Uint8Array<any>;
+    _signer: any;
+    _keypair: any;
+    _rpc: any;
+    _connection: any;
+    _rpcSubscriptions: any;
     /**
      * The derivation path's index of this account.
      *
@@ -74,9 +64,9 @@ export default class WalletAccountSolana implements IWalletAccount {
     /**
      * The account's key pair.
      *
-     * @type {KeyPair}
+     * @type {ExtendedKeyPair}
      */
-    get keyPair(): KeyPair;
+    get keyPair(): ExtendedKeyPair;
     /**
      * Returns the account's address.
      *
@@ -162,6 +152,9 @@ export default class WalletAccountSolana implements IWalletAccount {
 }
 export type IWalletAccount = any;
 export type KeyPair = import("@wdk/wallet").KeyPair;
+export type ExtendedKeyPair = KeyPair & {
+    secretKey: string;
+};
 export type Transaction = import("@wdk/wallet").Transaction;
 export type SolanaWalletConfig = {
     /**
