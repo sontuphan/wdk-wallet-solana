@@ -13,7 +13,14 @@
 // limitations under the License.
 'use strict'
 
+/** @typedef {import('@wdk/wallet').FeeRates} FeeRates */
+/** @typedef {import('@wdk/wallet').KeyPair} KeyPair */
+/** @typedef {import('@wdk/wallet').TransactionResult} TransactionResult */
+/** @typedef {import('@wdk/wallet').TransferOptions} TransferOptions */
+/** @typedef {import('@wdk/wallet').TransferResult} TransferResult */
+
 /** @typedef {import('./src/wallet-manager-solana.js').SolanaWalletConfig} SolanaWalletConfig */
+/** @typedef {import('./src/wallet-account-solana.js').ExtendedKeyPair} ExtendedKeyPair */
 
 export { default } from './src/wallet-manager-solana.js'
 
