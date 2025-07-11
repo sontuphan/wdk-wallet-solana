@@ -372,6 +372,8 @@ export default class WalletAccountSolana {
     sodium_memzero(this._keyPair.secretKey)
 
     this._keyPair.secretKey = undefined
+
+    this._signer = undefined
   }
 
   /** @private */
@@ -415,7 +417,6 @@ export default class WalletAccountSolana {
           receiver = new PublicKey(recipient)
 
     const signer = Keypair.fromSecretKey(this._keyPair.secretKey)
-
     const sender = new PublicKey(signer.publicKey)
 
     const client = new Token(this._connection, mint, TOKEN_PROGRAM_ID, signer)
@@ -423,14 +424,8 @@ export default class WalletAccountSolana {
     const fromTokenAccount = await client.getOrCreateAssociatedAccountInfo(sender),
           toTokenAccount = await client.getOrCreateAssociatedAccountInfo(receiver)
 
-    const instruction = Token.createTransferInstruction(
-      TOKEN_PROGRAM_ID,
-      fromTokenAccount.address, 
-      toTokenAccount.address,
-      sender,
-      [],
-      amount
-    )
+    const instruction = Token.createTransferInstruction(TOKEN_PROGRAM_ID, fromTokenAccount.address, 
+      toTokenAccount.address, sender, [], amount)
 
     const transaction = new Transaction().add(instruction)
 
