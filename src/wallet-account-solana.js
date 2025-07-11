@@ -377,7 +377,7 @@ export default class WalletAccountSolana {
 
     this._signer = await createKeyPairSignerFromPrivateKeyBytes(privateKey)
 
-    sodium.sodium_memzero(privateKey)
+    sodium_memzero(privateKey)
   }
 
   /** @private */
