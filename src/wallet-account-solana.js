@@ -310,12 +310,19 @@ export default class WalletAccountSolana {
 
     const transfer = await this._getTransfer(options)
     const message = transfer.compileMessage()
-    const fee = await this._connection.getFeeForMessage(message)
+    const { value } = await this._connection.getFeeForMessage(message)
+
+    const fee = Number(value)
+
+    // eslint-disable-next-line eqeqeq
+    if (this._config.transferMaxFee != undefined && fee >= this._config.transferMaxFee) {
+      throw new Error('Exceeded maximum fee cost for transfer operation.')
+    }
 
     const transaction = transfer.serialize()
     const hash = await this._connection.sendRawTransaction(transaction)
 
-    return { hash, fee: Number(fee.value) }
+    return { hash, fee }
   }
 
   /**
