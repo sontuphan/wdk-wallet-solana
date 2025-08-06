@@ -55,15 +55,7 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 /** @implements {IWalletAccount} */
 export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
   /** @private */
-  constructor (seed, path, config = {}) {
-    if (typeof seed === 'string') {
-      if (!bip39.validateMnemonic(seed)) {
-        throw new Error('The seed phrase is invalid.')
-      }
-
-      seed = bip39.mnemonicToSeedSync(seed)
-    }
-
+  constructor (_seed, path, config = {}) {
     super(undefined, config)
 
     /**
@@ -94,6 +86,14 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    */
   static async at (seed, path, config = {}) {
     const account = new WalletAccountSolana(seed, path, config)
+
+    if (typeof seed === 'string') {
+      if (!bip39.validateMnemonic(seed)) {
+        throw new Error('The seed phrase is invalid.')
+      }
+
+      seed = bip39.mnemonicToSeedSync(seed)
+    }
 
     const hdKey = HDKey.fromMasterSeed(seed)
 
