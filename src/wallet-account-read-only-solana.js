@@ -42,21 +42,21 @@ import { getTransferSolInstruction } from '@solana-program/system'
 /**
  * @typedef {Object} SolanaTransaction
  * @property {string} to - The transaction's recipient.
- * @property {number} value - The amount of sols to send to the recipient (in lamports).
+ * @property {number | bigint} value - The amount of sols to send to the recipient (in lamports).
  */
 
 /**
  * @typedef {Object} SolanaWalletConfig
  * @property {string} [rpcUrl] - The provider's rpc url.
  * @property {string} [wsUrl] - The provider's websocket url. If not set, the rpc url will also be used for the websocket connection.
- * @property {number} [transferMaxFee] - The maximum fee amount for transfer operations.
+ * @property {number | bigint} [transferMaxFee] - The maximum fee amount for transfer operations.
  */
 
 export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   /**
    * Creates a new solana read-only wallet account.
    *
-   * @param {string} [address] - The account's address.
+   * @param {string} address - The account's address.
    * @param {Omit<SolanaWalletConfig, 'transferMaxFee'>} [config] - The configuration object.
    */
   constructor (address, config = { }) {
@@ -102,7 +102,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   /**
    * Returns the account's sol balance.
    *
-   * @returns {Promise<number>} The sol balance (in lamports).
+   * @returns {Promise<bigint>} The sol balance (in lamports).
    */
   async getBalance () {
     if (!this._rpc) {
@@ -113,14 +113,14 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     const { value } = await this._rpc.getBalance(address).send()
 
-    return Number(value)
+    return value
   }
 
   /**
    * Returns the account balance for a specific token.
    *
    * @param {string} tokenAddress - The smart contract address of the token.
-   * @returns {Promise<number>} The token balance (in base unit).
+   * @returns {Promise<bigint>} The token balance (in base unit).
    */
   async getTokenBalance (tokenAddress) {
     if (!this._rpc) {
@@ -142,7 +142,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     const { value: { amount } } = await this._connection.getTokenAccountBalance(account.pubkey)
 
-    return Number(amount)
+    return BigInt(amount)
   }
 
   /**
@@ -170,13 +170,12 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     const fee = await this._rpc.getFeeForMessage(base64EncodedMessage).send()
 
-    return { fee: Number(fee.value) }
+    return { fee: fee.value }
   }
 
   /**
    * Quotes the costs of a transfer operation.
    *
-   * @see {@link transfer}
    * @param {TransferOptions} options - The transfer's options.
    * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
    */
@@ -189,7 +188,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const message = transfer.compileMessage()
     const fee = await this._connection.getFeeForMessage(message)
 
-    return { fee: Number(fee.value) }
+    return { fee: BigInt(fee.value) }
   }
 
   /**
