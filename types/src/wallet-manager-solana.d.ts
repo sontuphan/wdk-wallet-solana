@@ -7,15 +7,6 @@ export default class WalletManagerSolana extends WalletManager {
      */
     constructor(seed: string | Uint8Array, config?: SolanaWalletConfig);
     /**
-     * A map between derivation paths and wallet accounts. It contains all the wallet accounts that have been accessed through the {@link getAccount} and {@link getAccountByPath} methods.
-     *
-     * @protected
-     * @type {{ [path: string]: WalletAccountSolana }}
-     */
-    protected _accounts: {
-        [path: string]: WalletAccountSolana;
-    };
-    /**
      * The solana rpc client.
      *
      * @protected
@@ -48,10 +39,6 @@ export default class WalletManagerSolana extends WalletManager {
      * @returns {Promise<FeeRates>} The fee rates (in lamports).
      */
     getFeeRates(): Promise<FeeRates>;
-    /**
-   * Disposes the wallet manager, erasing the seed buffer.
-   */
-    dispose(): void;
 }
 export type SolanaRpc = ReturnType<typeof createSolanaRpc>;
 export type FeeRates = import("@wdk/wallet").FeeRates;

@@ -26,11 +26,11 @@ import WalletAccountSolana from './wallet-account-solana.js'
 
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
-const FEE_RATE_NORMAL_MULTIPLIER = 1.1
+const FEE_RATE_NORMAL_MULTIPLIER = 110n
 
-const FEE_RATE_FAST_MULTIPLIER = 2.0
+const FEE_RATE_FAST_MULTIPLIER = 200n
 
-const DEFAULT_BASE_FEE = 5_000
+const DEFAULT_BASE_FEE = 5_000n
 
 export default class WalletManagerSolana extends WalletManager {
   /**
@@ -49,14 +49,6 @@ export default class WalletManagerSolana extends WalletManager {
     * @type {SolanaWalletConfig}
     */
     this._config = config
-
-    /**
-     * A map between derivation paths and wallet accounts. It contains all the wallet accounts that have been accessed through the {@link getAccount} and {@link getAccountByPath} methods.
-     *
-     * @protected
-     * @type {{ [path: string]: WalletAccountSolana }}
-     */
-    this._accounts = { }
 
     /**
      * The solana rpc client.
@@ -114,23 +106,12 @@ export default class WalletManagerSolana extends WalletManager {
     const nonZeroFees = fees.filter(fee => fee.prioritizationFee > 0n)
 
     const fee = nonZeroFees.length > 0
-      ? Number(nonZeroFees.reduce((max, fee) => fee.prioritizationFee > max ? fee.prioritizationFee : max, 0n))
+      ? nonZeroFees.reduce((max, fee) => fee.prioritizationFee > max ? fee.prioritizationFee : max, 0n)
       : DEFAULT_BASE_FEE
 
     return {
-      normal: Math.round(fee * FEE_RATE_NORMAL_MULTIPLIER),
-      fast: fee * FEE_RATE_FAST_MULTIPLIER
+      normal: fee * FEE_RATE_NORMAL_MULTIPLIER / 100n,
+      fast: fee * FEE_RATE_FAST_MULTIPLIER / 100n
     }
-  }
-
-  /**
-   * Disposes all the wallet accounts, erasing their private keys from the memory.
-   */
-  dispose () {
-    for (const account of Object.values(this._accounts)) {
-      account.dispose()
-    }
-
-    this._accounts = { }
   }
 }

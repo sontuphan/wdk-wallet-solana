@@ -54,7 +54,7 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
 /** @implements {IWalletAccount} */
 export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
-  /** @private */
+  /** @package */
   constructor (seed, path, config = {}) {
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
@@ -101,7 +101,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     const hdKey = HDKey.fromMasterSeed(account._seed)
     const { privateKey } = hdKey.derive(account._path, true)
     account._keyPair = nacl.sign.keyPair.fromSeed(privateKey)
-    
+
     account._signer = await createKeyPairSignerFromPrivateKeyBytes(privateKey)
 
     sodium_memzero(privateKey)

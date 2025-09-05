@@ -2,10 +2,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     /**
      * Creates a new solana read-only wallet account.
      *
-     * @param {string} [address] - The account's address.
+     * @param {string} address - The account's address.
      * @param {Omit<SolanaWalletConfig, 'transferMaxFee'>} [config] - The configuration object.
      */
-    constructor(address?: string, config?: Omit<SolanaWalletConfig, "transferMaxFee">);
+    constructor(address: string, config?: Omit<SolanaWalletConfig, "transferMaxFee">);
     /**
      * The read-only wallet account configuration.
      *
@@ -37,16 +37,16 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     /**
      * Returns the account's sol balance.
      *
-     * @returns {Promise<number>} The sol balance (in lamports).
+     * @returns {Promise<bigint>} The sol balance (in lamports).
      */
-    getBalance(): Promise<number>;
+    getBalance(): Promise<bigint>;
     /**
      * Returns the account balance for a specific token.
      *
      * @param {string} tokenAddress - The smart contract address of the token.
-     * @returns {Promise<number>} The token balance (in base unit).
+     * @returns {Promise<bigint>} The token balance (in base unit).
      */
-    getTokenBalance(tokenAddress: string): Promise<number>;
+    getTokenBalance(tokenAddress: string): Promise<bigint>;
     /**
      * Quotes the costs of a send transaction operation.
      *
@@ -100,7 +100,7 @@ export type SolanaTransaction = {
     /**
      * - The amount of sols to send to the recipient (in lamports).
      */
-    value: number;
+    value: number | bigint;
 };
 export type SolanaWalletConfig = {
     /**
@@ -114,7 +114,7 @@ export type SolanaWalletConfig = {
     /**
      * - The maximum fee amount for transfer operations.
      */
-    transferMaxFee?: number;
+    transferMaxFee?: number | bigint;
 };
 import { WalletAccountReadOnly } from '@wdk/wallet';
 import { Connection, Transaction } from '@solana/web3.js';
