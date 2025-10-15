@@ -23,8 +23,6 @@ import { PublicKey, Keypair, Transaction, VersionedTransaction } from '@solana/w
 
 import { Token, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token'
 
-import { getTransferSolInstruction } from '@solana-program/system'
-
 import HDKey from 'micro-key-producer/slip10.js'
 
 import nacl from 'tweetnacl'
@@ -271,7 +269,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @param {TransferOptions} options - The transfer's options.
    * @returns {Promise<TransferResult>} The transfer's result.
-   * TODO: support native SOL transfer
+   * @note only SPL tokens - won't work for native SOL
    */
   async transfer (options) {
     if (!this._rpc) {
