@@ -21,8 +21,6 @@ import {
 
 import { PublicKey, Keypair, Transaction, VersionedTransaction } from '@solana/web3.js'
 
-import { Token, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token'
-
 import HDKey from 'micro-key-producer/slip10.js'
 
 import nacl from 'tweetnacl'
@@ -76,9 +74,6 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
 
     /** @private */
     this._keyPair = undefined
-
-    /** @private */
-    this._signer = undefined
   }
 
   /**
@@ -94,9 +89,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
 
     const hdKey = HDKey.fromMasterSeed(account._seed)
     const { privateKey } = hdKey.derive(account._path, true)
-    account._keyPair = nacl.sign.keyPair.fromSeed(privateKey)
-
-    account._signer = await createKeyPairSignerFromPrivateKeyBytes(privateKey)
+    account._keyPair = Keypair.fromSeed(Buffer.from(privateKey, "hex"));
 
     sodium_memzero(privateKey)
 
@@ -128,13 +121,13 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    */
   get keyPair () {
     return {
-      privateKey: this._keyPair.secretKey,
-      publicKey: this._keyPair.publicKey
+      privateKey: this._keyPair?.secretKey || undefined,
+      publicKey: this._keyPair?.publicKey || undefined
     }
   }
 
   async getAddress () {
-    return this._signer.address
+    return this._keyPair.publicKey.toBase58();
   }
 
   /**
@@ -145,8 +138,11 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    */
   async sign (message) {
     const messageBytes = Buffer.from(message, 'utf8')
-    const signatureBytes = await signBytes(this._signer.keyPair.privateKey, messageBytes)
-    const signature = Buffer.from(signatureBytes).toString('hex')
+    // Sign the message using native ed25519 signature
+      const signature = nacl.sign.detached(
+        messageBytes,
+        this._keyPair.secretKey,
+      );
 
     return signature
   }
@@ -162,7 +158,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     const messageBytes = Buffer.from(message, 'utf8')
     const signatureBytes = Buffer.from(signature, 'hex')
 
-    const isValid = await verifySignature(this._signer.keyPair.publicKey, signatureBytes, messageBytes)
+    const isValid = await verifySignature(this._keyPair.publicKey, signatureBytes, messageBytes)
 
     return isValid
   }
@@ -175,7 +171,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction (tx) {
-    if (!this._rpc) {
+    if (!this._connection) {
       throw new Error('The wallet must be connected to a provider to send transactions.')
     }
 
@@ -272,62 +268,11 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @note only SPL tokens - won't work for native SOL
    */
   async transfer (options) {
-    if (!this._rpc) {
+    if (!this._connection) {
       throw new Error('The wallet must be connected to a provider to transfer tokens.')
     }
 
-    const { token, recipient, amount } = options
-
-    const address = await this.getAddress()
-    const ownerPublicKey = new PublicKey(address)
-    const tokenMint = new PublicKey(token)
-    const recipientPublicKey = new PublicKey(recipient)
-
-    const fromATA = await Token.getAssociatedTokenAddress(
-      ASSOCIATED_TOKEN_PROGRAM_ID,
-      TOKEN_PROGRAM_ID,
-      tokenMint,
-      ownerPublicKey
-    )
-
-    const toATA = await Token.getAssociatedTokenAddress(
-      ASSOCIATED_TOKEN_PROGRAM_ID,
-      TOKEN_PROGRAM_ID,
-      tokenMint,
-      recipientPublicKey
-    )
-
-    const tx = new Transaction()
-
-    const recipientATAInfo = await this._connection.getAccountInfo(toATA)
-    // If recipient's ATA doesn't exist, add creation instruction
-    if (!recipientATAInfo) {
-      const createATAInstruction = Token.createAssociatedTokenAccountInstruction(
-        ASSOCIATED_TOKEN_PROGRAM_ID,
-        TOKEN_PROGRAM_ID,
-        tokenMint,
-        toATA,
-        recipientPublicKey,
-        ownerPublicKey // Fee payer
-      )
-      tx.add(createATAInstruction)
-    }
-
-    // Add transfer instruction
-    const transferInstruction = Token.createTransferInstruction(
-      TOKEN_PROGRAM_ID,
-      fromATA,
-      toATA,
-      ownerPublicKey,
-      [],
-      amount
-    )
-    tx.add(transferInstruction)
-
-    // Set blockhash and fee payer
-    const { blockhash } = await this._connection.getLatestBlockhash()
-    tx.recentBlockhash = blockhash
-    tx.feePayer = ownerPublicKey
+    const tx = await this._buildSPLTransferTransaction(options)
 
     if (this._config.transferMaxFee !== undefined) {
       const message = tx.compileMessage()
@@ -362,10 +307,10 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
   dispose () {
     sodium_memzero(this._keyPair.secretKey)
 
-    this._keyPair.secretKey = undefined
-
-    this._signer = undefined
+    this._keyPair = undefined
 
     this._seed = undefined
   }
+
+  
 }
