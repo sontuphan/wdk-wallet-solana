@@ -133,27 +133,57 @@ console.log('Token balance:', tokenBalance)
 ```
 ### Sending Transactions
 
-Send SOL and estimate fees using `WalletAccountSolana`. All transactions require a recent blockhash.
+- Send SOL and estimate fees
 
 ```javascript
 // Send native SOL
 const result = await account.sendTransaction({
-  recipient: 'publicKey', // Recipient's base58-encoded public key
-  value: 1000000000n, // 1 SOL in lamports
-  commitment: 'confirmed' // Optional: commitment level
+  to: 'recipientPublicKey', // Recipient's base58-encoded public key
+  value: 1000000000n // 1 SOL in lamports (use BigInt)
 })
-console.log('Transaction signature:', result.signature)
+console.log('Transaction hash:', result.hash)
 console.log('Transaction fee:', result.fee, 'lamports')
 
-
-// Get transaction fee estimate
+// Quote transaction fee before sending
 const quote = await account.quoteSendTransaction({
-  recipient: 'publicKey',
+  to: 'recipientPublicKey',
   value: 1000000000n
-});
-console.log('Estimated fee:', quote.fee, 'lamports');
+})
+console.log('Estimated fee:', quote.fee, 'lamports')
+```
 
-// Note: Fees are calculated based on recent blockhash and instruction count
+- Send Solana Transaction Types
+
+```javascript
+import { Transaction, SystemProgram, PublicKey, VersionedTransaction, TransactionMessage } from '@solana/web3.js'
+
+// 1. Using legacy Transaction object
+const transaction = new Transaction()
+transaction.add(
+  SystemProgram.transfer({
+    fromPubkey: new PublicKey(await account.getAddress()),
+    toPubkey: new PublicKey('recipientPublicKey'),
+    lamports: 1000000n
+  })
+)
+const result = await account.sendTransaction(transaction)
+
+// 2. Using VersionedTransaction (V0)
+const { blockhash } = await connection.getLatestBlockhash()
+const message = new TransactionMessage({
+  payerKey: new PublicKey(await account.getAddress()),
+  recentBlockhash: blockhash,
+  instructions: [
+    SystemProgram.transfer({
+      fromPubkey: new PublicKey(await account.getAddress()),
+      toPubkey: new PublicKey('recipientPublicKey'),
+      lamports: 1000000n
+    })
+  ]
+}).compileToV0Message()
+
+const versionedTx = new VersionedTransaction(message)
+const result = await account.sendTransaction(versionedTx)
 ```
 
 ### Token Transfers
