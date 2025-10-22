@@ -78,9 +78,9 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      */
     verify(message: string, signature: string): Promise<boolean>;
     /**
-     * Sends a transaction. Accepts TransferNativeTransaction or TransactionMessage.
+     * Sends a transaction.
      *
-     * @param {SolanaTransaction} tx - The transaction (TransferNativeTransaction or TransactionMessage).
+     * @param {SolanaTransaction} tx - The transaction.
      * @returns {Promise<TransactionResult>} The transaction's result.
      */
     sendTransaction(tx: SolanaTransaction): Promise<TransactionResult>;

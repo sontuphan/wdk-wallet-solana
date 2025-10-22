@@ -43,10 +43,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     /**
      * Creates a new solana read-only wallet account.
      *
-     * @param {string} address - The account's address.
+     * @param {string} addr - The account's address.
      * @param {Omit<SolanaWalletConfig, 'transferMaxFee'>} [config] - The configuration object.
      */
-    constructor(addr: any, config?: Omit<SolanaWalletConfig, "transferMaxFee">);
+    constructor(addr: string, config?: Omit<SolanaWalletConfig, "transferMaxFee">);
     /**
      * The read-only wallet account configuration.
      *
@@ -72,7 +72,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     /**
    * Quotes the costs of a send transaction operation.
    *
-   * @param {SolanaTransaction} tx - The transaction (TransferNativeTransaction or TransactionMessage).
+   * @param {SolanaTransaction} tx - The transaction.
    * @returns {Promise<{fee: bigint}>} Object containing the estimated transaction fee in lamports.
    */
     quoteSendTransaction(tx: SolanaTransaction): Promise<{

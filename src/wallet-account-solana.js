@@ -194,9 +194,9 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
   }
 
   /**
-   * Sends a transaction. Accepts TransferNativeTransaction or TransactionMessage.
+   * Sends a transaction.
    *
-   * @param {SolanaTransaction} tx - The transaction (TransferNativeTransaction or TransactionMessage).
+   * @param {SolanaTransaction} tx - The transaction.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction (tx) {
