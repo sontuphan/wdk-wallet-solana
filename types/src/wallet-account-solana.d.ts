@@ -61,7 +61,12 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @type {KeyPair}
    */
     get keyPair(): KeyPair;
-    getAddress(): Promise<any>;
+    /**
+     * The address of this account.
+     *
+     * @returns {Promise<string>} The address.
+     */
+    getAddress(): Promise<string>;
     /**
      * Signs a message.
      *

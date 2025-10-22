@@ -45,19 +45,11 @@ import {
 /** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
 /** @typedef {import('@tetherto/wdk-wallet').TransferResult} TransferResult */
 /** @typedef {import('@solana/transaction-messages').TransactionMessage} TransactionMessage */
-/** @typedef {import('@solana/rpc').Rpc} SolanaRpc */
+/** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
+/** @typedef {ReturnType<import("@solana/rpc-api").SolanaRpcApi['getTransaction']>} SolanaTransactionReceipt */
 
 /**
- * @typedef {Object} TransferNativeTransaction
- * @property {string} to - The transaction's recipient address.
- * @property {number | bigint} value - The amount of SOL to send (in lamports).
- *
- * Note: This type is defined to match the interface from @tetherto/wdk-wallet
- * for consistency across different blockchain implementations.
- */
-
-/**
- * @typedef {Object} TransferNativeTransaction
+ * @typedef {Object} SimpleSolanaTransaction
  * @property {string} to - The recipient's Solana address.
  * @property {number | bigint} value - The amount of SOL to send in lamports (1 SOL = 1,000,000,000 lamports).
  *
@@ -68,24 +60,23 @@ import {
  */
 
 /**
- * @typedef {TransferNativeTransaction | TransactionMessage} SolanaTransaction
+ * @typedef {SimpleSolanaTransaction | TransactionMessage} SolanaTransaction
  * @description
  * Union type that accepts either:
- * - TransferNativeTransaction: {to, value} object for native SOL transfers
+ * - SimpleSolanaTransaction: {to, value} object for native SOL transfers
  * - TransactionMessage: Full Solana transaction message with instructions, fee payer, and lifetime
  */
 
 /**
  * @typedef {Object} SolanaWalletConfig
  * @property {string} [rpcUrl] - The provider's rpc url.
- * @property {string} [commitment] - The commitment level ('processed', 'confirmed', or 'finalized').
+ * @property {'processed' | 'confirmed' | 'finalized'} [commitment] - The commitment level (default: 'confirmed').
  * @property {number | bigint} [transferMaxFee] - Maximum allowed fee in lamports for transfer operations.
  */
 
 /**
  * Read-only Solana wallet account implementation.
  *
- * @extends WalletAccountReadOnly
  */
 export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   /**
@@ -178,7 +169,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
  * Quotes the costs of a send transaction operation.
  *
  * @param {SolanaTransaction} tx - The transaction.
- * @returns {Promise<{fee: bigint}>} Object containing the estimated transaction fee in lamports.
+ * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
  */
   async quoteSendTransaction (tx) {
     if (!this._rpc) {
@@ -217,8 +208,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
         }
       }
       transactionMessage = setTransactionMessageFeePayer(ownerAddress, transactionMessage)
-    } else {
-      throw new Error('Invalid transaction object. Must be { to, value } or a TransactionMessage.')
     }
     // Check if it's a native transfer object {to, value}
     const fee = await this._getTransactionFee(transactionMessage)
@@ -229,7 +218,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * Quotes the costs of a transfer operation.
    *
    * @param {TransferOptions} options - The transfer's options.
-   * @returns {Promise<{fee: bigint}>} Object containing the estimated transfer fee in lamports.
+   * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
    */
   async quoteTransfer (options) {
     if (!this._rpc) {
@@ -248,7 +237,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * Retrieves a transaction receipt by its signature
    *
    * @param {string} hash - The transaction's hash.
-   * @returns {Promise<any>} — The receipt, or null if the transaction has not been included in a block yet.
+   * @returns {Promise<SolanaTransactionReceipt | null>} — The receipt, or null if the transaction has not been included in a block yet.
    */
   async getTransactionReceipt (hash) {
     if (!this._rpc) {
@@ -267,11 +256,11 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * Builds a transaction message for SPL token transfer.
    * Creates instructions for ATA creation (if needed) and token transfer.
    *
-   * @private
+   * @protected
    * @param {string} token - The SPL token mint address (base58-encoded public key).
    * @param {string} recipient - The recipient's wallet address (base58-encoded public key).
    * @param {number | bigint} amount - The amount to transfer in token's base units (must be ≤ 2^64-1).
-   * @returns {Promise<import('@solana/transaction-messages').TransactionMessage>} The constructed transaction message.
+   * @returns {Promise<TransactionMessage>} The constructed transaction message.
    * @todo Support Token-2022 (Token Extensions Program).
    * @todo Support transfer with memo for tokens that require it.
    */
@@ -345,10 +334,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * Builds a transaction message for native SOL transfer.
    * Creates a transfer instruction for sending SOL.
    *
-   * @private
+   * @protected
    * @param {string} to - The recipient's address.
    * @param {number | bigint} value - The amount of SOL to send (in lamports).
-   * @returns {Promise<import('@solana/transaction-messages').TransactionMessage>} The constructed transaction message.
+   * @returns {Promise<TransactionMessage>} The constructed transaction message.
    */
   async _buildNativeTransferTransactionMessage (to, value) {
     const addr = await this.getAddress()
@@ -378,6 +367,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
   /**
    * Calculates the fee for a given transaction message.
+   *
+   * @protected
    * @param {TransactionMessage} transactionMessage - The transaction message to calculate fee for.
    * @returns {Promise<bigint>} The calculated transaction fee in lamports.
    */

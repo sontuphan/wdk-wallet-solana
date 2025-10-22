@@ -20,7 +20,7 @@ import { createSolanaRpc } from '@solana/rpc'
 
 import WalletAccountSolana from './wallet-account-solana.js'
 
-/** @typedef {ReturnType<import('@solana/rpc').createSolanaRpc>} SolanaRpc */
+/** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
@@ -57,7 +57,7 @@ export default class WalletManagerSolana extends WalletManager {
        * A Solana RPC client for HTTP requests.
        *
        * @protected
-       * @type {import('@solana/rpc').Rpc}
+       * @type {SolanaRpc}
        */
       this._rpc = createSolanaRpc(rpcUrl)
 

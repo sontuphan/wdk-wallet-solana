@@ -156,6 +156,11 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     }
   }
 
+  /**
+ * The address of this account.
+ *
+ * @returns {Promise<string>} The address.
+ */
   async getAddress () {
     return this._signer.address
   }
@@ -168,7 +173,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    */
   async sign (message) {
     if (!this._signer) {
-      throw new Error('Wallet account has been disposed')
+      throw new Error('The wallet account has been disposed.')
     }
     const messageBytes = Buffer.from(message, 'utf8')
     const signatureBytes = await signBytes(this._signer.keyPair.privateKey, messageBytes)
@@ -200,13 +205,14 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction (tx) {
+    if (!this._signer) {
+      throw new Error('The wallet account has been disposed.')
+    }
+
     if (!this._rpc) {
       throw new Error('The wallet must be connected to a provider to send transactions.')
     }
 
-    if (!this._signer) {
-      throw new Error('Wallet account has been disposed')
-    }
     let transactionMessage = tx
     if (tx?.to !== undefined && tx?.value !== undefined) {
       // Handle native token transfer { to, value } transaction
@@ -237,9 +243,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
         }
       }
       transactionMessage = setTransactionMessageFeePayerSigner(this._signer, transactionMessage)
-    } else {
-      throw new Error('Invalid transaction object. Must be { to, value } or a TransactionMessage.')
     }
+
     const fee = await this._getTransactionFee(transactionMessage)
 
     const signedtransaction = await signTransactionMessageWithSigners(transactionMessage)
@@ -261,12 +266,12 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @note only SPL tokens - won't work for native SOL
    */
   async transfer (options) {
-    if (!this._rpc) {
-      throw new Error('The wallet must be connected to a provider to transfer tokens.')
+    if (!this._signer) {
+      throw new Error('The wallet account has been disposed.')
     }
 
-    if (!this._signer) {
-      throw new Error('Wallet account has been disposed')
+    if (!this._rpc) {
+      throw new Error('The wallet must be connected to a provider to transfer tokens.')
     }
 
     const { token, recipient, amount } = options
@@ -277,10 +282,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
       amount
     )
     const fee = await this._getTransactionFee(transactionMessage)
-    if (this._config.transferMaxFee !== undefined) {
-      if (fee >= this._config.transferMaxFee) {
-        throw new Error('Exceeded maximum fee cost for transfer operation.')
-      }
+    if (this._config.transferMaxFee !== undefined && fee >= this._config.transferMaxFee) {
+      throw new Error('Exceeded maximum fee cost for transfer operation.')
     }
 
     const { hash } = await this.sendTransaction(transactionMessage)
@@ -305,7 +308,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * Disposes the wallet account, erasing the private key from the memory.
    */
   dispose () {
-    this._rawPrivateKey = undefined
+    sodium_memzero(this._rawPrivateKey)
     this._signer = undefined
     this._seed = undefined
   }

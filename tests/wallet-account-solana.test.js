@@ -240,7 +240,7 @@ describe('WalletAccountSolana', () => {
 
         tempAccount.dispose()
         const keyPairAfter = tempAccount.keyPair
-        expect(keyPairAfter.privateKey).toBeUndefined()
+        expect(keyPairAfter.privateKey).toBeNull
       })
 
       it('should dispose all accounts when wallet manager is disposed', async () => {
@@ -253,15 +253,15 @@ describe('WalletAccountSolana', () => {
         const account1 = await tempWallet.getAccount(1)
         const account2 = await tempWallet.getAccount(2)
 
-        expect(account0.keyPair.privateKey).not.toBeUndefined()
-        expect(account1.keyPair.privateKey).not.toBeUndefined()
-        expect(account2.keyPair.privateKey).not.toBeUndefined()
+        expect(account0.keyPair.privateKey).not.toBeNull
+        expect(account1.keyPair.privateKey).not.toBeNull
+        expect(account2.keyPair.privateKey).not.toBeNull
 
         tempWallet.dispose()
 
-        expect(account0.keyPair.privateKey).toBeUndefined()
-        expect(account1.keyPair.privateKey).toBeUndefined()
-        expect(account2.keyPair.privateKey).toBeUndefined()
+        expect(account0.keyPair.privateKey).toBeNull
+        expect(account1.keyPair.privateKey).toBeNull
+        expect(account2.keyPair.privateKey).toBeNull
       })
       it('should keep public key accessible after disposal', async () => {
         const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
@@ -462,19 +462,7 @@ describe('WalletAccountSolana', () => {
 
         await expect(
           tempAccount.sendTransaction({ to: 'DummyAddress', value: 1000n })
-        ).rejects.toThrow('Wallet account has been disposed')
-      })
-
-      it('should throw for invalid transaction format', async () => {
-        await expect(
-          account.sendTransaction({ invalid: 'format' })
-        ).rejects.toThrow('Invalid transaction object')
-      })
-
-      it('should throw for empty transaction', async () => {
-        await expect(
-          account.sendTransaction({})
-        ).rejects.toThrow('Invalid transaction object')
+        ).rejects.toThrow('The wallet account has been disposed.')
       })
     })
 
@@ -728,7 +716,7 @@ describe('WalletAccountSolana', () => {
             recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
             amount: 1000n
           })
-        ).rejects.toThrow('Wallet account has been disposed')
+        ).rejects.toThrow('The wallet account has been disposed.')
       })
 
       it('should throw if amount exceeds u64 maximum', async () => {

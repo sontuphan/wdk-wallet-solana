@@ -665,26 +665,6 @@ describe('WalletAccountReadOnlySolana', () => {
           'The wallet must be connected to a provider to quote transactions.'
         )
       })
-
-      it('should throw if invalid tx format - missing to', async () => {
-        const nativeTx = {
-          value: 1000000n
-        }
-
-        await expect(readOnlyAccount.quoteSendTransaction(nativeTx)).rejects.toThrow(
-          'Invalid transaction object. Must be { to, value } or a TransactionMessage.'
-        )
-      })
-
-      it('should throw if invalid tx format - missing value', async () => {
-        const nativeTx = {
-          to: '3gx5puA146Y1jb6dV4KS8vQnXtuXSZsAPV89JeaqfFXW'
-        }
-
-        await expect(readOnlyAccount.quoteSendTransaction(nativeTx)).rejects.toThrow(
-          'Invalid transaction object. Must be { to, value } or a TransactionMessage.'
-        )
-      })
     })
   })
 

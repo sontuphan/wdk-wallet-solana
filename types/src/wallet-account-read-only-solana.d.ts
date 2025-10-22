@@ -2,17 +2,10 @@
 /** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
 /** @typedef {import('@tetherto/wdk-wallet').TransferResult} TransferResult */
 /** @typedef {import('@solana/transaction-messages').TransactionMessage} TransactionMessage */
-/** @typedef {import('@solana/rpc').Rpc} SolanaRpc */
+/** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
+/** @typedef {ReturnType<import("@solana/rpc-api").SolanaRpcApi['getTransaction']>} SolanaTransactionReceipt */
 /**
- * @typedef {Object} TransferNativeTransaction
- * @property {string} to - The transaction's recipient address.
- * @property {number | bigint} value - The amount of SOL to send (in lamports).
- *
- * Note: This type is defined to match the interface from @tetherto/wdk-wallet
- * for consistency across different blockchain implementations.
- */
-/**
- * @typedef {Object} TransferNativeTransaction
+ * @typedef {Object} SimpleSolanaTransaction
  * @property {string} to - The recipient's Solana address.
  * @property {number | bigint} value - The amount of SOL to send in lamports (1 SOL = 1,000,000,000 lamports).
  *
@@ -22,22 +15,21 @@
  * interface for basic transfers without requiring knowledge of Solana's TransactionMessage structure.
  */
 /**
- * @typedef {TransferNativeTransaction | TransactionMessage} SolanaTransaction
+ * @typedef {SimpleSolanaTransaction | TransactionMessage} SolanaTransaction
  * @description
  * Union type that accepts either:
- * - TransferNativeTransaction: {to, value} object for native SOL transfers
+ * - SimpleSolanaTransaction: {to, value} object for native SOL transfers
  * - TransactionMessage: Full Solana transaction message with instructions, fee payer, and lifetime
  */
 /**
  * @typedef {Object} SolanaWalletConfig
  * @property {string} [rpcUrl] - The provider's rpc url.
- * @property {string} [commitment] - The commitment level ('processed', 'confirmed', or 'finalized').
+ * @property {'processed' | 'confirmed' | 'finalized'} [commitment] - The commitment level (default: 'confirmed').
  * @property {number | bigint} [transferMaxFee] - Maximum allowed fee in lamports for transfer operations.
  */
 /**
  * Read-only Solana wallet account implementation.
  *
- * @extends WalletAccountReadOnly
  */
 export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     /**
@@ -70,78 +62,97 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _commitment: string;
     /**
-   * Quotes the costs of a send transaction operation.
-   *
-   * @param {SolanaTransaction} tx - The transaction.
-   * @returns {Promise<{fee: bigint}>} Object containing the estimated transaction fee in lamports.
-   */
-    quoteSendTransaction(tx: SolanaTransaction): Promise<{
-        fee: bigint;
-    }>;
+     * Returns the account's native SOL balance.
+     *
+     * @returns {Promise<bigint>} The sol balance (in lamports).
+     */
+    getBalance(): Promise<bigint>;
+    /**
+     * Returns the account balance for a specific SPL token.
+     *
+     * @param {string} tokenAddress - The smart contract address of the token.
+     * @returns {Promise<bigint>} The token balance (in base unit).
+     */
+    getTokenBalance(tokenAddress: string): Promise<bigint>;
+    /**
+     * Quotes the costs of a send transaction operation.
+     *
+     * @param {SolanaTransaction} tx - The transaction.
+     * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+     */
+    quoteSendTransaction(tx: SolanaTransaction): Promise<Omit<TransactionResult, "hash">>;
+    /**
+     * Quotes the costs of a transfer operation.
+     *
+     * @param {TransferOptions} options - The transfer's options.
+     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
+     */
+    quoteTransfer(options: TransferOptions): Promise<Omit<TransferResult, "hash">>;
     /**
      * Retrieves a transaction receipt by its signature
      *
      * @param {string} hash - The transaction's hash.
-     * @returns {Promise<any>} — The receipt, or null if the transaction has not been included in a block yet.
+     * @returns {Promise<SolanaTransactionReceipt | null>} — The receipt, or null if the transaction has not been included in a block yet.
      */
-    getTransactionReceipt(hash: string): Promise<any>;
+    getTransactionReceipt(hash: string): Promise<SolanaTransactionReceipt | null>;
     /**
      * Builds a transaction message for SPL token transfer.
      * Creates instructions for ATA creation (if needed) and token transfer.
      *
-     * @private
+     * @protected
      * @param {string} token - The SPL token mint address (base58-encoded public key).
      * @param {string} recipient - The recipient's wallet address (base58-encoded public key).
      * @param {number | bigint} amount - The amount to transfer in token's base units (must be ≤ 2^64-1).
-     * @returns {Promise<import('@solana/transaction-messages').TransactionMessage>} The constructed transaction message.
+     * @returns {Promise<TransactionMessage>} The constructed transaction message.
      * @todo Support Token-2022 (Token Extensions Program).
      * @todo Support transfer with memo for tokens that require it.
      */
-    private _buildSPLTransferTransactionMessage;
+    protected _buildSPLTransferTransactionMessage(token: string, recipient: string, amount: number | bigint): Promise<TransactionMessage>;
     /**
      * Builds a transaction message for native SOL transfer.
      * Creates a transfer instruction for sending SOL.
      *
-     * @private
+     * @protected
      * @param {string} to - The recipient's address.
      * @param {number | bigint} value - The amount of SOL to send (in lamports).
-     * @returns {Promise<import('@solana/transaction-messages').TransactionMessage>} The constructed transaction message.
+     * @returns {Promise<TransactionMessage>} The constructed transaction message.
      */
-    private _buildNativeTransferTransactionMessage;
+    protected _buildNativeTransferTransactionMessage(to: string, value: number | bigint): Promise<TransactionMessage>;
     /**
      * Calculates the fee for a given transaction message.
+     *
+     * @protected
      * @param {TransactionMessage} transactionMessage - The transaction message to calculate fee for.
      * @returns {Promise<bigint>} The calculated transaction fee in lamports.
      */
-    _getTransactionFee(transactionMessage: TransactionMessage): Promise<bigint>;
+    protected _getTransactionFee(transactionMessage: TransactionMessage): Promise<bigint>;
 }
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
 export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
 export type TransactionMessage = import("@solana/transaction-messages").TransactionMessage;
-export type SolanaRpc = any;
-export type TransferNativeTransaction = {
+export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
+export type SolanaTransactionReceipt = ReturnType<import("@solana/rpc-api").SolanaRpcApi["getTransaction"]>;
+export type SimpleSolanaTransaction = {
     /**
-     * - The transaction's recipient address.
+     * - The recipient's Solana address.
      */
     to: string;
     /**
-     * - The amount of SOL to send (in lamports).
-     *
-     * Note: This type is defined to match the interface from
+     * - The amount of SOL to send in lamports (1 SOL = 1,000,000,000 lamports).
      */
     value: number | bigint;
 };
-export type SolanaTransaction = TransferNativeTransaction | TransactionMessage;
+export type SolanaTransaction = SimpleSolanaTransaction | TransactionMessage;
 export type SolanaWalletConfig = {
     /**
      * - The provider's rpc url.
      */
     rpcUrl?: string;
     /**
-     * - The commitment level ('processed', 'confirmed', or 'finalized').
+     * - The commitment level (default: 'confirmed').
      */
-    commitment?: string;
+    commitment?: "processed" | "confirmed" | "finalized";
     /**
      * - Maximum allowed fee in lamports for transfer operations.
      */
