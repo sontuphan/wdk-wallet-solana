@@ -56,10 +56,6 @@ import {
 
 /**
  * @typedef {SimpleSolanaTransaction | TransactionMessage} SolanaTransaction
- * @description
- * Union type that accepts either:
- * - SimpleSolanaTransaction: {to, value} object for native SOL transfers
- * - TransactionMessage: Full Solana transaction message with instructions, fee payer, and lifetime
  */
 
 /**
