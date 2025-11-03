@@ -1,5 +1,8 @@
-/** @implements {IWalletAccount} */
-export default class WalletAccountSolana extends WalletAccountReadOnlySolana implements IWalletAccount {
+/**
+ * Full-featured Solana wallet account implementation with signing capabilities.
+ *
+ */
+export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     /**
      * Creates a new solana wallet account.
      *
@@ -9,23 +12,36 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      * @returns {Promise<WalletAccountSolana>} The wallet account.
      */
     static at(seed: string | Uint8Array, path: string, config?: SolanaWalletConfig): Promise<WalletAccountSolana>;
-    /** @package */
-    constructor(seed, path, config);
     /**
-     * The wallet account configuration.
-     *
-     * @protected
-     * @type {SolanaWalletConfig}
+     * @private
+     * Use {@link WalletAccountSolana.at} instead.
      */
-    protected _config: SolanaWalletConfig;
+    private constructor();
     /** @private */
     private _seed;
     /** @private */
     private _path;
-    /** @private */
-    private _keyPair;
-    /** @private */
+    /**
+     * The Ed25519 key pair signer for signing transactions.
+     *
+     * @private
+     * @type {import('@solana/keys').KeyPairSigner | undefined}
+     */
     private _signer;
+    /**
+     * Raw Ed25519 public key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array | undefined}
+     */
+    private _rawPublicKey;
+    /**
+     * Raw Ed25519 private key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array | undefined}
+     */
+    private _rawPrivateKey;
     /**
      * The derivation path's index of this account.
      *
@@ -39,11 +55,21 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      */
     get path(): string;
     /**
-     * The account's key pair.
-     *
-     * @type {KeyPair}
-     */
+   * The account's key pair.
+   *
+   * Returns the raw key pair bytes in standard Solana format.
+   * - privateKey: 32-byte Ed25519 secret key (Uint8Array)
+   * - publicKey: 32-byte Ed25519 public key (Uint8Array)
+   *
+   * @type {KeyPair}
+   */
     get keyPair(): KeyPair;
+    /**
+     * The address of this account.
+     *
+     * @returns {Promise<string>} The address.
+     */
+    getAddress(): Promise<string>;
     /**
      * Signs a message.
      *
@@ -71,6 +97,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      *
      * @param {TransferOptions} options - The transfer's options.
      * @returns {Promise<TransferResult>} The transfer's result.
+     * @note only SPL tokens - won't work for native SOL
      */
     transfer(options: TransferOptions): Promise<TransferResult>;
     /**

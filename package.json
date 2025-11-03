@@ -20,22 +20,32 @@
   "scripts": {
     "build:types": "tsc",
     "lint": "standard --env jest",
-    "lint:fix": "standard --fix --env jest"
+    "lint:fix": "standard --fix --env jest",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test:coverage:html": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage --coverageReporters=html text"
   },
   "dependencies": {
-    "@solana-program/system": "0.7.0",
-    "@solana/kit": "2.1.1",
-    "@solana/spl-token": "0.1.8",
-    "@solana/web3.js": "1.98.2",
+    "@solana-program/system": "0.9.0",
+    "@solana-program/token": "0.7.0",
+    "@solana/addresses": "3.0.3",
+    "@solana/codecs": "3.0.3",
+    "@solana/functional": "3.0.3",
+    "@solana/keys": "3.0.3",
+    "@solana/rpc": "3.0.3",
+    "@solana/signers": "3.0.3",
+    "@solana/transaction-messages": "3.0.3",
+    "@solana/transactions": "3.0.3",
     "@tetherto/wdk-wallet": "^1.0.0-beta.1",
     "bare-node-runtime": "1.1.2",
     "bip39": "3.1.0",
     "micro-key-producer": "0.7.6",
-    "sodium-universal": "5.0.1",
-    "tweetnacl": "1.0.3"
+    "sodium-universal": "5.0.1"
   },
   "devDependencies": {
+    "jest": "^30.2.0",
     "standard": "17.1.2",
+    "cross-env": "7.0.3",
     "typescript": "5.8.3"
   },
   "exports": {

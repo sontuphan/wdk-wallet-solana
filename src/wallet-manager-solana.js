@@ -16,11 +16,11 @@
 
 import WalletManager from '@tetherto/wdk-wallet'
 
-import { createSolanaRpc } from '@solana/kit'
+import { createSolanaRpc } from '@solana/rpc'
 
 import WalletAccountSolana from './wallet-account-solana.js'
 
-/** @typedef {ReturnType<import('@solana/rpc').createSolanaRpc>} SolanaRpc */
+/** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
@@ -50,13 +50,25 @@ export default class WalletManagerSolana extends WalletManager {
     */
     this._config = config
 
-    /**
-     * The solana rpc client.
-     *
-     * @protected
-     * @type {SolanaRpc}
-     */
-    this._rpc = createSolanaRpc(this._config.rpcUrl)
+    const { rpcUrl, commitment = 'confirmed' } = config
+
+    if (rpcUrl) {
+      /**
+       * A Solana RPC client for HTTP requests.
+       *
+       * @protected
+       * @type {SolanaRpc}
+       */
+      this._rpc = createSolanaRpc(rpcUrl)
+
+      /**
+       * The commitment level for transactions.
+       *
+       * @protected
+       * @type {string}
+       */
+      this._commitment = commitment
+    }
   }
 
   /**
@@ -92,10 +104,10 @@ export default class WalletManagerSolana extends WalletManager {
   }
 
   /**
-   * Returns the current fee rates.
-   *
-   * @returns {Promise<FeeRates>} The fee rates (in lamports).
-   */
+ * Returns the current fee rates.
+ *
+ * @returns {Promise<FeeRates>} The fee rates (in lamports).
+ */
   async getFeeRates () {
     if (!this._rpc) {
       throw new Error('The wallet must be connected to a provider to get fee rates.')
@@ -103,10 +115,12 @@ export default class WalletManagerSolana extends WalletManager {
 
     const fees = await this._rpc.getRecentPrioritizationFees().send()
 
-    const nonZeroFees = fees.filter(fee => fee.prioritizationFee > 0n)
+    const nonZeroFees = fees
+      .filter(fee => fee.prioritizationFee > 0)
+      .map(fee => BigInt(fee.prioritizationFee))
 
     const fee = nonZeroFees.length > 0
-      ? nonZeroFees.reduce((max, fee) => fee.prioritizationFee > max ? fee.prioritizationFee : max, 0n)
+      ? nonZeroFees.reduce((max, fee) => fee > max ? fee : max, 0n)
       : DEFAULT_BASE_FEE
 
     return {

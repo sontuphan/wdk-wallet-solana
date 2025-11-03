@@ -48,7 +48,7 @@ const seedPhrase = 'test only example nut use this real life secret phrase must 
 
 // Create wallet manager with Solana RPC provider
 const wallet = new WalletManagerSolana(seedPhrase, {
-  provider: 'https://api.mainnet-beta.solana.com', // or any Solana RPC endpoint
+  rpcUrl: 'https://api.mainnet-beta.solana.com', // or any Solana RPC endpoint
   commitment: 'confirmed' // Optional: commitment level
 })
 
@@ -116,7 +116,7 @@ import { WalletAccountReadOnlySolana } from '@tetherto/wdk-wallet-solana'
 
 // Create a read-only account
 const readOnlyAccount = new WalletAccountReadOnlySolana('publicKey', { // Base58-encoded public key
-  provider: 'https://api.mainnet-beta.solana.com',
+  rpcUrl: 'https://api.mainnet-beta.solana.com',
   commitment: 'confirmed'
 })
 
@@ -133,27 +133,51 @@ console.log('Token balance:', tokenBalance)
 ```
 ### Sending Transactions
 
-Send SOL and estimate fees using `WalletAccountSolana`. All transactions require a recent blockhash.
+- Send SOL and estimate fees
 
 ```javascript
 // Send native SOL
 const result = await account.sendTransaction({
-  recipient: 'publicKey', // Recipient's base58-encoded public key
-  value: 1000000000n, // 1 SOL in lamports
-  commitment: 'confirmed' // Optional: commitment level
+  to: 'recipientPublicKey', // Recipient's base58-encoded public key
+  value: 1000000000n // 1 SOL in lamports (use BigInt)
 })
-console.log('Transaction signature:', result.signature)
+console.log('Transaction hash:', result.hash)
 console.log('Transaction fee:', result.fee, 'lamports')
 
-
-// Get transaction fee estimate
+// Quote transaction fee before sending
 const quote = await account.quoteSendTransaction({
-  recipient: 'publicKey',
+  to: 'recipientPublicKey',
   value: 1000000000n
-});
-console.log('Estimated fee:', quote.fee, 'lamports');
+})
+console.log('Estimated fee:', quote.fee, 'lamports')
+```
 
-// Note: Fees are calculated based on recent blockhash and instruction count
+- Send Solana Transaction Message
+
+```javascript
+import { 
+  createTransactionMessage, 
+  pipe, 
+  appendTransactionMessageInstruction 
+} from '@solana/kit'
+import { getTransferSolInstruction } from '@solana-program/system'
+
+// Build a TransactionMessage with custom instructions
+const fromAddress = await account.getAddress()
+
+const transferInstruction = getTransferSolInstruction({
+  source: { address: fromAddress },
+  destination: 'DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK',
+  amount: 1000000n
+})
+
+const txMessage = pipe(
+  createTransactionMessage({ version: 0 }),
+  tx => appendTransactionMessageInstruction(transferInstruction, tx)
+)
+
+const result = await account.sendTransaction(txMessage)
+console.log('Transaction hash:', result.hash)
 ```
 
 ### Token Transfers
@@ -252,7 +276,7 @@ new WalletManagerSolana(seed, config)
 **Example:**
 ```javascript
 const wallet = new WalletManagerSolana(seedPhrase, {
-  provider: 'https://api.mainnet-beta.solana.com',
+  rpcUrl: 'https://api.mainnet-beta.solana.com',
   commitment: 'confirmed',
   transferMaxFee: 5000 // Maximum fee in lamports
 })

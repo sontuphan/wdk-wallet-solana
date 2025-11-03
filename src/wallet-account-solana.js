@@ -15,23 +15,15 @@
 'use strict'
 
 import {
-  address as _address, createKeyPairSignerFromPrivateKeyBytes, signBytes,
-  verifySignature, createTransactionMessage, setTransactionMessageFeePayerSigner,
-  setTransactionMessageLifetimeUsingBlockhash, compileTransactionMessage, getCompiledTransactionMessageEncoder,
-  getBase64Decoder, pipe, appendTransactionMessageInstructions,
-  lamports, signTransactionMessageWithSigners, getSignatureFromTransaction,
-  sendAndConfirmTransactionFactory
-} from '@solana/kit'
-
-import { PublicKey, Keypair, Transaction } from '@solana/web3.js'
-
-import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token'
-
-import { getTransferSolInstruction } from '@solana-program/system'
+  createKeyPairSignerFromPrivateKeyBytes,
+  signTransactionMessageWithSigners,
+  setTransactionMessageFeePayerSigner
+} from '@solana/signers'
+import { getBase64EncodedWireTransaction } from '@solana/transactions'
+import { verifySignature, signBytes } from '@solana/keys'
+import { setTransactionMessageLifetimeUsingBlockhash } from '@solana/transaction-messages'
 
 import HDKey from 'micro-key-producer/slip10.js'
-
-import nacl from 'tweetnacl'
 
 import * as bip39 from 'bip39'
 
@@ -52,9 +44,15 @@ import WalletAccountReadOnlySolana from './wallet-account-read-only-solana.js'
 
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
-/** @implements {IWalletAccount} */
+/**
+ * Full-featured Solana wallet account implementation with signing capabilities.
+ *
+ */
 export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
-  /** @package */
+  /**
+   * @private
+   * Use {@link WalletAccountSolana.at} instead.
+   */
   constructor (seed, path, config = {}) {
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
@@ -80,11 +78,29 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     /** @private */
     this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${path}`
 
-    /** @private */
-    this._keyPair = undefined
-
-    /** @private */
+    /**
+     * The Ed25519 key pair signer for signing transactions.
+     *
+     * @private
+     * @type {import('@solana/keys').KeyPairSigner | undefined}
+     */
     this._signer = undefined
+
+    /**
+     * Raw Ed25519 public key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array | undefined}
+     */
+    this._rawPublicKey = undefined
+
+    /**
+     * Raw Ed25519 private key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array | undefined}
+     */
+    this._rawPrivateKey = undefined
   }
 
   /**
@@ -100,10 +116,10 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
 
     const hdKey = HDKey.fromMasterSeed(account._seed)
     const { privateKey } = hdKey.derive(account._path, true)
-    account._keyPair = nacl.sign.keyPair.fromSeed(privateKey)
-
     account._signer = await createKeyPairSignerFromPrivateKeyBytes(privateKey)
-
+    const publicKey = await crypto.subtle.exportKey('raw', account._signer.keyPair.publicKey)
+    account._rawPublicKey = new Uint8Array(publicKey)
+    account._rawPrivateKey = new Uint8Array(privateKey)
     sodium_memzero(privateKey)
 
     return account
@@ -128,17 +144,26 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
   }
 
   /**
-   * The account's key pair.
-   *
-   * @type {KeyPair}
-   */
+ * The account's key pair.
+ *
+ * Returns the raw key pair bytes in standard Solana format.
+ * - privateKey: 32-byte Ed25519 secret key (Uint8Array)
+ * - publicKey: 32-byte Ed25519 public key (Uint8Array)
+ *
+ * @type {KeyPair}
+ */
   get keyPair () {
     return {
-      privateKey: this._keyPair.secretKey,
-      publicKey: this._keyPair.publicKey
+      privateKey: this._rawPrivateKey,
+      publicKey: this._rawPublicKey
     }
   }
 
+  /**
+ * The address of this account.
+ *
+ * @returns {Promise<string>} The address.
+ */
   async getAddress () {
     return this._signer.address
   }
@@ -150,6 +175,9 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
+    if (!this._signer) {
+      throw new Error('The wallet account has been disposed.')
+    }
     const messageBytes = Buffer.from(message, 'utf8')
     const signatureBytes = await signBytes(this._signer.keyPair.privateKey, messageBytes)
     const signature = Buffer.from(signatureBytes).toString('hex')
@@ -180,38 +208,57 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction (tx) {
+    if (!this._signer) {
+      throw new Error('The wallet account has been disposed.')
+    }
+
     if (!this._rpc) {
       throw new Error('The wallet must be connected to a provider to send transactions.')
     }
 
-    const transaction = await this._getTransaction(tx)
+    let transactionMessage = tx
+    if (tx?.to !== undefined && tx?.value !== undefined) {
+      // Handle native token transfer { to, value } transaction
+      transactionMessage = await this._buildNativeTransferTransactionMessage(tx.to, tx.value)
+    }
+    if (transactionMessage?.instructions !== undefined && Array.isArray(transactionMessage.instructions)) {
+      // Check if blockhash/lifetime is missing and add it
+      if (!transactionMessage.lifetimeConstraint) {
+        const { value: latestBlockhash } = await this._rpc.getLatestBlockhash({
+          commitment: this._commitment
+        }).send()
 
-    const compiledTransactionMessageEncoder = getCompiledTransactionMessageEncoder()
-    const base64Decoder = getBase64Decoder()
+        transactionMessage = setTransactionMessageLifetimeUsingBlockhash(
+          latestBlockhash,
+          transactionMessage
+        )
+      }
 
-    const base64EncodedMessage = pipe(
-      transaction,
-      compileTransactionMessage,
-      compiledTransactionMessageEncoder.encode,
-      base64Decoder.decode
-    )
+      // Check and verify fee payer
+      if (transactionMessage?.feePayer) {
+        // Verify the fee payer is the current account
+        const feePayerAddress = typeof transactionMessage.feePayer === 'string'
+          ? transactionMessage.feePayer
+          : transactionMessage.feePayer.address
 
-    const fee = await this._rpc.getFeeForMessage(base64EncodedMessage).send()
+        if (feePayerAddress !== this._signer.address) {
+          throw new Error(`Transaction fee payer (${feePayerAddress}) does not match wallet address (${this._signer.address})`)
+        }
+      }
+      transactionMessage = setTransactionMessageFeePayerSigner(this._signer, transactionMessage)
+    }
 
-    const signedTransaction = await signTransactionMessageWithSigners(transaction)
+    const fee = await this._getTransactionFee(transactionMessage)
 
-    const sendAndConfirm = sendAndConfirmTransactionFactory({
-      rpc: this._rpc,
-      rpcSubscriptions: this._rpcSubscriptions
-    })
+    const signedtransaction = await signTransactionMessageWithSigners(transactionMessage)
 
-    await sendAndConfirm(signedTransaction, {
-      commitment: 'processed'
-    })
+    const encodedTransaction = getBase64EncodedWireTransaction(signedtransaction)
+    const signature = await this._rpc.sendTransaction(encodedTransaction, { encoding: 'base64' }).send()
 
-    const hash = getSignatureFromTransaction(signedTransaction)
-
-    return { hash, fee: Number(fee.value) }
+    return {
+      hash: signature,
+      fee
+    }
   }
 
   /**
@@ -219,25 +266,30 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @param {TransferOptions} options - The transfer's options.
    * @returns {Promise<TransferResult>} The transfer's result.
+   * @note only SPL tokens - won't work for native SOL
    */
   async transfer (options) {
+    if (!this._signer) {
+      throw new Error('The wallet account has been disposed.')
+    }
+
     if (!this._rpc) {
       throw new Error('The wallet must be connected to a provider to transfer tokens.')
     }
 
-    const transfer = await this._getTransfer(options)
-    const message = transfer.compileMessage()
-    const { value } = await this._connection.getFeeForMessage(message)
+    const { token, recipient, amount } = options
 
-    const fee = Number(value)
-
-    // eslint-disable-next-line eqeqeq
-    if (this._config.transferMaxFee != undefined && fee >= this._config.transferMaxFee) {
+    const transactionMessage = await this._buildSPLTransferTransactionMessage(
+      token,
+      recipient,
+      amount
+    )
+    const fee = await this._getTransactionFee(transactionMessage)
+    if (this._config.transferMaxFee !== undefined && fee >= this._config.transferMaxFee) {
       throw new Error('Exceeded maximum fee cost for transfer operation.')
     }
 
-    const transaction = transfer.serialize()
-    const hash = await this._connection.sendRawTransaction(transaction)
+    const { hash } = await this.sendTransaction(transactionMessage)
 
     return { hash, fee }
   }
@@ -259,58 +311,9 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * Disposes the wallet account, erasing the private key from the memory.
    */
   dispose () {
-    sodium_memzero(this._keyPair.secretKey)
-
-    this._keyPair.secretKey = undefined
-
+    sodium_memzero(this._rawPrivateKey)
+    this._rawPrivateKey = undefined
     this._signer = undefined
-  }
-
-  async _getTransaction ({ to, value }) {
-    const { value: latestBlockhash } = await this._rpc.getLatestBlockhash()
-      .send()
-
-    const instruction = getTransferSolInstruction({
-      source: this._signer,
-      destination: _address(to),
-      amount: lamports(BigInt(value))
-    })
-
-    const transaction = pipe(
-      createTransactionMessage({ version: 0 }),
-      (tx) => setTransactionMessageFeePayerSigner(this._signer, tx),
-      (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-      (tx) => appendTransactionMessageInstructions([instruction], tx)
-    )
-
-    return transaction
-  }
-
-  async _getTransfer ({ token, recipient, amount }) {
-    const address = await this.getAddress()
-
-    const _address = new PublicKey(address)
-    const _token = new PublicKey(token)
-    const _recipient = new PublicKey(recipient)
-
-    const signer = Keypair.fromSecretKey(this._keyPair.secretKey)
-
-    const client = new Token(this._connection, _token, TOKEN_PROGRAM_ID, signer)
-
-    const fromTokenAccount = await client.getOrCreateAssociatedAccountInfo(_address)
-    const toTokenAccount = await client.getOrCreateAssociatedAccountInfo(_recipient)
-
-    const instruction = Token.createTransferInstruction(TOKEN_PROGRAM_ID, fromTokenAccount.address,
-      toTokenAccount.address, _address, [], amount)
-
-    const transaction = new Transaction().add(instruction)
-
-    const { blockhash } = await this._connection.getLatestBlockhash()
-    transaction.recentBlockhash = blockhash
-    transaction.feePayer = _address
-
-    transaction.sign(signer)
-
-    return transaction
+    this._seed = undefined
   }
 }
