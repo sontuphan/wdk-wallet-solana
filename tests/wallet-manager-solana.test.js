@@ -50,7 +50,7 @@ describe('WalletManagerSolana', () => {
       const account = await wallet.getAccount(0)
       expect(account).toBeInstanceOf(WalletAccountSolana)
       expect(account.index).toBe(0)
-      expect(account.path).toBe("m/44'/501'/0'/0/0")
+      expect(account.path).toBe("m/44'/501'/0'/0'")
     })
 
     it('should return different accounts for different indices', async () => {
@@ -63,7 +63,7 @@ describe('WalletManagerSolana', () => {
     it('should handle large index numbers', async () => {
       const account = await wallet.getAccount(999)
       expect(account.index).toBe(999)
-      expect(account.path).toBe("m/44'/501'/0'/0/999")
+      expect(account.path).toBe("m/44'/501'/999'/0'")
     })
   })
 
@@ -83,8 +83,8 @@ describe('WalletManagerSolana', () => {
 
     it('should share cache with getAccount', async () => {
       const account1 = await wallet.getAccount(5)
-      const account2 = await wallet.getAccountByPath("0'/0/5")
-      expect(account1).toBe(account2) // Same instance
+      const account2 = await wallet.getAccountByPath("5'/0'")
+      expect(account1).toBe(account2)
     })
   })
 

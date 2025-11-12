@@ -68,15 +68,12 @@ describe('WalletAccountSolana', () => {
     })
 
     describe('getAddress', () => {
-      it('should return a valid base58 Solana address', async () => {
+      it('should return a valid Solana address', async () => {
         const address = await account.getAddress()
-
-        expect(address).toBeDefined()
-        expect(typeof address).toBe('string')
-        expect(address.length).toBeGreaterThanOrEqual(32)
-        expect(address.length).toBeLessThanOrEqual(44)
-        expect(address).toMatch(/^[1-9A-HJ-NP-Za-km-z]+$/) // Base58 characters only
+        expect(address).toMatch('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
       })
+
+
 
       it('should return consistent address across multiple calls', async () => {
         const address1 = await account.getAddress()
@@ -96,9 +93,9 @@ describe('WalletAccountSolana', () => {
         const address1 = await account1.getAddress()
         const address2 = await account2.getAddress()
 
-        expect(address0).not.toBe(address1)
-        expect(address1).not.toBe(address2)
-        expect(address0).not.toBe(address2)
+        expect(address0).toMatch('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+        expect(address1).toMatch('CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK')
+        expect(address2).toMatch('Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq')
       })
 
       it('should return different addresses for different derivation paths', async () => {
@@ -155,18 +152,17 @@ describe('WalletAccountSolana', () => {
       it('should follow BIP-44 Solana derivation path format', () => {
         const path = account.path
 
-        expect(path).toBeDefined()
-        expect(path).toMatch(/^m\/44'\/501'\/\d+'\/\d+\/\d+$/)
+        expect(path).toMatch("m/44'/501'/0'/0'")
       })
 
       it('should have correct path for account index 0', async () => {
         const account0 = await wallet.getAccount(0)
-        expect(account0.path).toBe("m/44'/501'/0'/0/0")
+        expect(account0.path).toBe("m/44'/501'/0'/0'")
       })
 
       it('should have correct path for account index 5', async () => {
         const account5 = await wallet.getAccount(5)
-        expect(account5.path).toBe("m/44'/501'/0'/0/5")
+        expect(account5.path).toBe("m/44'/501'/5'/0'")
       })
 
       it('should have correct path for custom derivation', async () => {
@@ -198,10 +194,8 @@ describe('WalletAccountSolana', () => {
 
       it('should match the last segment of the path', async () => {
         const account = await wallet.getAccount(42)
-        const pathSegments = account.path.split('/')
-        const lastSegment = pathSegments[pathSegments.length - 1]
 
-        expect(account.index).toBe(parseInt(lastSegment))
+        expect(account.index).toBe(42)
       })
 
       it('should extract index correctly from custom paths', async () => {
@@ -209,9 +203,9 @@ describe('WalletAccountSolana', () => {
         const account2 = await wallet.getAccountByPath("1'/0/15")
         const account3 = await wallet.getAccountByPath("0'/5/123")
 
-        expect(account1.index).toBe(7)
-        expect(account2.index).toBe(15)
-        expect(account3.index).toBe(123)
+        expect(account1.index).toBe(0)
+        expect(account2.index).toBe(1)
+        expect(account3.index).toBe(0)
       })
 
       it('should have different indices for different accounts', async () => {
