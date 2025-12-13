@@ -103,7 +103,6 @@ describe('WalletAccountReadOnlySolana', () => {
       await expect(readOnlyAccount.getBalance()).rejects.toThrow('RPC error')
     })
 
-
     it('should pass commitment level to RPC call', async () => {
       mockRpc.getBalance.mockReturnValue({
         send: jest.fn().mockResolvedValue({ value: 1000000000n })
@@ -421,7 +420,7 @@ describe('WalletAccountReadOnlySolana', () => {
               accounts: [],
               data: new Uint8Array([])
             }
-          ],
+          ]
         }
 
         const result = await readOnlyAccount.quoteSendTransaction(transactionMessage)

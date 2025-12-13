@@ -14,45 +14,58 @@
 
 'use strict'
 
-import { describe, it, expect, beforeAll, jest, beforeEach, afterEach } from '@jest/globals'
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  jest,
+  beforeEach,
+  afterEach
+} from '@jest/globals'
 import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
+import SeedSignerSolana from '../src/signers/seed-signer-solana.js'
 
-const TEST_SEED_PHRASE = 'test walk nut penalty hip pave soap entry language right filter choice'
+const TEST_SEED_PHRASE =
+  'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mockurl.com'
 
 describe('WalletAccountSolana', () => {
+  let signer
   let wallet
   let account
 
   beforeAll(async () => {
-    wallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+    signer = new SeedSignerSolana(TEST_SEED_PHRASE)
+    wallet = new WalletManagerSolana(signer, {
       rpcUrl: TEST_RPC_URL,
       commitment: 'processed'
     })
 
     account = await wallet.getAccount(0)
   })
+
   describe('Wallet Properties', () => {
     describe('seed', () => {
       it('should throw if invalid words in seed phrase', async () => {
-        await expect(
-          WalletAccountSolana.at(
+        expect(() => {
+          const invalidSigner = new SeedSignerSolana(
             'invalid word that does not exist test test test test test test test',
-            "0'/0/0",
-            {
-              rpcUrl: TEST_RPC_URL,
-              commitment: 'processed'
-            }
+            {},
+            { path: "0'/0/0" }
           )
-        ).rejects.toThrow('The seed phrase is invalid')
+          return new WalletAccountSolana(invalidSigner, {
+            rpcUrl: TEST_RPC_URL,
+            commitment: 'processed'
+          })
+        }).toThrow('The seed phrase is invalid')
       })
 
       it('should accept valid BIP-39 seed phrase as string', async () => {
-        const account = await WalletAccountSolana.at(
-          TEST_SEED_PHRASE,
-          "0'/0/0",
+        const account = new WalletAccountSolana(
+          new SeedSignerSolana(TEST_SEED_PHRASE, {}, { path: "0'/0/0" }),
           {
             rpcUrl: TEST_RPC_URL,
             commitment: 'confirmed'
@@ -79,9 +92,15 @@ describe('WalletAccountSolana', () => {
         const address1 = await account1.getAddress()
         const address2 = await account2.getAddress()
 
-        expect(address0).toMatch('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
-        expect(address1).toMatch('CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK')
-        expect(address2).toMatch('Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq')
+        expect(address0).toMatch(
+          '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
+        )
+        expect(address1).toMatch(
+          'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'
+        )
+        expect(address2).toMatch(
+          'Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq'
+        )
       })
 
       it('should return different addresses for different derivation paths', async () => {
@@ -93,17 +112,25 @@ describe('WalletAccountSolana', () => {
         const address2 = await accountPath2.getAddress()
         const address3 = await accountPath3.getAddress()
 
-        expect(address1).toMatch('DPGHHHMaayXkaThUJCUnUAJCdgc9sxNh1UEGa6vJximM')
+        expect(address1).toMatch(
+          'DPGHHHMaayXkaThUJCUnUAJCdgc9sxNh1UEGa6vJximM'
+        )
         expect(address2).toMatch('jbhYXhWfRPqPvaKqaWCJEgBdZMquFxUvjWaWLEH3YCz')
-        expect(address3).toMatch('57hwCai22XueypvXcXKotkuAQYj2eukFcY5ymWB7Arvg')
+        expect(address3).toMatch(
+          '57hwCai22XueypvXcXKotkuAQYj2eukFcY5ymWB7Arvg'
+        )
       })
     })
 
     describe('keyPair', () => {
       it('should have consistent keyPair', () => {
         const keyPair = account.keyPair
-        expect(Buffer.from(keyPair.publicKey).toString('hex')).toBe('2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19')
-        expect(Buffer.from(keyPair.privateKey).toString('hex')).toBe('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+        expect(Buffer.from(keyPair.publicKey).toString('hex')).toBe(
+          '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
+        )
+        expect(Buffer.from(keyPair.privateKey).toString('hex')).toBe(
+          'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
+        )
       })
 
       it('should have different key pairs for different accounts', async () => {
@@ -113,11 +140,18 @@ describe('WalletAccountSolana', () => {
         const keyPair0 = account0.keyPair
         const keyPair1 = account1.keyPair
 
-        expect(Buffer.from(keyPair0.publicKey).toString('hex')).toBe('2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19')
-        expect(Buffer.from(keyPair0.privateKey).toString('hex')).toBe('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
-        expect(Buffer.from(keyPair1.publicKey).toString('hex')).toBe('ad3e499bc158a797574c53bcca546939f0de16242b85ed39a848092c4d9d5274')
-        expect(Buffer.from(keyPair1.privateKey).toString('hex')).toBe('4642fc818f6525a2c5ae784cc98f44d639492c21271c5f7f0ac30ee95a3357bb')
-  
+        expect(Buffer.from(keyPair0.publicKey).toString('hex')).toBe(
+          '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
+        )
+        expect(Buffer.from(keyPair0.privateKey).toString('hex')).toBe(
+          'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
+        )
+        expect(Buffer.from(keyPair1.publicKey).toString('hex')).toBe(
+          'ad3e499bc158a797574c53bcca546939f0de16242b85ed39a848092c4d9d5274'
+        )
+        expect(Buffer.from(keyPair1.privateKey).toString('hex')).toBe(
+          '4642fc818f6525a2c5ae784cc98f44d639492c21271c5f7f0ac30ee95a3357bb'
+        )
       })
     })
 
@@ -168,7 +202,8 @@ describe('WalletAccountSolana', () => {
 
     describe('dispose', () => {
       it('should clear private key from memory', async () => {
-        const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const tempWallet = new WalletManagerSolana(tempSigner, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed'
         })
@@ -184,7 +219,8 @@ describe('WalletAccountSolana', () => {
       })
 
       it('should dispose all accounts when wallet manager is disposed', async () => {
-        const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const tempWallet = new WalletManagerSolana(tempSigner, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed'
         })
@@ -203,8 +239,10 @@ describe('WalletAccountSolana', () => {
         expect(account1.keyPair.privateKey).toBeNull
         expect(account2.keyPair.privateKey).toBeNull
       })
+
       it('should keep public key accessible after disposal', async () => {
-        const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const tempWallet = new WalletManagerSolana(tempSigner, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed'
         })
@@ -225,7 +263,9 @@ describe('WalletAccountSolana', () => {
         const message = 'Test message'
         const signature = await account.sign(message)
 
-        expect(signature).toBe('90d1d5dc7430f3efa9fa037ba2179458fad9a8bfdf42ba74fff4581ce9e0ac2fba1562483b072e9eee709ef8d59448b379d9a61e634b37a3c13858bab7754f08')
+        expect(signature).toBe(
+          '90d1d5dc7430f3efa9fa037ba2179458fad9a8bfdf42ba74fff4581ce9e0ac2fba1562483b072e9eee709ef8d59448b379d9a61e634b37a3c13858bab7754f08'
+        )
       })
 
       it('should produce different signatures for different messages', async () => {
@@ -235,12 +275,17 @@ describe('WalletAccountSolana', () => {
         const signature1 = await account.sign(message1)
         const signature2 = await account.sign(message2)
 
-        expect(signature1).toBe('06f06d64f9a5338595410825aee9ae6b04bd0069fcd36afca765f75b3c4ebb42c2ee35a62961b8edc3afc1d10b50dcdb558d9904707326236598d0b7c0385204')
-        expect(signature2).toBe('c4d4f624a1d7ba1992cdfd6ce5a8a3e7e2ac46ad342ef8b00b8c10f73633223a882ff8230b009691d57291aa6224a648371f9208c447ed695be47ec395a6ad0d')
+        expect(signature1).toBe(
+          '06f06d64f9a5338595410825aee9ae6b04bd0069fcd36afca765f75b3c4ebb42c2ee35a62961b8edc3afc1d10b50dcdb558d9904707326236598d0b7c0385204'
+        )
+        expect(signature2).toBe(
+          'c4d4f624a1d7ba1992cdfd6ce5a8a3e7e2ac46ad342ef8b00b8c10f73633223a882ff8230b009691d57291aa6224a648371f9208c447ed695be47ec395a6ad0d'
+        )
       })
 
       it('should throw error after account disposal', async () => {
-        const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const tempWallet = new WalletManagerSolana(tempSigner, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed'
         })
@@ -316,7 +361,8 @@ describe('WalletAccountSolana', () => {
 
     describe('Input Validation', () => {
       it('should throw if RPC not configured', async () => {
-        const noRpcWallet = new WalletManagerSolana(TEST_SEED_PHRASE)
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const noRpcWallet = new WalletManagerSolana(tempSigner)
         const noRpcAccount = await noRpcWallet.getAccount(0)
 
         await expect(
@@ -325,7 +371,8 @@ describe('WalletAccountSolana', () => {
       })
 
       it('should throw if account is disposed', async () => {
-        const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const tempWallet = new WalletManagerSolana(tempSigner, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed'
         })
@@ -360,7 +407,9 @@ describe('WalletAccountSolana', () => {
           value: 1000000n
         }
 
-        const result = await account.sendTransaction(tx, { skipConfirmation: true })
+        const result = await account.sendTransaction(tx, {
+          skipConfirmation: true
+        })
 
         expect(result).toBeDefined()
         expect(result.hash).toBe('mock-signature-123')
@@ -378,15 +427,21 @@ describe('WalletAccountSolana', () => {
 
         account._rpc = mockRpc
 
-        await account.sendTransaction({
-          to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
-          value: 1000000n
-        }, { skipConfirmation: true })
+        await account.sendTransaction(
+          {
+            to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
+            value: 1000000n
+          },
+          { skipConfirmation: true }
+        )
 
-        await account.sendTransaction({
-          to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
-          value: 1000000
-        }, { skipConfirmation: true })
+        await account.sendTransaction(
+          {
+            to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
+            value: 1000000
+          },
+          { skipConfirmation: true }
+        )
 
         expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(2)
       })
@@ -464,12 +519,13 @@ describe('WalletAccountSolana', () => {
           feePayer: accountAddress
         }
 
-        const result = await account.sendTransaction(txMessage, { skipConfirmation: true })
+        const result = await account.sendTransaction(txMessage, {
+          skipConfirmation: true
+        })
 
         expect(result.hash).toBe('mock-sig')
         expect(mockRpc.sendTransaction).toHaveBeenCalled()
       })
-
 
       it('should throw if fee payer does not match account', async () => {
         account._rpc = mockRpc
@@ -482,9 +538,9 @@ describe('WalletAccountSolana', () => {
           }
         }
 
-        await expect(
-          account.sendTransaction(txMessage)
-        ).rejects.toThrow('does not match wallet address')
+        await expect(account.sendTransaction(txMessage)).rejects.toThrow(
+          'does not match wallet address'
+        )
       })
     })
 
@@ -499,10 +555,13 @@ describe('WalletAccountSolana', () => {
 
         account._rpc = mockRpc
 
-        const result = await account.sendTransaction({
-          to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
-          value: 1000n
-        }, { skipConfirmation: true })
+        const result = await account.sendTransaction(
+          {
+            to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
+            value: 1000n
+          },
+          { skipConfirmation: true }
+        )
 
         expect(result.fee).toBe(7500n)
         expect(mockRpc.getFeeForMessage).toHaveBeenCalled()
@@ -554,7 +613,8 @@ describe('WalletAccountSolana', () => {
 
     describe('Input Validation', () => {
       it('should throw if RPC not configured', async () => {
-        const noRpcWallet = new WalletManagerSolana(TEST_SEED_PHRASE)
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const noRpcWallet = new WalletManagerSolana(tempSigner)
         const noRpcAccount = await noRpcWallet.getAccount(0)
 
         await expect(
@@ -567,7 +627,8 @@ describe('WalletAccountSolana', () => {
       })
 
       it('should throw if account is disposed', async () => {
-        const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const tempWallet = new WalletManagerSolana(tempSigner, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed'
         })
@@ -589,7 +650,7 @@ describe('WalletAccountSolana', () => {
           account.transfer({
             token: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
             recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
-            amount: 0xFFFFFFFFFFFFFFFFn + 1n
+            amount: 0xffffffffffffffffn + 1n
           })
         ).rejects.toThrow('Amount exceeds u64 maximum value')
       })
@@ -622,17 +683,23 @@ describe('WalletAccountSolana', () => {
 
         account._rpc = mockRpc
 
-        await account.transfer({
-          token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-          recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
-          amount: 1000000n
-        }, { skipConfirmation: true })
+        await account.transfer(
+          {
+            token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+            recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
+            amount: 1000000n
+          },
+          { skipConfirmation: true }
+        )
 
-        await account.transfer({
-          token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-          recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
-          amount: 1000000
-        }, { skipConfirmation: true })
+        await account.transfer(
+          {
+            token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+            recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
+            amount: 1000000
+          },
+          { skipConfirmation: true }
+        )
 
         expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(2)
       })
@@ -640,7 +707,8 @@ describe('WalletAccountSolana', () => {
 
     describe('Fee Limit', () => {
       it('should respect transferMaxFee configuration', async () => {
-        const limitedWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const limitedWallet = new WalletManagerSolana(tempSigner, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed',
           transferMaxFee: 10000n
@@ -671,7 +739,8 @@ describe('WalletAccountSolana', () => {
       })
 
       it('should allow transfer if fee is below limit', async () => {
-        const limitedWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+        const tempSigner = new SeedSignerSolana(TEST_SEED_PHRASE)
+        const limitedWallet = new WalletManagerSolana(tempSigner, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed',
           transferMaxFee: 10000n
@@ -695,11 +764,14 @@ describe('WalletAccountSolana', () => {
 
         limitedAccount._rpc = mockRpc
 
-        const result = await limitedAccount.transfer({
-          token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-          recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
-          amount: 1000n
-        }, { skipConfirmation: true })
+        const result = await limitedAccount.transfer(
+          {
+            token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+            recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
+            amount: 1000n
+          },
+          { skipConfirmation: true }
+        )
 
         expect(result.hash).toBe('sig')
         expect(mockRpc.sendTransaction).toHaveBeenCalled()
@@ -723,11 +795,14 @@ describe('WalletAccountSolana', () => {
 
         account._rpc = mockRpc
 
-        const result = await account.transfer({
-          token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-          recipient: '11111111111111111111111111111111',
-          amount: 1000000n
-        }, { skipConfirmation: true })
+        const result = await account.transfer(
+          {
+            token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+            recipient: '11111111111111111111111111111111',
+            amount: 1000000n
+          },
+          { skipConfirmation: true }
+        )
 
         expect(result.hash).toBe('transfer-sig')
         expect(result.fee).toBe(5000n)

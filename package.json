@@ -56,6 +56,9 @@
     },
     "./package": {
       "default": "./package.json"
+    },
+    "./signers": {
+      "default": "./src/signers/index.js"
     }
   },
   "publishConfig": {
