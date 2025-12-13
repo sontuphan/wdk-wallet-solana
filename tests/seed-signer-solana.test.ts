@@ -7,15 +7,12 @@ import {
   setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
 } from "@solana/transaction-messages";
-import { address, Address } from "@solana/addresses";
+import { address } from "@solana/addresses";
 import {
   compileTransaction,
   getBase64EncodedWireTransaction,
-  getTransactionDecoder,
 } from "@solana/transactions";
 import { pipe } from "@solana/functional";
-import { getTransferSolInstruction } from "@solana-program/system";
-import { lamports } from "@solana/rpc-types";
 import { getAddMemoInstruction } from "@solana-program/memo";
 
 const TEST_SEED_PHRASE =

@@ -21,13 +21,13 @@
     "build:types": "tsc",
     "lint": "standard --env jest",
     "lint:fix": "standard --fix --env jest",
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest ./tests/*.test.js",
     "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "test:coverage:html": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage --coverageReporters=html text",
     "test:signer": "noba --register tsx ./tests/*.test.ts"
   },
   "dependencies": {
-    "@solana-program/memo": "^0.10.0",
+    "@solana-program/memo": "^0.9.0",
     "@solana-program/system": "0.9.0",
     "@solana-program/token": "0.7.0",
     "@solana/addresses": "3.0.3",
@@ -39,7 +39,7 @@
     "@solana/signers": "3.0.3",
     "@solana/transaction-messages": "3.0.3",
     "@solana/transactions": "3.0.3",
-    "@tetherto/wdk-wallet": "^1.0.0-beta.1",
+    "@tetherto/wdk-wallet": "github:claudiovb/wdk-wallet#poc-signer",
     "bare-node-runtime": "^1.1.4",
     "bip39": "3.1.0",
     "micro-key-producer": "0.7.6",
@@ -62,6 +62,9 @@
     },
     "./package": {
       "default": "./package.json"
+    },
+    "./signers": {
+      "default": "./src/signers/index.js"
     }
   },
   "publishConfig": {

@@ -8,7 +8,6 @@ import {
   setTransactionMessageFeePayerSigner,
   signTransactionMessageWithSigners
 } from "@solana/signers";
-import { sodium_memzero } from "sodium-universal";
 import {
   getBase64EncodedWireTransaction,
   getTransactionDecoder
@@ -17,35 +16,102 @@ import {
   decompileTransactionMessage,
   getCompiledTransactionMessageDecoder
 } from "@solana/transaction-messages";
+import { sodium_memzero } from "sodium-universal";
 var BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'";
 var ISignerSolana = class {
+  /**
+   * The flag indicates whether the signer is ready to use.
+   *
+   * @type {boolean}
+   */
   get isActive() {
     throw new NotImplementedError("isActive");
   }
+  /**
+   * The derivation path's index of this account.
+   *
+   * @type {number}
+   */
   get index() {
     throw new NotImplementedError("index");
   }
+  /**
+   * The derivation path of this account.
+   *
+   * @type {string}
+   */
   get path() {
     throw new NotImplementedError("path");
   }
+  /**
+   * The signer config.
+   *
+   * @type {object}
+   */
   get config() {
     throw new NotImplementedError("config");
   }
+  /**
+   * The account address.
+   *
+   * @type {string}
+   */
   get address() {
     throw new NotImplementedError("address");
   }
+  /**
+   * The account's key pair.
+   *
+   * Returns the raw key pair bytes in standard Solana format.
+   * - privateKey: 32-byte Ed25519 secret key (Uint8Array)
+   * - publicKey: 32-byte Ed25519 public key (Uint8Array)
+   *
+   * @type {KeyPair}
+   */
+  get keyPair() {
+    throw new NotImplementedError("keyPair");
+  }
+  /**
+   * Derive a child account.
+   *
+   * @param {string} relPath - The relative path.
+   * @param {object} config - The config.
+   * @returns {SeedSignerSolana} The child instance of SeedSignerSolana.
+   */
   derive(relPath, cfg = {}) {
     throw new NotImplementedError("derive(relPath, cfg = {})");
   }
-  sign(message) {
+  /**
+   * Signs a message.
+   *
+   * @param {string} message - The message to sign.
+   * @returns {Promise<string>} The message's signature.
+   */
+  async sign(message) {
     throw new NotImplementedError("sign(message)");
   }
-  verify(message, signature) {
+  /**
+   * Verifies a message's signature.
+   *
+   * @param {string} message - The original message.
+   * @param {string} signature - The signature to verify.
+   * @returns {Promise<boolean>} True if the signature is valid.
+   */
+  async verify(message, signature) {
     throw new NotImplementedError("verify(message, signature)");
   }
-  signTransaction(unsignedTx) {
+  /**
+   * Sign a transaction
+   *
+   * @param {Uint8Array} unsignedTx - The unsigned transaction.
+   * @returns {Promise<Uint8Array>} The signed transaction.
+   */
+  async signTransaction(unsignedTx) {
     throw new NotImplementedError("signTransaction(unsignedTx)");
   }
+  /**
+   * Disposes the wallet account, erasing the private key from the memory.
+   */
   dispose() {
     throw new NotImplementedError("dispose()");
   }
@@ -76,6 +142,8 @@ var SeedSignerSolana = class _SeedSignerSolana {
       this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${opts.path}`;
       this._isRoot = false;
     }
+    this._rawPublicKey = void 0;
+    this._rawPrivateKey = void 0;
   }
   async _initAccount(root, relPath) {
     const { privateKey } = root.derive(`m/${relPath}`, true);
@@ -83,6 +151,12 @@ var SeedSignerSolana = class _SeedSignerSolana {
     this._account = account;
     this._address = this._account.address;
     this._isActive = true;
+    const publicKey = await crypto.subtle.exportKey(
+      "raw",
+      account.keyPair.publicKey
+    );
+    this._rawPublicKey = new Uint8Array(publicKey);
+    this._rawPrivateKey = new Uint8Array(privateKey);
     sodium_memzero(privateKey);
   }
   get isActive() {
@@ -91,38 +165,22 @@ var SeedSignerSolana = class _SeedSignerSolana {
   get isRoot() {
     return this._isRoot;
   }
-  /**
-   * The derivation path's index of this account.
-   *
-   * @type {number}
-   */
   get index() {
     const segments = this.path.split("/");
     return +segments[3].replace("'", "");
   }
-  /**
-   * The derivation path of this account.
-   *
-   * @type {string}
-   */
   get path() {
     return this._path;
   }
-  /**
-   * The account address.
-   *
-   * @type {string}
-   */
   get address() {
     return this._address;
   }
-  /**
-   * Derive a child account.
-   *
-   * @param {string} relPath - The relative path.
-   * @param {object} config - The config.
-   * @returns {SeedSignerSolana} The child instance of SeedSignerSolana.
-   */
+  get keyPair() {
+    return {
+      privateKey: this._rawPrivateKey,
+      publicKey: this._rawPublicKey
+    };
+  }
   derive(relPath, config = {}) {
     const merged = {
       ...this._config,
@@ -135,12 +193,6 @@ var SeedSignerSolana = class _SeedSignerSolana {
       path: relPath
     });
   }
-  /**
-   * Signs a message.
-   *
-   * @param {string} message - The message to sign.
-   * @returns {Promise<string>} The message's signature.
-   */
   async sign(message) {
     if (!this._account) {
       throw new Error("The wallet account has been disposed.");
@@ -153,13 +205,6 @@ var SeedSignerSolana = class _SeedSignerSolana {
     const signature = Buffer.from(signatureBytes).toString("hex");
     return signature;
   }
-  /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
   async verify(message, signature) {
     const messageBytes = Buffer.from(message, "utf8");
     const signatureBytes = Buffer.from(signature, "hex");
@@ -170,12 +215,6 @@ var SeedSignerSolana = class _SeedSignerSolana {
     );
     return isValid;
   }
-  /**
-   * Sign a transaction
-   *
-   * @param {Uint8Array} unsignedTx - The unsigned transaction.
-   * @returns {Promise<Uint8Array>} The signed transaction.
-   */
   async signTransaction(unsignedTx) {
     if (!this._account) {
       throw new Error(
@@ -199,10 +238,8 @@ var SeedSignerSolana = class _SeedSignerSolana {
       "base64"
     );
   }
-  /**
-   * Disposes the wallet account, erasing the private key from the memory.
-   */
   dispose() {
+    sodium_memzero(this._rawPrivateKey);
     this._root = void 0;
     this._account = void 0;
     this._address = void 0;
