@@ -123,7 +123,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<string>} The message's signature.
    */
   async sign(message) {
-    if (!this._signer) {
+    if (!this._signer?.address) {
       throw new Error("The wallet account has been disposed.");
     }
 
@@ -152,7 +152,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction(tx) {
-    if (!this._signer) {
+    if (!this._signer?.address) {
       throw new Error("The wallet account has been disposed.");
     }
 
@@ -238,7 +238,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @note only SPL tokens - won't work for native SOL
    */
   async transfer(options) {
-    if (!this._signer) {
+    if (!this._signer?.address) {
       throw new Error("The wallet account has been disposed.");
     }
 
