@@ -1,6 +1,6 @@
 'use strict'
 
-import { NotImplementedError } from '@tetherto/wdk-wallet'
+import { ISignerSolana } from './signer-solana-interface.js'
 import * as bip39 from 'bip39'
 import HDKey from 'micro-key-producer/slip10.js'
 import { verifySignature, signBytes } from '@solana/keys'
@@ -26,115 +26,6 @@ import { sodium_memzero } from 'sodium-universal'
 /** @typedef {import('@solana/signers').KeyPairSigner} KeyPairSigner */
 
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
-
-export class ISignerSolana {
-  /**
-   * The flag indicates whether the signer is ready to use.
-   *
-   * @type {boolean}
-   */
-  get isActive () {
-    throw new NotImplementedError('isActive')
-  }
-
-  /**
-   * The derivation path's index of this account.
-   *
-   * @type {number}
-   */
-  get index () {
-    throw new NotImplementedError('index')
-  }
-
-  /**
-   * The derivation path of this account.
-   *
-   * @type {string}
-   */
-  get path () {
-    throw new NotImplementedError('path')
-  }
-
-  /**
-   * The signer config.
-   *
-   * @type {object}
-   */
-  get config () {
-    throw new NotImplementedError('config')
-  }
-
-  /**
-   * The account address.
-   *
-   * @type {string}
-   */
-  get address () {
-    throw new NotImplementedError('address')
-  }
-
-  /**
-   * The account's key pair.
-   *
-   * Returns the raw key pair bytes in standard Solana format.
-   * - privateKey: 32-byte Ed25519 secret key (Uint8Array)
-   * - publicKey: 32-byte Ed25519 public key (Uint8Array)
-   *
-   * @type {KeyPair}
-   */
-  get keyPair () {
-    throw new NotImplementedError('keyPair')
-  }
-
-  /**
-   * Derive a child account.
-   *
-   * @param {string} relPath - The relative path.
-   * @param {object} config - The config.
-   * @returns {ISignerSolana} The child implementation of ISignerSolana.
-   */
-  derive (relPath, config = {}) {
-    throw new NotImplementedError('derive(relPath, config = {})')
-  }
-
-  /**
-   * Signs a message.
-   *
-   * @param {string} message - The message to sign.
-   * @returns {Promise<string>} The message's signature.
-   */
-  async sign (message) {
-    throw new NotImplementedError('sign(message)')
-  }
-
-  /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    throw new NotImplementedError('verify(message, signature)')
-  }
-
-  /**
-   * Sign a transaction
-   *
-   * @param {Uint8Array} unsignedTx - The unsigned transaction.
-   * @returns {Promise<Uint8Array>} The signed transaction.
-   */
-  async signTransaction (unsignedTx) {
-    throw new NotImplementedError('signTransaction(unsignedTx)')
-  }
-
-  /**
-   * Disposes the wallet account, erasing the private key from the memory.
-   */
-  dispose () {
-    throw new NotImplementedError('dispose()')
-  }
-}
 
 /**
  * @implements {ISignerSolana}
@@ -184,38 +75,9 @@ export default class SeedSignerSolana {
     this._rawPrivateKey = undefined
 
     if (opts.path) {
-      this._initAccount(this._root, opts.path) // This is an async process, which requires checking `isActive` to ensure the complete construction.
       this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${opts.path}`
       this._isRoot = false
     }
-  }
-
-  /**
-   * Sign a transaction
-   *
-   * @private
-   * @param {HDKey} root - The root HDKey at m/44'/501'.
-   * @param {string} relPath - The relative derivation path (e.g. 0'/0/0).
-   * @returns {Promise<void>} Void.
-   */
-  async _initAccount (root, relPath) {
-    const { privateKey } = root.derive(`m/${relPath}`, true)
-
-    const account = await createKeyPairSignerFromPrivateKeyBytes(privateKey)
-
-    this._account = account
-    this._address = this._account.address
-    this._isActive = true
-
-    const publicKey = await crypto.subtle.exportKey(
-      'raw',
-      account.keyPair.publicKey
-    )
-
-    this._rawPublicKey = new Uint8Array(publicKey)
-    this._rawPrivateKey = new Uint8Array(privateKey)
-
-    sodium_memzero(privateKey)
   }
 
   get isActive () {
@@ -235,15 +97,44 @@ export default class SeedSignerSolana {
     return this._path
   }
 
-  get address () {
-    return this._address
-  }
-
   get keyPair () {
     return {
       privateKey: this._rawPrivateKey,
       publicKey: this._rawPublicKey
     }
+  }
+
+  /**
+   * Connect to the account.
+   *
+   * _The function name `connect` follows the hardware signer convention. Here, `connect` means deriving a child HD key from the root node._
+   *
+   * @private
+   * @returns {Promise<void>} Void.
+   */
+  async _connect () {
+    const [_, relPath] = this._path.split(BIP_44_SOL_DERIVATION_PATH_PREFIX)
+
+    if (!relPath) { throw new Error('Not allowed to interact with the root node.') }
+    if (!this._root) throw new Error('The root node is not provided.')
+
+    const { privateKey } = this._root.derive(`m${relPath}`, true)
+
+    const account = await createKeyPairSignerFromPrivateKeyBytes(privateKey)
+
+    this._account = account
+    this._address = this._account.address
+    this._isActive = true
+
+    const publicKey = await crypto.subtle.exportKey(
+      'raw',
+      account.keyPair.publicKey
+    )
+
+    this._rawPublicKey = new Uint8Array(publicKey)
+    this._rawPrivateKey = new Uint8Array(privateKey)
+
+    sodium_memzero(privateKey)
   }
 
   derive (relPath, config = {}) {
@@ -259,10 +150,15 @@ export default class SeedSignerSolana {
     })
   }
 
+  async getAddress () {
+    if (!this._account) await this._connect()
+
+    return this._address
+  }
+
   async sign (message) {
-    if (!this._account) {
-      throw new Error('The wallet account has been disposed.')
-    }
+    if (!this._account) await this._connect()
+
     const messageBytes = Buffer.from(message, 'utf8')
     const signatureBytes = await signBytes(
       this._account.keyPair.privateKey,
@@ -274,6 +170,8 @@ export default class SeedSignerSolana {
   }
 
   async verify (message, signature) {
+    if (!this._account) await this._connect()
+
     const messageBytes = Buffer.from(message, 'utf8')
     const signatureBytes = Buffer.from(signature, 'hex')
 
@@ -287,11 +185,7 @@ export default class SeedSignerSolana {
   }
 
   async signTransaction (unsignedTx) {
-    if (!this._account) {
-      throw new Error(
-        'Cannot sign transactions from a root signer. Derive a child first.'
-      )
-    }
+    if (!this._account) await this._connect()
 
     const tx = getTransactionDecoder().decode(unsignedTx)
     const compiledTransactionMessage =

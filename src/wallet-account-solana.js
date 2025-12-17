@@ -71,7 +71,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      * The Solana seed signer.
      *
      * @private
-     * @type {import('@tetherto/wdk-wallet-solana/signers').ISignerSolana}
+     * @type {ISignerSolana}
      */
     this._signer = signer
   }
@@ -113,7 +113,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<string>} The address.
    */
   async getAddress () {
-    return this._signer.address
+    return await this._signer.getAddress()
   }
 
   /**
@@ -123,7 +123,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    if (!this._signer?.address) {
+    if (!this._signer.path) {
       throw new Error('The wallet account has been disposed.')
     }
 
@@ -152,7 +152,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
   async sendTransaction (tx) {
-    if (!this._signer?.address) {
+    if (!this._signer.path) {
       throw new Error('The wallet account has been disposed.')
     }
 
@@ -189,6 +189,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
       }
 
       // Check and verify fee payer
+      const signerAddress = await this._signer.getAddress()
       if (transactionMessage?.feePayer) {
         // Verify the fee payer is the current account
         const feePayerAddress =
@@ -196,14 +197,14 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
             ? transactionMessage.feePayer
             : transactionMessage.feePayer.address
 
-        if (feePayerAddress !== this._signer.address) {
+        if (feePayerAddress !== signerAddress) {
           throw new Error(
-            `Transaction fee payer (${feePayerAddress}) does not match wallet address (${this._signer.address})`
+            `Transaction fee payer (${feePayerAddress}) does not match wallet address (${signerAddress})`
           )
         }
       }
       transactionMessage = setTransactionMessageFeePayer(
-        this._signer.address,
+        signerAddress,
         transactionMessage
       )
     }
@@ -238,7 +239,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @note only SPL tokens - won't work for native SOL
    */
   async transfer (options) {
-    if (!this._signer?.address) {
+    if (!this._signer?.path) {
       throw new Error('The wallet account has been disposed.')
     }
 

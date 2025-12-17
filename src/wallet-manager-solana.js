@@ -103,9 +103,7 @@ export default class WalletManagerSolana extends WalletManager {
       const signer = this.getSigner(signerName)
 
       const childSigner = signer.derive(path)
-      while (!childSigner.isActive) {
-        await new Promise((r) => setTimeout(r, 100))
-      }
+      await childSigner.getAddress()
 
       const account = new WalletAccountSolana(childSigner, this._config)
 
