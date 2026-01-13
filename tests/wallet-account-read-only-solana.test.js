@@ -16,8 +16,11 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
+import WalletAccountSolana from '../src/wallet-account-solana.js'
 
 const TEST_ADDRESS = 'HmWPZeFgxZAJQYgwh5ipYwjbVTHtjEHB3dnJ5xcQBHX9'
+const TEST_ACCOUNT_ADDRESS = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
+const TEST_SEED_PHRASE = 'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mockurl.com'
 
 describe('WalletAccountReadOnlySolana', () => {
@@ -861,6 +864,52 @@ describe('WalletAccountReadOnlySolana', () => {
       const invalidSignature = 'invalid-signature'
 
       await expect(readOnlyAccount.getTransactionReceipt(invalidSignature)).rejects.toThrow()
+    })
+  })
+
+  describe('verify', () => {
+    it('should verify signature for same message across multiple verifications', async () => {
+      const account = await WalletAccountSolana.at(TEST_SEED_PHRASE, "0'/0/0", {
+        rpcUrl: TEST_RPC_URL,
+        commitment: 'processed'
+      })
+      const message = 'Persistent message'
+      const signature = await account.sign(message)
+
+      const readOnlyAccount = new WalletAccountReadOnlySolana(await account.getAddress(), {})
+      const isValid1 = await readOnlyAccount.verify(message, signature)
+      const isValid2 = await readOnlyAccount.verify(message, signature)
+      const isValid3 = await readOnlyAccount.verify(message, signature)
+
+      expect(isValid1).toBe(true)
+      expect(isValid2).toBe(true)
+      expect(isValid3).toBe(true)
+
+      account.dispose()
+    })
+
+    it('should reject signature for different message', async () => {
+      const account = await WalletAccountSolana.at(TEST_SEED_PHRASE, "0'/0/0", {
+        rpcUrl: TEST_RPC_URL,
+        commitment: 'processed'
+      })
+      const message1 = 'Message 1'
+      const message2 = 'Message 2'
+      const signature1 = await account.sign(message1)
+
+      const readOnlyAccount = new WalletAccountReadOnlySolana(await account.getAddress(), {})
+      expect(await readOnlyAccount.verify(message1, signature1)).toBe(true)
+      expect(await readOnlyAccount.verify(message2, signature1)).toBe(false)
+
+      account.dispose()
+    })
+
+    it('should reject invalid hex signature', async () => {
+      const message = 'Test message'
+      const invalidSignature = 'not-a-valid-hex-signature'
+
+      const readOnlyAccount = new WalletAccountReadOnlySolana(TEST_ACCOUNT_ADDRESS, {})
+      expect(await readOnlyAccount.verify(message, invalidSignature)).toBe(false)
     })
   })
 })
