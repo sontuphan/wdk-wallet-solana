@@ -40,12 +40,13 @@
     "bare-node-runtime": "^1.1.4",
     "bip39": "3.1.0",
     "micro-key-producer": "0.7.6",
-    "sodium-universal": "5.0.1"
+    "sodium-universal": "5.0.1",
+    "wdk-failover-provider": "^1.0.0"
   },
   "devDependencies": {
+    "cross-env": "7.0.3",
     "jest": "^30.2.0",
     "standard": "17.1.2",
-    "cross-env": "7.0.3",
     "typescript": "5.8.3"
   },
   "exports": {

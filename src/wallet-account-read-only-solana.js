@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-'use strict'
+"use strict";
 
-import { WalletAccountReadOnly } from '@tetherto/wdk-wallet'
+import { WalletAccountReadOnly } from "@tetherto/wdk-wallet";
 
-import { address } from '@solana/addresses'
-import { createSolanaRpc } from '@solana/rpc'
-import { pipe } from '@solana/functional'
+import { address } from "@solana/addresses";
+import { createSolanaRpc } from "@solana/rpc";
+import { pipe } from "@solana/functional";
 import {
   createTransactionMessage,
   setTransactionMessageLifetimeUsingBlockhash,
@@ -26,20 +26,20 @@ import {
   appendTransactionMessageInstructions,
   getCompiledTransactionMessageEncoder,
   setTransactionMessageFeePayer,
-  compileTransactionMessage
-} from '@solana/transaction-messages'
-import { getBase64Decoder } from '@solana/codecs'
+  compileTransactionMessage,
+} from "@solana/transaction-messages";
+import { getBase64Decoder } from "@solana/codecs";
 
-import {
-  getTransferSolInstruction
-} from '@solana-program/system'
+import { getTransferSolInstruction } from "@solana-program/system";
 
 import {
   findAssociatedTokenPda,
   getCreateAssociatedTokenIdempotentInstruction,
   getTransferInstruction,
-  TOKEN_PROGRAM_ADDRESS
-} from '@solana-program/token'
+  TOKEN_PROGRAM_ADDRESS,
+} from "@solana-program/token";
+
+import FailoverProvider from "wdk-failover-provider";
 
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
 /** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
@@ -60,8 +60,9 @@ import {
 
 /**
  * @typedef {Object} SolanaWalletConfig
- * @property {string} [rpcUrl] - The provider's rpc url.
+ * @property {string | string[]} [rpcUrl] - The provider's rpc url.
  * @property {'processed' | 'confirmed' | 'finalized'} [commitment] - The commitment level (default: 'confirmed').
+ * @property {number} [retries] - The number of retries in the failover mechanism.
  * @property {number | bigint} [transferMaxFee] - Maximum allowed fee in lamports for transfer operations.
  */
 
@@ -76,8 +77,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @param {string} addr - The account's address.
    * @param {Omit<SolanaWalletConfig, 'transferMaxFee'>} [config] - The configuration object.
    */
-  constructor (addr, config = {}) {
-    super(addr)
+  constructor(addr, config = {}) {
+    super(addr);
 
     /**
      * The read-only wallet account configuration.
@@ -85,27 +86,39 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @protected
      * @type {Omit<SolanaWalletConfig, 'transferMaxFee'>}
      */
-    this._config = config
+    this._config = config;
 
-    const { rpcUrl, commitment = 'confirmed' } = config
-    if (rpcUrl) {
+    const { rpcUrl, commitment = "confirmed", retries = 3 } = config;
+
+    if (Array.isArray(rpcUrl)) {
+      this._rpc = rpcUrl
+        .reduce(
+          /**
+           * @param {FailoverProvider<SolanaRpc>} failover
+           * @param {string} rpcUrl
+           */
+          (failover, rpcUrl) => failover.addProvider(createSolanaRpc(rpcUrl)),
+          new FailoverProvider({ retries }),
+        )
+        .initialize();
+    } else if (rpcUrl) {
       /**
        * Solana RPC client for making HTTP requests to the blockchain.
        *
        * @protected
        * @type {SolanaRpc}
        */
-      this._rpc = createSolanaRpc(rpcUrl)
-
-      /**
-       * The commitment level for querying transaction and account states.
-       * Determines the level of finality required before returning results.
-       *
-       * @protected
-       * @type {string}
-       */
-      this._commitment = commitment
+      this._rpc = createSolanaRpc(rpcUrl);
     }
+
+    /**
+     * The commitment level for querying transaction and account states.
+     * Determines the level of finality required before returning results.
+     *
+     * @protected
+     * @type {string}
+     */
+    this._commitment = commitment;
   }
 
   /**
@@ -113,15 +126,19 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    *
    * @returns {Promise<bigint>} The sol balance (in lamports).
    */
-  async getBalance () {
+  async getBalance() {
     if (!this._rpc) {
-      throw new Error('The wallet must be connected to a provider to retrieve balances.')
+      throw new Error(
+        "The wallet must be connected to a provider to retrieve balances.",
+      );
     }
 
-    const addr = await this.getAddress()
-    const balance = await this._rpc.getBalance(addr, { commitment: this._commitment }).send()
+    const addr = await this.getAddress();
+    const balance = await this._rpc
+      .getBalance(addr, { commitment: this._commitment })
+      .send();
 
-    return balance.value
+    return balance.value;
   }
 
   /**
@@ -130,79 +147,101 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @param {string} tokenAddress - The smart contract address of the token.
    * @returns {Promise<bigint>} The token balance (in base unit).
    */
-  async getTokenBalance (tokenAddress) {
+  async getTokenBalance(tokenAddress) {
     if (!this._rpc) {
-      throw new Error('The wallet must be connected to a provider to retrieve token balances.')
+      throw new Error(
+        "The wallet must be connected to a provider to retrieve token balances.",
+      );
     }
 
-    const addr = await this.getAddress()
-    const ownerAddress = address(addr)
-    const mint = address(tokenAddress)
+    const addr = await this.getAddress();
+    const ownerAddress = address(addr);
+    const mint = address(tokenAddress);
 
     const [ata] = await findAssociatedTokenPda({
       mint,
       owner: ownerAddress,
-      tokenProgram: TOKEN_PROGRAM_ADDRESS
-    })
-    const accountInfo = await this._rpc.getAccountInfo(ata, { commitment: this._commitment, encoding: 'base64' }).send()
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    });
+    const accountInfo = await this._rpc
+      .getAccountInfo(ata, { commitment: this._commitment, encoding: "base64" })
+      .send();
 
     if (!accountInfo.value) {
       // ATA doesn't exist, user has never received this token
-      return 0n
+      return 0n;
     }
 
-    const tokenAccountBalance = await this._rpc.getTokenAccountBalance(ata, { commitment: this._commitment }).send()
+    const tokenAccountBalance = await this._rpc
+      .getTokenAccountBalance(ata, { commitment: this._commitment })
+      .send();
 
-    return BigInt(tokenAccountBalance.value.amount)
+    return BigInt(tokenAccountBalance.value.amount);
   }
 
   /**
- * Quotes the costs of a send transaction operation.
- *
- * @param {SolanaTransaction} tx - The transaction.
- * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
- */
-  async quoteSendTransaction (tx) {
+   * Quotes the costs of a send transaction operation.
+   *
+   * @param {SolanaTransaction} tx - The transaction.
+   * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
+   */
+  async quoteSendTransaction(tx) {
     if (!this._rpc) {
-      throw new Error('The wallet must be connected to a provider to quote transactions.')
+      throw new Error(
+        "The wallet must be connected to a provider to quote transactions.",
+      );
     }
 
-    const addr = await this.getAddress()
-    const ownerAddress = address(addr)
-    let transactionMessage = tx
+    const addr = await this.getAddress();
+    const ownerAddress = address(addr);
+    let transactionMessage = tx;
     if (tx?.to !== undefined && tx?.value !== undefined) {
       // Handle native token transfer { to, value } transaction
-      transactionMessage = await this._buildNativeTransferTransactionMessage(tx.to, tx.value)
+      transactionMessage = await this._buildNativeTransferTransactionMessage(
+        tx.to,
+        tx.value,
+      );
     }
-    if (transactionMessage?.instructions !== undefined && Array.isArray(transactionMessage.instructions)) {
+    if (
+      transactionMessage?.instructions !== undefined &&
+      Array.isArray(transactionMessage.instructions)
+    ) {
       // Check if blockhash/lifetime is missing and add it
       if (!transactionMessage.lifetimeConstraint) {
-        const { value: latestBlockhash } = await this._rpc.getLatestBlockhash({
-          commitment: this._commitment
-        }).send()
+        const { value: latestBlockhash } = await this._rpc
+          .getLatestBlockhash({
+            commitment: this._commitment,
+          })
+          .send();
 
         transactionMessage = setTransactionMessageLifetimeUsingBlockhash(
           latestBlockhash,
-          transactionMessage
-        )
+          transactionMessage,
+        );
       }
 
       // Check and verify fee payer
       if (transactionMessage?.feePayer) {
         // Verify the fee payer is the current account
-        const feePayerAddress = typeof transactionMessage.feePayer === 'string'
-          ? transactionMessage.feePayer
-          : transactionMessage.feePayer.address
+        const feePayerAddress =
+          typeof transactionMessage.feePayer === "string"
+            ? transactionMessage.feePayer
+            : transactionMessage.feePayer.address;
 
         if (feePayerAddress !== ownerAddress) {
-          throw new Error(`Transaction fee payer (${feePayerAddress}) does not match wallet address (${ownerAddress})`)
+          throw new Error(
+            `Transaction fee payer (${feePayerAddress}) does not match wallet address (${ownerAddress})`,
+          );
         }
       }
-      transactionMessage = setTransactionMessageFeePayer(ownerAddress, transactionMessage)
+      transactionMessage = setTransactionMessageFeePayer(
+        ownerAddress,
+        transactionMessage,
+      );
     }
     // Check if it's a native transfer object {to, value}
-    const fee = await this._getTransactionFee(transactionMessage)
-    return { fee }
+    const fee = await this._getTransactionFee(transactionMessage);
+    return { fee };
   }
 
   /**
@@ -211,17 +250,23 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @param {TransferOptions} options - The transfer's options.
    * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
    */
-  async quoteTransfer (options) {
+  async quoteTransfer(options) {
     if (!this._rpc) {
-      throw new Error('The wallet must be connected to a provider to quote transfer operations.')
+      throw new Error(
+        "The wallet must be connected to a provider to quote transfer operations.",
+      );
     }
 
-    const { token, recipient, amount } = options
-    const transactionMessage = await this._buildSPLTransferTransactionMessage(token, recipient, amount)
+    const { token, recipient, amount } = options;
+    const transactionMessage = await this._buildSPLTransferTransactionMessage(
+      token,
+      recipient,
+      amount,
+    );
 
-    const fee = await this._getTransactionFee(transactionMessage)
+    const fee = await this._getTransactionFee(transactionMessage);
 
-    return { fee }
+    return { fee };
   }
 
   /**
@@ -230,17 +275,21 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @param {string} hash - The transaction's hash.
    * @returns {Promise<SolanaTransactionReceipt | null>} — The receipt, or null if the transaction has not been included in a block yet.
    */
-  async getTransactionReceipt (hash) {
+  async getTransactionReceipt(hash) {
     if (!this._rpc) {
-      throw new Error('The wallet must be connected to a provider to fetch transaction receipts.')
+      throw new Error(
+        "The wallet must be connected to a provider to fetch transaction receipts.",
+      );
     }
 
-    const transaction = await this._rpc.getTransaction(hash, {
-      commitment: this._commitment,
-      maxSupportedTransactionVersion: 0
-    }).send()
+    const transaction = await this._rpc
+      .getTransaction(hash, {
+        commitment: this._commitment,
+        maxSupportedTransactionVersion: 0,
+      })
+      .send();
 
-    return transaction
+    return transaction;
   }
 
   /**
@@ -255,45 +304,51 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @todo Support Token-2022 (Token Extensions Program).
    * @todo Support transfer with memo for tokens that require it.
    */
-  async _buildSPLTransferTransactionMessage (token, recipient, amount) {
-    if (typeof amount === 'bigint' && amount > 0xFFFFFFFFFFFFFFFFn) {
-      throw new Error('Amount exceeds u64 maximum value')
+  async _buildSPLTransferTransactionMessage(token, recipient, amount) {
+    if (typeof amount === "bigint" && amount > 0xffffffffffffffffn) {
+      throw new Error("Amount exceeds u64 maximum value");
     }
-    if (typeof amount === 'number' && amount > Number.MAX_SAFE_INTEGER) {
-      throw new Error('Amount exceeds safe integer range')
+    if (typeof amount === "number" && amount > Number.MAX_SAFE_INTEGER) {
+      throw new Error("Amount exceeds safe integer range");
     }
 
-    const addr = await this.getAddress()
-    const ownerPublicKey = address(addr)
-    const tokenMint = address(token)
-    const recipientPublicKey = address(recipient)
+    const addr = await this.getAddress();
+    const ownerPublicKey = address(addr);
+    const tokenMint = address(token);
+    const recipientPublicKey = address(recipient);
 
     // Get associated token addresses
     const [fromATA] = await findAssociatedTokenPda({
       mint: tokenMint,
       owner: ownerPublicKey,
-      tokenProgram: TOKEN_PROGRAM_ADDRESS
-    })
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    });
 
     const [toATA] = await findAssociatedTokenPda({
       mint: tokenMint,
       owner: recipientPublicKey,
-      tokenProgram: TOKEN_PROGRAM_ADDRESS
-    })
+      tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    });
 
-    const instructions = []
+    const instructions = [];
 
-    const recipientATAInfo = await this._rpc.getAccountInfo(toATA, { commitment: this._commitment, encoding: 'base64' }).send()
+    const recipientATAInfo = await this._rpc
+      .getAccountInfo(toATA, {
+        commitment: this._commitment,
+        encoding: "base64",
+      })
+      .send();
 
     // If recipient's ATA doesn't exist, add creation instruction (idempotent)
     if (!recipientATAInfo.value) {
-      const createATAInstruction = getCreateAssociatedTokenIdempotentInstruction({
-        ata: toATA,
-        mint: tokenMint,
-        owner: recipientPublicKey,
-        payer: ownerPublicKey
-      })
-      instructions.push(createATAInstruction)
+      const createATAInstruction =
+        getCreateAssociatedTokenIdempotentInstruction({
+          ata: toATA,
+          mint: tokenMint,
+          owner: recipientPublicKey,
+          payer: ownerPublicKey,
+        });
+      instructions.push(createATAInstruction);
     }
 
     // Add transfer instruction
@@ -302,23 +357,25 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       mint: tokenMint,
       destination: toATA,
       authority: ownerPublicKey,
-      amount: BigInt(amount)
-    })
+      amount: BigInt(amount),
+    });
 
-    instructions.push(transferInstruction)
+    instructions.push(transferInstruction);
 
     // Get latest blockhash
-    const { value: latestBlockhash } = await this._rpc.getLatestBlockhash({ commitment: this._commitment }).send()
+    const { value: latestBlockhash } = await this._rpc
+      .getLatestBlockhash({ commitment: this._commitment })
+      .send();
 
     // Build transaction message using pipe
     const transactionMessage = pipe(
       createTransactionMessage({ version: 0 }),
-      tx => setTransactionMessageFeePayer(ownerPublicKey, tx),
-      tx => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-      tx => appendTransactionMessageInstructions(instructions, tx)
-    )
+      (tx) => setTransactionMessageFeePayer(ownerPublicKey, tx),
+      (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+      (tx) => appendTransactionMessageInstructions(instructions, tx),
+    );
 
-    return transactionMessage
+    return transactionMessage;
   }
 
   /**
@@ -330,30 +387,32 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @param {number | bigint} value - The amount of SOL to send (in lamports).
    * @returns {Promise<TransactionMessage>} The constructed transaction message.
    */
-  async _buildNativeTransferTransactionMessage (to, value) {
-    const addr = await this.getAddress()
-    const fromPublicKey = address(addr)
-    const toPublicKey = address(to)
+  async _buildNativeTransferTransactionMessage(to, value) {
+    const addr = await this.getAddress();
+    const fromPublicKey = address(addr);
+    const toPublicKey = address(to);
 
     // Create transfer instruction
     const transferInstruction = getTransferSolInstruction({
       source: { address: fromPublicKey },
       destination: toPublicKey,
-      amount: BigInt(value)
-    })
+      amount: BigInt(value),
+    });
 
     // Get latest blockhash
-    const { value: latestBlockhash } = await this._rpc.getLatestBlockhash({ commitment: this._commitment }).send()
+    const { value: latestBlockhash } = await this._rpc
+      .getLatestBlockhash({ commitment: this._commitment })
+      .send();
 
     // Build transaction message using pipe
     const transactionMessage = pipe(
       createTransactionMessage({ version: 0 }),
-      tx => setTransactionMessageFeePayer(fromPublicKey, tx),
-      tx => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
-      tx => appendTransactionMessageInstruction(transferInstruction, tx)
-    )
+      (tx) => setTransactionMessageFeePayer(fromPublicKey, tx),
+      (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
+      (tx) => appendTransactionMessageInstruction(transferInstruction, tx),
+    );
 
-    return transactionMessage
+    return transactionMessage;
   }
 
   /**
@@ -363,23 +422,26 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @param {TransactionMessage} transactionMessage - The transaction message to calculate fee for.
    * @returns {Promise<bigint>} The calculated transaction fee in lamports.
    */
-  async _getTransactionFee (transactionMessage) {
-    const compiledTransactionMessageEncoder = getCompiledTransactionMessageEncoder()
-    const base64Decoder = getBase64Decoder()
+  async _getTransactionFee(transactionMessage) {
+    const compiledTransactionMessageEncoder =
+      getCompiledTransactionMessageEncoder();
+    const base64Decoder = getBase64Decoder();
 
     const base64EncodedMessage = pipe(
       transactionMessage,
       compileTransactionMessage,
       compiledTransactionMessageEncoder.encode,
-      base64Decoder.decode
-    )
+      base64Decoder.decode,
+    );
 
-    const fee = await this._rpc.getFeeForMessage(base64EncodedMessage, {
-      commitment: this._commitment
-    }).send()
+    const fee = await this._rpc
+      .getFeeForMessage(base64EncodedMessage, {
+        commitment: this._commitment,
+      })
+      .send();
     if (!fee.value) {
-      throw new Error('Failed to calculate transaction fee')
+      throw new Error("Failed to calculate transaction fee");
     }
-    return BigInt(fee.value)
+    return BigInt(fee.value);
   }
 }
