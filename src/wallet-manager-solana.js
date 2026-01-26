@@ -50,6 +50,14 @@ export default class WalletManagerSolana extends WalletManager {
      */
     this._config = config
 
+    /**
+     * Solana RPC client for making HTTP requests to the blockchain.
+     *
+     * @protected
+     * @type {SolanaRpc | undefined}
+     */
+    this._rpc = undefined
+
     const { rpcUrl, commitment = 'confirmed' } = config
 
     if (Array.isArray(rpcUrl)) {
@@ -64,12 +72,6 @@ export default class WalletManagerSolana extends WalletManager {
         )
         .initialize()
     } else if (rpcUrl) {
-      /**
-       * Solana RPC client for making HTTP requests to the blockchain.
-       *
-       * @protected
-       * @type {SolanaRpc}
-       */
       this._rpc = createSolanaRpc(rpcUrl)
     }
 

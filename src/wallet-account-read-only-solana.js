@@ -88,6 +88,14 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     this._config = config
 
+    /**
+     * Solana RPC client for making HTTP requests to the blockchain.
+     *
+     * @protected
+     * @type {SolanaRpc | undefined}
+     */
+    this._rpc = undefined
+
     const { rpcUrl, commitment = 'confirmed', retries = 3 } = config
 
     if (Array.isArray(rpcUrl)) {
@@ -102,12 +110,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
         )
         .initialize()
     } else if (rpcUrl) {
-      /**
-       * Solana RPC client for making HTTP requests to the blockchain.
-       *
-       * @protected
-       * @type {SolanaRpc}
-       */
       this._rpc = createSolanaRpc(rpcUrl)
     }
 
