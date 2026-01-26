@@ -73,6 +73,8 @@ export default class WalletManagerSolana extends WalletManager {
         .initialize()
     } else if (rpcUrl) {
       this._rpc = createSolanaRpc(rpcUrl)
+    } else {
+      this._rpc = undefined
     }
 
     /**

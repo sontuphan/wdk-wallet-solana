@@ -111,6 +111,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
         .initialize()
     } else if (rpcUrl) {
       this._rpc = createSolanaRpc(rpcUrl)
+    } else {
+      this._rpc = undefined
     }
 
     /**
