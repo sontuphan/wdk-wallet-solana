@@ -376,7 +376,6 @@ new WalletAccountSolana(seed, path, config)
 |--------|-------------|---------|
 | `getAddress()` | Returns the account's public key | `Promise<string>` |
 | `sign(message)` | Signs a message using the account's private key | `Promise<string>` |
-| `verify(message, signature)` | Verifies a message signature | `Promise<boolean>` |
 | `sendTransaction(tx)` | Sends a Solana transaction | `Promise<{signature: string, fee: bigint}>` |
 | `quoteSendTransaction(tx)` | Estimates the fee for a transaction | `Promise<{fee: bigint}>` |
 | `transfer(options)` | Transfers SPL tokens to another address | `Promise<{signature: string, fee: bigint}>` |
@@ -408,21 +407,6 @@ Signs a message using the account's Ed25519 private key.
 ```javascript
 const signature = await account.sign('Hello Solana!')
 console.log('Signature:', signature)
-```
-
-##### `verify(message, signature)`
-Verifies a message signature using the account's Ed25519 public key.
-
-**Parameters:**
-- `message` (string): Original message
-- `signature` (string): Signature as base58 string
-
-**Returns:** `Promise<boolean>` - True if signature is valid
-
-**Example:**
-```javascript
-const isValid = await account.verify('Hello Solana!', signature)
-console.log('Signature valid:', isValid)
 ```
 
 ##### `sendTransaction(tx)`
@@ -585,6 +569,7 @@ new WalletAccountReadOnlySolana(publicKey, config)
 |--------|-------------|---------|
 | `getBalance()` | Returns the native SOL balance (in lamports) | `Promise<bigint>` |
 | `getTokenBalance(tokenMint)` | Returns the balance of a specific SPL token | `Promise<bigint>` |
+| `verify(message, signature)` | Verifies a message signature | `Promise<boolean>` |
 | `quoteSendTransaction(tx)` | Estimates the fee for a transaction | `Promise<{fee: bigint}>` |
 | `quoteTransfer(options)` | Estimates the fee for an SPL token transfer | `Promise<{fee: bigint}>` |
 
@@ -613,6 +598,21 @@ Returns the balance of a specific SPL token.
 // Get USDT balance (6 decimals)
 const usdtBalance = await readOnlyAccount.getTokenBalance('Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB')
 console.log('USDT balance:', Number(usdtBalance) / 1e6)
+```
+
+##### `verify(message, signature)`
+Verifies a message signature using the account's Ed25519 public key.
+
+**Parameters:**
+- `message` (string): Original message
+- `signature` (string): Signature as hex string
+
+**Returns:** `Promise<boolean>` - True if signature is valid
+
+**Example:**
+```javascript
+const isValid = await readOnlyAccount.verify('Hello Solana!', signature)
+console.log('Signature valid:', isValid)
 ```
 
 ##### `quoteSendTransaction(tx)`

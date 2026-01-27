@@ -97,6 +97,14 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @returns {Promise<bigint>} The calculated transaction fee in lamports.
      */
     protected _getTransactionFee(transactionMessage: TransactionMessage): Promise<bigint>;
+    /**
+     * Verifies a message's signature.
+     *
+     * @param {string} message - The original message.
+     * @param {string} signature - The signature to verify.
+     * @returns {Promise<boolean>} True if the signature is valid.
+     */
+    verify(message: string, signature: string): Promise<boolean>;
 }
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;

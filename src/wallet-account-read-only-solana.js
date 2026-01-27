@@ -16,7 +16,7 @@
 
 import { WalletAccountReadOnly } from '@tetherto/wdk-wallet'
 
-import { address } from '@solana/addresses'
+import { address, getAddressCodec } from '@solana/addresses'
 import { createSolanaRpc } from '@solana/rpc'
 import { pipe } from '@solana/functional'
 import {
@@ -40,6 +40,7 @@ import {
   getTransferInstruction,
   TOKEN_PROGRAM_ADDRESS
 } from '@solana-program/token'
+import { verifySignature } from '@solana/keys'
 
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
 /** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
@@ -69,6 +70,9 @@ import {
  * Read-only Solana wallet account implementation.
  *
  */
+// Cache the address codec for reuse
+const addressCodec = getAddressCodec()
+
 export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   /**
    * Creates a new solana read-only wallet account.
@@ -381,5 +385,30 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       throw new Error('Failed to calculate transaction fee')
     }
     return BigInt(fee.value)
+  }
+
+  /**
+   * Verifies a message's signature.
+   *
+   * @param {string} message - The original message.
+   * @param {string} signature - The signature to verify.
+   * @returns {Promise<boolean>} True if the signature is valid.
+   */
+  async verify (message, signature) {
+    const messageBytes = Buffer.from(message, 'utf8')
+    const signatureBytes = Buffer.from(signature, 'hex')
+    const publicKeyBytes = addressCodec.encode(address(await this.getAddress()))
+
+    const publicKey = await crypto.subtle.importKey(
+      'raw',
+      publicKeyBytes,
+      { name: 'Ed25519', namedCurve: 'Ed25519' },
+      false,
+      ['verify']
+    )
+
+    const isValid = await verifySignature(publicKey, signatureBytes, messageBytes)
+
+    return isValid
   }
 }
