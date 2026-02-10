@@ -19,11 +19,7 @@ import {
 import { verifySignature } from "@solana/keys";
 import { address, getPublicKeyFromAddress } from "@solana/addresses";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import {
-  decompileTransactionMessage,
-  getCompiledTransactionMessageDecoder,
-  getCompiledTransactionMessageEncoder,
-} from "@solana/transaction-messages";
+import { getCompiledTransactionMessageEncoder } from "@solana/transaction-messages";
 import { getTransactionDecoder } from "@solana/transactions";
 
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'";
