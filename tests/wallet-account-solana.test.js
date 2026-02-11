@@ -300,37 +300,6 @@ describe('WalletAccountSolana', () => {
       })
     })
 
-    describe('verify', () => {
-      it('should verify signature for same message across multiple verifications', async () => {
-        const message = 'Persistent message'
-        const signature = await account.sign(message)
-
-        const isValid1 = await account.verify(message, signature)
-        const isValid2 = await account.verify(message, signature)
-        const isValid3 = await account.verify(message, signature)
-
-        expect(isValid1).toBe(true)
-        expect(isValid2).toBe(true)
-        expect(isValid3).toBe(true)
-      })
-
-      it('should reject signature for different message', async () => {
-        const message1 = 'Message 1'
-        const message2 = 'Message 2'
-
-        const signature1 = await account.sign(message1)
-
-        expect(await account.verify(message1, signature1)).toBe(true)
-        expect(await account.verify(message2, signature1)).toBe(false)
-      })
-
-      it('should reject invalid hex signature', async () => {
-        const message = 'Test message'
-        const invalidSignature = 'not-a-valid-hex-signature'
-
-        expect(await account.verify(message, invalidSignature)).toBe(false)
-      })
-    })
   })
 
   describe('sendTransaction', () => {

@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-'use strict'
+"use strict";
 
 import {
   compileTransaction,
-  getBase64EncodedWireTransaction
-} from '@solana/transactions'
+  getBase64EncodedWireTransaction,
+} from "@solana/transactions";
 import {
   setTransactionMessageFeePayer,
-  setTransactionMessageLifetimeUsingBlockhash
-} from '@solana/transaction-messages'
+  setTransactionMessageLifetimeUsingBlockhash,
+} from "@solana/transaction-messages";
 
-import WalletAccountReadOnlySolana from './wallet-account-read-only-solana.js'
+import WalletAccountReadOnlySolana from "./wallet-account-read-only-solana.js";
 
 /** @typedef {import("@tetherto/wdk-wallet").IWalletAccount} IWalletAccount */
 
@@ -47,17 +47,17 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @param {ISignerSolana} signer - The solana signer.
    * @param {SolanaWalletConfig} config - The wallet account configuration.
    */
-  constructor (signer, config = {}) {
+  constructor(signer, config = {}) {
     if (!signer) {
-      throw new Error('A signer is required.')
+      throw new Error("A signer is required.");
     }
     if (signer.isRoot) {
       throw new Error(
-        'The signer is the root signer. Call derive method to create a child signer.'
-      )
+        "The signer is the root signer. Call derive method to create a child signer.",
+      );
     }
 
-    super(undefined, config)
+    super(undefined, config);
 
     /**
      * The wallet account configuration.
@@ -65,7 +65,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      * @protected
      * @type {SolanaWalletConfig}
      */
-    this._config = config
+    this._config = config;
 
     /**
      * The Solana seed signer.
@@ -73,7 +73,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      * @private
      * @type {ISignerSolana}
      */
-    this._signer = signer
+    this._signer = signer;
   }
 
   /**
@@ -81,8 +81,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @type {number}
    */
-  get index () {
-    return this._signer.index
+  get index() {
+    return this._signer.index;
   }
 
   /**
@@ -90,8 +90,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @type {string}
    */
-  get path () {
-    return this._signer.path
+  get path() {
+    return this._signer.path;
   }
 
   /**
@@ -103,8 +103,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @type {KeyPair}
    */
-  get keyPair () {
-    return this._signer.keyPair
+  get keyPair() {
+    return this._signer.keyPair;
   }
 
   /**
@@ -112,8 +112,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @returns {Promise<string>} The address.
    */
-  async getAddress () {
-    return await this._signer.getAddress()
+  async getAddress() {
+    return await this._signer.getAddress();
   }
 
   /**
@@ -122,14 +122,14 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @param {string} message - The message to sign.
    * @returns {Promise<string>} The message's signature.
    */
-  async sign (message) {
+  async sign(message) {
     if (!this._signer.path) {
-      throw new Error('The wallet account has been disposed.')
+      throw new Error("The wallet account has been disposed.");
     }
 
-    const signature = await this._signer.sign(message)
+    const signature = await this._signer.sign(message);
 
-    return signature
+    return signature;
   }
 
   /**
@@ -139,10 +139,10 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @param {string} signature - The signature to verify.
    * @returns {Promise<boolean>} True if the signature is valid.
    */
-  async verify (message, signature) {
-    const isValid = await this._signer.verify(message, signature)
+  async verify(message, signature) {
+    const isValid = await this._signer.verify(message, signature);
 
-    return isValid
+    return isValid;
   }
 
   /**
@@ -151,24 +151,24 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @param {SolanaTransaction} tx - The transaction.
    * @returns {Promise<TransactionResult>} The transaction's result.
    */
-  async sendTransaction (tx) {
+  async sendTransaction(tx) {
     if (!this._signer.path) {
-      throw new Error('The wallet account has been disposed.')
+      throw new Error("The wallet account has been disposed.");
     }
 
     if (!this._rpc) {
       throw new Error(
-        'The wallet must be connected to a provider to send transactions.'
-      )
+        "The wallet must be connected to a provider to send transactions.",
+      );
     }
 
-    let transactionMessage = tx
+    let transactionMessage = tx;
     if (tx?.to !== undefined && tx?.value !== undefined) {
       // Handle native token transfer { to, value } transaction
       transactionMessage = await this._buildNativeTransferTransactionMessage(
         tx.to,
-        tx.value
-      )
+        tx.value,
+      );
     }
     if (
       transactionMessage?.instructions !== undefined &&
@@ -178,57 +178,57 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
       if (!transactionMessage.lifetimeConstraint) {
         const { value: latestBlockhash } = await this._rpc
           .getLatestBlockhash({
-            commitment: this._commitment
+            commitment: this._commitment,
           })
-          .send()
+          .send();
 
         transactionMessage = setTransactionMessageLifetimeUsingBlockhash(
           latestBlockhash,
-          transactionMessage
-        )
+          transactionMessage,
+        );
       }
 
       // Check and verify fee payer
-      const signerAddress = await this._signer.getAddress()
+      const signerAddress = await this._signer.getAddress();
       if (transactionMessage?.feePayer) {
         // Verify the fee payer is the current account
         const feePayerAddress =
-          typeof transactionMessage.feePayer === 'string'
+          typeof transactionMessage.feePayer === "string"
             ? transactionMessage.feePayer
-            : transactionMessage.feePayer.address
+            : transactionMessage.feePayer.address;
 
         if (feePayerAddress !== signerAddress) {
           throw new Error(
-            `Transaction fee payer (${feePayerAddress}) does not match wallet address (${signerAddress})`
-          )
+            `Transaction fee payer (${feePayerAddress}) does not match wallet address (${signerAddress})`,
+          );
         }
       }
       transactionMessage = setTransactionMessageFeePayer(
         signerAddress,
-        transactionMessage
-      )
+        transactionMessage,
+      );
     }
 
-    const fee = await this._getTransactionFee(transactionMessage)
+    const fee = await this._getTransactionFee(transactionMessage);
 
     const unsignedTransaction = getBase64EncodedWireTransaction(
-      compileTransaction(transactionMessage)
-    )
+      compileTransaction(transactionMessage),
+    );
 
     const signedTransaction = await this._signer.signTransaction(
-      Buffer.from(unsignedTransaction, 'base64')
-    )
+      Buffer.from(unsignedTransaction, "base64"),
+    );
 
     const signature = await this._rpc
-      .sendTransaction(signedTransaction.toString('base64'), {
-        encoding: 'base64'
+      .sendTransaction(signedTransaction.toString("base64"), {
+        encoding: "base64",
       })
-      .send()
+      .send();
 
     return {
       hash: signature,
-      fee
-    }
+      fee,
+    };
   }
 
   /**
@@ -238,35 +238,35 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @returns {Promise<TransferResult>} The transfer's result.
    * @note only SPL tokens - won't work for native SOL
    */
-  async transfer (options) {
+  async transfer(options) {
     if (!this._signer?.path) {
-      throw new Error('The wallet account has been disposed.')
+      throw new Error("The wallet account has been disposed.");
     }
 
     if (!this._rpc) {
       throw new Error(
-        'The wallet must be connected to a provider to transfer tokens.'
-      )
+        "The wallet must be connected to a provider to transfer tokens.",
+      );
     }
 
-    const { token, recipient, amount } = options
+    const { token, recipient, amount } = options;
 
     const transactionMessage = await this._buildSPLTransferTransactionMessage(
       token,
       recipient,
-      amount
-    )
-    const fee = await this._getTransactionFee(transactionMessage)
+      amount,
+    );
+    const fee = await this._getTransactionFee(transactionMessage);
     if (
       this._config.transferMaxFee !== undefined &&
       fee >= this._config.transferMaxFee
     ) {
-      throw new Error('Exceeded maximum fee cost for transfer operation.')
+      throw new Error("Exceeded maximum fee cost for transfer operation.");
     }
 
-    const { hash } = await this.sendTransaction(transactionMessage)
+    const { hash } = await this.sendTransaction(transactionMessage);
 
-    return { hash, fee }
+    return { hash, fee };
   }
 
   /**
@@ -274,21 +274,21 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @returns {Promise<WalletAccountReadOnlySolana>} The read-only account.
    */
-  async toReadOnlyAccount () {
-    const address = await this.getAddress()
+  async toReadOnlyAccount() {
+    const address = await this.getAddress();
 
     const readOnlyAccount = new WalletAccountReadOnlySolana(
       address,
-      this._config
-    )
+      this._config,
+    );
 
-    return readOnlyAccount
+    return readOnlyAccount;
   }
 
   /**
    * Disposes the wallet account, erasing the private key from the memory.
    */
-  dispose () {
-    this._signer.dispose()
+  dispose() {
+    this._signer.dispose();
   }
 }
