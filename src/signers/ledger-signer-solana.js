@@ -1,23 +1,23 @@
 'use strict'
 
-import { constructOffchainMessageV0Content } from './signer-solana.js'
-
-import {
-  DeviceActionStatus,
-  DeviceManagementKitBuilder
-} from '@ledgerhq/device-management-kit'
+import { DeviceActionStatus, DeviceManagementKitBuilder } from '@ledgerhq/device-management-kit'
 import { webHidTransportFactory } from '@ledgerhq/device-transport-kit-web-hid'
 import { SignerSolanaBuilder } from '@ledgerhq/device-signer-kit-solana'
 import { filter, firstValueFrom, map } from 'rxjs'
 import { getBase58Encoder } from '@solana/codecs'
-import { getOffchainMessageEnvelopeDecoder } from '@solana/offchain-messages'
+import {
+  getOffchainMessageEncoder,
+  getOffchainMessageEnvelopeDecoder,
+  offchainMessageApplicationDomain,
+  offchainMessageContentRestrictedAsciiOf1232BytesMax
+} from '@solana/offchain-messages'
 import { signatureBytes, verifySignature } from '@solana/keys'
 import { address, getPublicKeyFromAddress } from '@solana/addresses'
 import { getCompiledTransactionMessageEncoder } from '@solana/transaction-messages'
-import {
-  getTransactionDecoder,
-  getTransactionEncoder
-} from '@solana/transactions'
+import { getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
+import { SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
+
+import { assertFullHardenedPath } from './signer-solana.js'
 
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
@@ -34,6 +34,10 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
  */
 
 /**
+ * @typedef {import("@solana/offchain-messages").OffchainMessage} OffchainMessage
+ */
+
+/**
  * @typedef {Object} LedgerSignerSolOpts
  * @property {DeviceManagementKit} [dmk] Shared [DMK](https://developers.ledger.com/docs/device-interaction/integration/how_to/dmk).
  */
@@ -41,6 +45,28 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 /**
  * @typedef {Object} LedgerSignerSolCfg
  */
+
+/**
+ *
+ * @param {string} addr - The signer address
+ * @param {string} message - The message
+ * @returns {Uint8Array} The signing content
+ */
+export const constructOffchainMessageV0Content = (addr, message) => {
+  /**
+   * @type {OffchainMessage} Offchain message
+   */
+  const offchainMessage = {
+    version: 0,
+    requiredSignatories: [{ address: address(addr) }],
+    applicationDomain: offchainMessageApplicationDomain(SYSTEM_PROGRAM_ADDRESS),
+    content: offchainMessageContentRestrictedAsciiOf1232BytesMax(message)
+  }
+
+  const signingContent = getOffchainMessageEncoder().encode(offchainMessage)
+
+  return Uint8Array.from(signingContent)
+}
 
 /**
  * @implements {ISignerSolana}
@@ -57,6 +83,8 @@ export default class LedgerSignerSol {
       throw new Error('Path is required.')
     }
 
+    assertFullHardenedPath(path)
+
     this._config = config
     /**
      * @type {DefaultSignerSolana | undefined} The solana signer.
@@ -71,10 +99,7 @@ export default class LedgerSignerSol {
      * @type {DeviceManagementKit}
      */
     this._dmk =
-      opts.dmk ||
-      new DeviceManagementKitBuilder()
-        .addTransport(webHidTransportFactory)
-        .build()
+      opts.dmk || new DeviceManagementKitBuilder().addTransport(webHidTransportFactory).build()
   }
 
   get isActive () {
@@ -83,7 +108,7 @@ export default class LedgerSignerSol {
 
   get index () {
     if (!this._path) return undefined
-    return +this._path.replace(/'/g, '').split('/').pop()
+    return +this._path.replace(/'/g, '').split('/').at(3)
   }
 
   get path () {
@@ -144,9 +169,7 @@ export default class LedgerSignerSol {
      */
     const mergedCfg = {
       ...this._config,
-      ...Object.fromEntries(
-        Object.entries(cfg).filter(([, v]) => v !== undefined)
-      )
+      ...Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== undefined))
     }
 
     /**
@@ -157,11 +180,7 @@ export default class LedgerSignerSol {
       dmk: this._dmk
     }
 
-    return new LedgerSignerSol(
-      `${this._path}/${relPath}`,
-      mergedCfg,
-      mergedOpts
-    )
+    return new LedgerSignerSol(`${this._path}/${relPath}`, mergedCfg, mergedOpts)
   }
 
   async getAddress () {
@@ -193,10 +212,7 @@ export default class LedgerSignerSol {
 
     const pubkey = await getPublicKeyFromAddress(address(this._address))
 
-    const messageBytes = constructOffchainMessageV0Content(
-      this._address,
-      message
-    )
+    const messageBytes = constructOffchainMessageV0Content(this._address, message)
     const signatureBytes = Buffer.from(signature, 'hex')
 
     const isValid = await verifySignature(pubkey, signatureBytes, messageBytes)
@@ -212,8 +228,7 @@ export default class LedgerSignerSol {
     /**
      * @type {TransactionMessageBytes} Cast the type from ReadonlyUint8Array<ArrayBuffer> to TransactionMessageBytes
      */
-    const compiledTransactionMessage =
-      getCompiledTransactionMessageEncoder().encode(tx)
+    const compiledTransactionMessage = getCompiledTransactionMessageEncoder().encode(tx)
 
     const { observable } = this._account.signTransaction(
       this._path,

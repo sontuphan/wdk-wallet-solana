@@ -1,6 +1,5 @@
 'use strict'
 
-import { constructOffchainMessageV0Content } from './signer-solana.js'
 import * as bip39 from 'bip39'
 import HDKey from 'micro-key-producer/slip10.js'
 import { verifySignature, signBytes } from '@solana/keys'
@@ -9,10 +8,7 @@ import {
   setTransactionMessageFeePayerSigner,
   signTransactionMessageWithSigners
 } from '@solana/signers'
-import {
-  getBase64EncodedWireTransaction,
-  getTransactionDecoder
-} from '@solana/transactions'
+import { getBase64EncodedWireTransaction, getTransactionDecoder } from '@solana/transactions'
 import {
   decompileTransactionMessage,
   getCompiledTransactionMessageDecoder
@@ -20,6 +16,8 @@ import {
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
+
+import { assertFullHardenedPath } from './signer-solana.js'
 
 /**
  * @typedef {import("./signer-solana.js").ISignerSolana} ISignerSolana
@@ -71,9 +69,7 @@ export default class SeedSignerSolana {
     this._isRoot = true
     this._root =
       opts.root ||
-      (seed
-        ? HDKey.fromMasterSeed(seed).derive(BIP_44_SOL_DERIVATION_PATH_PREFIX)
-        : undefined)
+      (seed ? HDKey.fromMasterSeed(seed).derive(BIP_44_SOL_DERIVATION_PATH_PREFIX) : undefined)
 
     /**
      * The solana keypair
@@ -95,6 +91,8 @@ export default class SeedSignerSolana {
     this._rawPrivateKey = undefined
 
     if (opts.path) {
+      assertFullHardenedPath(opts.path)
+
       this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${opts.path}`
       this._isRoot = false
     }
@@ -110,7 +108,7 @@ export default class SeedSignerSolana {
 
   get index () {
     if (!this._path) return undefined
-    return +this._path.replace(/'/g, '').split('/').pop()
+    return +this._path.replace(/'/g, '').split('/').at(3)
   }
 
   get path () {
@@ -148,10 +146,7 @@ export default class SeedSignerSolana {
     this._address = this._account.address
     this._isActive = true
 
-    const publicKey = await crypto.subtle.exportKey(
-      'raw',
-      account.keyPair.publicKey
-    )
+    const publicKey = await crypto.subtle.exportKey('raw', account.keyPair.publicKey)
 
     this._rawPublicKey = new Uint8Array(publicKey)
     this._rawPrivateKey = new Uint8Array(privateKey)
@@ -162,9 +157,7 @@ export default class SeedSignerSolana {
   derive (relPath, config = {}) {
     const merged = {
       ...this._config,
-      ...Object.fromEntries(
-        Object.entries(config || {}).filter(([, v]) => v !== undefined)
-      )
+      ...Object.fromEntries(Object.entries(config || {}).filter(([, v]) => v !== undefined))
     }
     return new SeedSignerSolana(null, merged, {
       root: this._root,
@@ -181,14 +174,8 @@ export default class SeedSignerSolana {
   async sign (message) {
     if (!this._account) await this._connect()
 
-    const messageBytes = constructOffchainMessageV0Content(
-      this._address,
-      message
-    )
-    const signatureBytes = await signBytes(
-      this._account.keyPair.privateKey,
-      messageBytes
-    )
+    const messageBytes = Buffer.from(message, 'utf8')
+    const signatureBytes = await signBytes(this._account.keyPair.privateKey, messageBytes)
 
     const signature = Buffer.from(signatureBytes).toString('hex')
 
@@ -198,10 +185,7 @@ export default class SeedSignerSolana {
   async verify (message, signature) {
     if (!this._account) await this._connect()
 
-    const messageBytes = constructOffchainMessageV0Content(
-      this._address,
-      message
-    )
+    const messageBytes = Buffer.from(message, 'utf8')
     const signatureBytes = Buffer.from(signature, 'hex')
 
     const isValid = await verifySignature(
@@ -217,22 +201,17 @@ export default class SeedSignerSolana {
     if (!this._account) await this._connect()
 
     const tx = getTransactionDecoder().decode(unsignedTx)
-    const compiledTransactionMessage =
-      getCompiledTransactionMessageDecoder().decode(tx.messageBytes)
-    const readonlyTransactionMessage = decompileTransactionMessage(
-      compiledTransactionMessage
+    const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
+      tx.messageBytes
     )
+    const readonlyTransactionMessage = decompileTransactionMessage(compiledTransactionMessage)
     const transactionMessage = setTransactionMessageFeePayerSigner(
       this._account,
       readonlyTransactionMessage
     )
-    const signedTransaction =
-      await signTransactionMessageWithSigners(transactionMessage)
+    const signedTransaction = await signTransactionMessageWithSigners(transactionMessage)
 
-    return Buffer.from(
-      getBase64EncodedWireTransaction(signedTransaction),
-      'base64'
-    )
+    return Buffer.from(getBase64EncodedWireTransaction(signedTransaction), 'base64')
   }
 
   dispose () {

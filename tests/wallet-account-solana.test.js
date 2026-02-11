@@ -56,7 +56,7 @@ describe('WalletAccountSolana', () => {
 
       it('should accept valid BIP-39 seed phrase as string', async () => {
         const account = new WalletAccountSolana(
-          new SeedSignerSolana(TEST_SEED_PHRASE, {}, { path: "0'/0/0" }),
+          new SeedSignerSolana(TEST_SEED_PHRASE, {}, { path: "0'/0'/0'" }),
           {
             rpcUrl: TEST_RPC_URL,
             commitment: 'confirmed',
@@ -89,9 +89,9 @@ describe('WalletAccountSolana', () => {
       })
 
       it('should return different addresses for different derivation paths', async () => {
-        const accountPath1 = await wallet.getAccountByPath("0'/0/0")
-        const accountPath2 = await wallet.getAccountByPath("0'/0/1")
-        const accountPath3 = await wallet.getAccountByPath("1'/0/0")
+        const accountPath1 = await wallet.getAccountByPath("0'/0'/0'")
+        const accountPath2 = await wallet.getAccountByPath("0'/0'/1'")
+        const accountPath3 = await wallet.getAccountByPath("1'/0'/0'")
 
         const address1 = await accountPath1.getAddress()
         const address2 = await accountPath2.getAddress()
@@ -154,8 +154,8 @@ describe('WalletAccountSolana', () => {
       })
 
       it('should have correct path for custom derivation', async () => {
-        const customAccount = await wallet.getAccountByPath("1'/2/3")
-        expect(customAccount.path).toBe("m/44'/501'/1'/2/3")
+        const customAccount = await wallet.getAccountByPath("1'/2'/3'")
+        expect(customAccount.path).toBe("m/44'/501'/1'/2'/3'")
       })
     })
 
@@ -171,9 +171,9 @@ describe('WalletAccountSolana', () => {
       })
 
       it('should extract index correctly from custom paths', async () => {
-        const account1 = await wallet.getAccountByPath("0'/0/7")
-        const account2 = await wallet.getAccountByPath("1'/0/15")
-        const account3 = await wallet.getAccountByPath("0'/5/123")
+        const account1 = await wallet.getAccountByPath("0'/0'/7'")
+        const account2 = await wallet.getAccountByPath("1'/0'/15'")
+        const account3 = await wallet.getAccountByPath("0'/5'/123'")
 
         expect(account1.index).toBe(0)
         expect(account2.index).toBe(1)

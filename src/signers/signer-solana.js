@@ -2,38 +2,14 @@
 
 import { NotImplementedError } from '@tetherto/wdk-wallet'
 
-import { SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
-import { address } from '@solana/addresses'
-import {
-  getOffchainMessageEncoder,
-  offchainMessageApplicationDomain,
-  offchainMessageContentRestrictedAsciiOf1232BytesMax
-} from '@solana/offchain-messages'
-
 /**
- * @typedef {import("@solana/offchain-messages").OffchainMessage} OffchainMessage
+ * Assert the full path is hardened.
+ * @param {string} path The derivation path.
  */
+export function assertFullHardenedPath (path) {
+  const isValid = path.split('/').reduce((s, e) => s && e.endsWith("'"), true)
 
-/**
- *
- * @param {string} addr - The signer address
- * @param {string} message - The message
- * @returns {Uint8Array} The signing content
- */
-export const constructOffchainMessageV0Content = (addr, message) => {
-  /**
-   * @type {OffchainMessage} Offchain message
-   */
-  const offchainMessage = {
-    version: 0,
-    requiredSignatories: [{ address: address(addr) }],
-    applicationDomain: offchainMessageApplicationDomain(SYSTEM_PROGRAM_ADDRESS),
-    content: offchainMessageContentRestrictedAsciiOf1232BytesMax(message)
-  }
-
-  const signingContent = getOffchainMessageEncoder().encode(offchainMessage)
-
-  return Uint8Array.from(signingContent)
+  if (!isValid) { throw new Error('In Solana, every child path in a derivation path must be hardened.') }
 }
 
 export class ISignerSolana {
@@ -47,7 +23,8 @@ export class ISignerSolana {
   }
 
   /**
-   * The derivation path's index of this account.
+   * The derivation path's index of this account. (i.e. m/purpose'/coin_type'/ **account'** /change/address_index)
+   *
    *
    * @type {number}
    */
