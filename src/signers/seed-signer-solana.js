@@ -1,6 +1,6 @@
 'use strict'
 
-import { ISignerSolana } from './signer-solana-interface.js'
+import { constructOffchainMessageV0Content } from './signer-solana.js'
 import * as bip39 from 'bip39'
 import HDKey from 'micro-key-producer/slip10.js'
 import { verifySignature, signBytes } from '@solana/keys'
@@ -21,9 +21,23 @@ import {
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
+/**
+ * @typedef {import("./signer-solana.js").ISignerSolana} ISignerSolana
+ */
+
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('micro-key-producer/slip10.js').HDKey} HDKey */
 /** @typedef {import('@solana/signers').KeyPairSigner} KeyPairSigner */
+
+/**
+ * @typedef {Object} SeedSignerSolOpts
+ * @property {HDKey} [root] The root node that can be provided alternatively to the seed.
+ * @property {string} [path] The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
+ */
+
+/**
+ * @typedef {Object} SeedSignerSolCfg
+ */
 
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
@@ -31,6 +45,12 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
  * @implements {ISignerSolana}
  */
 export default class SeedSignerSolana {
+  /**
+   * @constructor
+   * @param {string} seed The seed.
+   * @param {SeedSignerSolCfg} config
+   * @param {SeedSignerSolOpts} opts
+   */
   constructor (seed, config = {}, opts = {}) {
     if (opts.root && seed) {
       throw new Error('Provide either a seed or a root, not both.')
@@ -89,8 +109,8 @@ export default class SeedSignerSolana {
   }
 
   get index () {
-    const segments = this.path.split('/')
-    return +segments[3].replace("'", '')
+    if (!this._path) return undefined
+    return +this._path.replace(/'/g, '').split('/').pop()
   }
 
   get path () {
@@ -113,9 +133,11 @@ export default class SeedSignerSolana {
    * @returns {Promise<void>} Void.
    */
   async _connect () {
-    const [_, relPath] = this._path.split(BIP_44_SOL_DERIVATION_PATH_PREFIX)
+    const [, relPath] = this._path.split(BIP_44_SOL_DERIVATION_PATH_PREFIX)
 
-    if (!relPath) { throw new Error('Not allowed to interact with the root node.') }
+    if (!relPath) {
+      throw new Error('Not allowed to interact with the root node.')
+    }
     if (!this._root) throw new Error('The root node is not provided.')
 
     const { privateKey } = this._root.derive(`m${relPath}`, true)
@@ -159,11 +181,15 @@ export default class SeedSignerSolana {
   async sign (message) {
     if (!this._account) await this._connect()
 
-    const messageBytes = Buffer.from(message, 'utf8')
+    const messageBytes = constructOffchainMessageV0Content(
+      this._address,
+      message
+    )
     const signatureBytes = await signBytes(
       this._account.keyPair.privateKey,
       messageBytes
     )
+
     const signature = Buffer.from(signatureBytes).toString('hex')
 
     return signature
@@ -172,7 +198,10 @@ export default class SeedSignerSolana {
   async verify (message, signature) {
     if (!this._account) await this._connect()
 
-    const messageBytes = Buffer.from(message, 'utf8')
+    const messageBytes = constructOffchainMessageV0Content(
+      this._address,
+      message
+    )
     const signatureBytes = Buffer.from(signature, 'hex')
 
     const isValid = await verifySignature(
@@ -197,9 +226,8 @@ export default class SeedSignerSolana {
       this._account,
       readonlyTransactionMessage
     )
-    const signedTransaction = await signTransactionMessageWithSigners(
-      transactionMessage
-    )
+    const signedTransaction =
+      await signTransactionMessageWithSigners(transactionMessage)
 
     return Buffer.from(
       getBase64EncodedWireTransaction(signedTransaction),

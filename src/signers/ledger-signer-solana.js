@@ -1,28 +1,29 @@
-"use strict";
+'use strict'
 
-import { ISignerSolana } from "./signer-solana-interface.js";
+import { constructOffchainMessageV0Content } from './signer-solana.js'
 
 import {
   DeviceActionStatus,
-  DeviceManagementKitBuilder,
-} from "@ledgerhq/device-management-kit";
-import { webHidTransportFactory } from "@ledgerhq/device-transport-kit-web-hid";
-import { SignerSolanaBuilder } from "@ledgerhq/device-signer-kit-solana";
-import { filter, firstValueFrom, map } from "rxjs";
-import { getBase58Decoder, getBase58Encoder } from "@solana/codecs";
+  DeviceManagementKitBuilder
+} from '@ledgerhq/device-management-kit'
+import { webHidTransportFactory } from '@ledgerhq/device-transport-kit-web-hid'
+import { SignerSolanaBuilder } from '@ledgerhq/device-signer-kit-solana'
+import { filter, firstValueFrom, map } from 'rxjs'
+import { getBase58Encoder } from '@solana/codecs'
+import { getOffchainMessageEnvelopeDecoder } from '@solana/offchain-messages'
+import { signatureBytes, verifySignature } from '@solana/keys'
+import { address, getPublicKeyFromAddress } from '@solana/addresses'
+import { getCompiledTransactionMessageEncoder } from '@solana/transaction-messages'
 import {
-  getOffchainMessageEncoder,
-  getOffchainMessageEnvelopeDecoder,
-  offchainMessageApplicationDomain,
-  offchainMessageContentRestrictedAsciiOf1232BytesMax,
-} from "@solana/offchain-messages";
-import { verifySignature } from "@solana/keys";
-import { address, getPublicKeyFromAddress } from "@solana/addresses";
-import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import { getCompiledTransactionMessageEncoder } from "@solana/transaction-messages";
-import { getTransactionDecoder } from "@solana/transactions";
+  getTransactionDecoder,
+  getTransactionEncoder
+} from '@solana/transactions'
 
-const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'";
+const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
+
+/**
+ * @typedef {import("./signer-solana.js").ISignerSolana} ISignerSolana
+ */
 
 /**
  * @typedef {import("@ledgerhq/device-management-kit").DeviceManagementKit} DeviceManagementKit
@@ -30,10 +31,6 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'";
 
 /**
  * @typedef {import("@ledgerhq/device-signer-kit-solana/internal/DefaultSignerSolana.js").DefaultSignerSolana} DefaultSignerSolana
- */
-
-/**
- * @typedef {import("@solana/offchain-messages").OffchainMessage} OffchainMessage
  */
 
 /**
@@ -51,24 +48,24 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'";
 export default class LedgerSignerSol {
   /**
    * @constructor
-   * @param {string} path The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child path must be hardened in Solana.
+   * @param {string} path The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
    * @param {LedgerSignerSolCfg} config
    * @param {LedgerSignerSolOpts} opts
    */
-  constructor(path, config = {}, opts = {}) {
+  constructor (path, config = {}, opts = {}) {
     if (!path) {
-      throw new Error("Path is required.");
+      throw new Error('Path is required.')
     }
 
-    this._config = config;
+    this._config = config
     /**
      * @type {DefaultSignerSolana | undefined} The solana signer.
      */
-    this._account = undefined;
-    this._address = undefined;
-    this._sessionId = "";
-    this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${path}`;
-    this._isActive = false;
+    this._account = undefined
+    this._address = undefined
+    this._sessionId = ''
+    this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${path}`
+    this._isActive = false
 
     /**
      * @type {DeviceManagementKit}
@@ -77,29 +74,29 @@ export default class LedgerSignerSol {
       opts.dmk ||
       new DeviceManagementKitBuilder()
         .addTransport(webHidTransportFactory)
-        .build();
+        .build()
   }
 
-  get isActive() {
-    return this._isActive;
+  get isActive () {
+    return this._isActive
   }
 
-  get index() {
-    if (!this._path) return undefined;
-    return +this._path.replace(/'/g, "").split("/").pop();
+  get index () {
+    if (!this._path) return undefined
+    return +this._path.replace(/'/g, '').split('/').pop()
   }
 
-  get path() {
-    return this._path;
+  get path () {
+    return this._path
   }
 
-  get config() {
-    return this._config;
+  get config () {
+    return this._config
   }
 
-  get address() {
-    if (!this._account) throw new Error("Ledger is not connected yet.");
-    return this._address;
+  get address () {
+    if (!this._account) throw new Error('Ledger is not connected yet.')
+    return this._address
   }
 
   /**
@@ -107,143 +104,144 @@ export default class LedgerSignerSol {
    *
    * @private
    */
-  async _connect() {
+  async _connect () {
     // Discover & Connect the device
-    const device = await firstValueFrom(this._dmk.startDiscovering({}));
+    const device = await firstValueFrom(this._dmk.startDiscovering({}))
     this._sessionId = await this._dmk.connect({
       device,
-      sessionRefresherOptions: { isRefresherDisabled: true },
-    });
+      sessionRefresherOptions: { isRefresherDisabled: true }
+    })
 
     // Create a hardware signer
     this._account = new SignerSolanaBuilder({
       dmk: this._dmk,
-      sessionId: this._sessionId,
-    }).build();
+      sessionId: this._sessionId
+    }).build()
 
     // Get the pubkey
-    const { observable } = this._account.getAddress(this._path);
+    const { observable } = this._account.getAddress(this._path)
     const address = await firstValueFrom(
       observable.pipe(
         filter((evt) => evt.status === DeviceActionStatus.Completed),
-        map((evt) => evt.output),
-      ),
-    );
+        map((evt) => evt.output)
+      )
+    )
 
     // Active
-    this._address = address;
-    this._isActive = true;
+    this._address = address
+    this._isActive = true
   }
 
   /**
    * Derive child signer
-   * @param {string} relPath
+   * @param {string} relPath The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
    * @param {LedgerSignerSolCfg} cfg
    * @returns
    */
-  derive(relPath, cfg = {}) {
+  derive (relPath, cfg = {}) {
     /**
      * @type {LedgerSignerSolCfg}
      */
     const mergedCfg = {
       ...this._config,
       ...Object.fromEntries(
-        Object.entries(cfg || {}).filter(([, v]) => v !== undefined),
-      ),
-    };
+        Object.entries(cfg).filter(([, v]) => v !== undefined)
+      )
+    }
 
     /**
      * @type {LedgerSignerSolOpts}
      */
     const mergedOpts = {
       ...this.opts,
-      dmk: this._dmk,
-    };
+      dmk: this._dmk
+    }
 
-    return new LedgerSignerSol(`${path}/${relPath}`, mergedCfg, mergedOpts);
+    return new LedgerSignerSol(
+      `${this._path}/${relPath}`,
+      mergedCfg,
+      mergedOpts
+    )
   }
 
-  async getAddress() {
-    if (!this._account) await this._connect();
-    return this._address;
+  async getAddress () {
+    if (!this._account) await this._connect()
+    return this._address
   }
 
-  async sign(message) {
-    if (!this._account) await this._connect();
+  async sign (message) {
+    if (!this._account) await this._connect()
 
-    const { observable } = this._account.signMessage(this._path, message);
+    const { observable } = this._account.signMessage(this._path, message)
     const { signature: envelopedSignature } = await firstValueFrom(
       observable.pipe(
         filter((evt) => evt.status === DeviceActionStatus.Completed),
-        map((evt) => evt.output),
-      ),
-    );
+        map((evt) => evt.output)
+      )
+    )
 
-    const { content: _content, signatures } =
-      getOffchainMessageEnvelopeDecoder().decode(
-        getBase58Encoder().encode(envelopedSignature),
-      );
-    const [[_addr, signature]] = Object.entries(signatures);
+    const { signatures } = getOffchainMessageEnvelopeDecoder().decode(
+      getBase58Encoder().encode(envelopedSignature)
+    )
+    const [signature] = Object.values(signatures)
 
-    return Buffer.from(signature).toString("hex");
+    return Buffer.from(signature).toString('hex')
   }
 
-  async verify(message, signature) {
-    if (!this._address) return false;
+  async verify (message, signature) {
+    if (!this._address) return false
 
-    const pubkey = await getPublicKeyFromAddress(address(this._address));
+    const pubkey = await getPublicKeyFromAddress(address(this._address))
+
+    const messageBytes = constructOffchainMessageV0Content(
+      this._address,
+      message
+    )
+    const signatureBytes = Buffer.from(signature, 'hex')
+
+    const isValid = await verifySignature(pubkey, signatureBytes, messageBytes)
+
+    return isValid
+  }
+
+  async signTransaction (unsignedTx) {
+    if (!this._account) await this._connect()
+
+    const tx = getTransactionDecoder().decode(unsignedTx)
 
     /**
-     * @type {OffchainMessage} Offchain message v0
+     * @type {TransactionMessageBytes} Cast the type from ReadonlyUint8Array<ArrayBuffer> to TransactionMessageBytes
      */
-    const offchainMessage = {
-      version: 0,
-      requiredSignatories: [{ address: address(this._address) }],
-      applicationDomain: offchainMessageApplicationDomain(
-        SYSTEM_PROGRAM_ADDRESS,
-      ),
-      content: offchainMessageContentRestrictedAsciiOf1232BytesMax(message),
-    };
-
-    const messageBytes = getOffchainMessageEncoder().encode(offchainMessage);
-    const signatureBytes = Buffer.from(signature, "hex");
-
-    const valid = await verifySignature(pubkey, signatureBytes, messageBytes);
-    return valid;
-  }
-
-  async signTransaction(unsignedTx) {
-    if (!this._account) await this._connect();
-
-    const tx = getTransactionDecoder().decode(unsignedTx);
     const compiledTransactionMessage =
-      getCompiledTransactionMessageEncoder().encode(tx);
+      getCompiledTransactionMessageEncoder().encode(tx)
 
     const { observable } = this._account.signTransaction(
-      `${path}/0'/0'`,
-      new Uint8Array(compiledTransactionMessage),
-    );
+      this._path,
+      Uint8Array.from(compiledTransactionMessage)
+    )
     const signature = await firstValueFrom(
       observable.pipe(
         filter((evt) => evt.status === DeviceActionStatus.Completed),
-        map((evt) => evt.output),
-      ),
-    );
+        map((evt) => evt.output)
+      )
+    )
 
-    return getTransactionEncoder().encode({
+    const readonlySignedTransaction = getTransactionEncoder().encode({
       messageBytes: compiledTransactionMessage,
       signatures: {
-        [address(addr)]: getBase58Decoder().decode(signature),
-      },
-    });
+        [address(this._address)]: signatureBytes(signature)
+      }
+    })
+
+    return Uint8Array.from(readonlySignedTransaction)
   }
 
-  dispose() {
-    if (this._account) this._dmk.disconnect({ sessionId: this._sessionId });
+  dispose () {
+    if (this._account) this._dmk.disconnect({ sessionId: this._sessionId })
 
-    this._account = undefined;
-    this._dmk = undefined;
-    this._sessionId = "";
-    this._isActive = false;
+    this._account = undefined
+    this._dmk = undefined
+    this._sessionId = ''
+    this._isActive = false
   }
 }

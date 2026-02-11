@@ -1,5 +1,41 @@
 'use strict'
 
+import { NotImplementedError } from '@tetherto/wdk-wallet'
+
+import { SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
+import { address } from '@solana/addresses'
+import {
+  getOffchainMessageEncoder,
+  offchainMessageApplicationDomain,
+  offchainMessageContentRestrictedAsciiOf1232BytesMax
+} from '@solana/offchain-messages'
+
+/**
+ * @typedef {import("@solana/offchain-messages").OffchainMessage} OffchainMessage
+ */
+
+/**
+ *
+ * @param {string} addr - The signer address
+ * @param {string} message - The message
+ * @returns {Uint8Array} The signing content
+ */
+export const constructOffchainMessageV0Content = (addr, message) => {
+  /**
+   * @type {OffchainMessage} Offchain message
+   */
+  const offchainMessage = {
+    version: 0,
+    requiredSignatories: [{ address: address(addr) }],
+    applicationDomain: offchainMessageApplicationDomain(SYSTEM_PROGRAM_ADDRESS),
+    content: offchainMessageContentRestrictedAsciiOf1232BytesMax(message)
+  }
+
+  const signingContent = getOffchainMessageEncoder().encode(offchainMessage)
+
+  return Uint8Array.from(signingContent)
+}
+
 export class ISignerSolana {
   /**
    * The flag indicates whether the signer is ready to use.
