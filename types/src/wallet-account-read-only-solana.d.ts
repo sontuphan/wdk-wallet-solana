@@ -1,3 +1,23 @@
+/** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
+/** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
+/** @typedef {import('@tetherto/wdk-wallet').TransferResult} TransferResult */
+/** @typedef {import('@solana/transaction-messages').TransactionMessage} TransactionMessage */
+/** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
+/** @typedef {ReturnType<import("@solana/rpc-api").SolanaRpcApi['getTransaction']>} SolanaTransactionReceipt */
+/**
+ * @typedef {Object} SimpleSolanaTransaction
+ * @property {string} to - The recipient's Solana address.
+ * @property {number | bigint} value - The amount of SOL to send in lamports (1 SOL = 1,000,000,000 lamports).
+ */
+/**
+ * @typedef {SimpleSolanaTransaction | TransactionMessage} SolanaTransaction
+ */
+/**
+ * @typedef {Object} SolanaWalletConfig
+ * @property {string} [rpcUrl] - The provider's rpc url.
+ * @property {'processed' | 'confirmed' | 'finalized'} [commitment] - The commitment level (default: 'confirmed').
+ * @property {number | bigint} [transferMaxFee] - Maximum allowed fee in lamports for transfer operations.
+ */
 /**
  * Read-only Solana wallet account implementation.
  *
@@ -33,32 +53,12 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _commitment: string;
     /**
-     * Returns the account's native SOL balance.
-     *
-     * @returns {Promise<bigint>} The sol balance (in lamports).
-     */
-    getBalance(): Promise<bigint>;
-    /**
-     * Returns the account balance for a specific SPL token.
-     *
-     * @param {string} tokenAddress - The smart contract address of the token.
-     * @returns {Promise<bigint>} The token balance (in base unit).
-     */
-    getTokenBalance(tokenAddress: string): Promise<bigint>;
-    /**
      * Quotes the costs of a send transaction operation.
      *
      * @param {SolanaTransaction} tx - The transaction.
      * @returns {Promise<Omit<TransactionResult, 'hash'>>} The transaction's quotes.
      */
     quoteSendTransaction(tx: SolanaTransaction): Promise<Omit<TransactionResult, "hash">>;
-    /**
-     * Quotes the costs of a transfer operation.
-     *
-     * @param {TransferOptions} options - The transfer's options.
-     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
-     */
-    quoteTransfer(options: TransferOptions): Promise<Omit<TransferResult, "hash">>;
     /**
      * Retrieves a transaction receipt by its signature
      *
@@ -97,14 +97,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @returns {Promise<bigint>} The calculated transaction fee in lamports.
      */
     protected _getTransactionFee(transactionMessage: TransactionMessage): Promise<bigint>;
-    /**
-     * Verifies a message's signature.
-     *
-     * @param {string} message - The original message.
-     * @param {string} signature - The signature to verify.
-     * @returns {Promise<boolean>} True if the signature is valid.
-     */
-    verify(message: string, signature: string): Promise<boolean>;
 }
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;

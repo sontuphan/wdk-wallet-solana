@@ -1,4 +1,9 @@
 /**
+ * Assert the full path is hardened.
+ * @param {string} path The derivation path.
+ */
+export function assertFullHardenedPath(path: string): void;
+/**
  * Full-featured Solana wallet account implementation with signing capabilities.
  *
  */
@@ -7,7 +12,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      * Creates a new solana wallet account.
      *
      * @param {string | Uint8Array} seed - The wallet's [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) seed phrase.
-     * @param {string} path - The BIP-44 derivation path (e.g. "0'/0/0").
+     * @param {string} path - The SLIP-0010 derivation path (e.g. "0'/0/0").
      * @param {SolanaWalletConfig} [config] - The configuration object.
      * @returns {Promise<WalletAccountSolana>} The wallet account.
      */
@@ -19,8 +24,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     private constructor();
     /** @private */
     private _seed;
-    /** @private */
-    private _path;
+    _path: string;
     /**
      * The Ed25519 key pair signer for signing transactions.
      *
@@ -55,21 +59,15 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      */
     get path(): string;
     /**
-   * The account's key pair.
-   *
-   * Returns the raw key pair bytes in standard Solana format.
-   * - privateKey: 32-byte Ed25519 secret key (Uint8Array)
-   * - publicKey: 32-byte Ed25519 public key (Uint8Array)
-   *
-   * @type {KeyPair}
-   */
-    get keyPair(): KeyPair;
-    /**
-     * The address of this account.
+     * The account's key pair.
      *
-     * @returns {Promise<string>} The address.
+     * Returns the raw key pair bytes in standard Solana format.
+     * - privateKey: 32-byte Ed25519 secret key (Uint8Array)
+     * - publicKey: 32-byte Ed25519 public key (Uint8Array)
+     *
+     * @type {KeyPair}
      */
-    getAddress(): Promise<string>;
+    get keyPair(): KeyPair;
     /**
      * Signs a message.
      *

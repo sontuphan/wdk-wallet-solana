@@ -21,31 +21,25 @@ export default class WalletManagerSolana extends WalletManager {
      */
     protected _commitment: string;
     /**
-     * Returns the wallet account at a specific index (see [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki)).
+     * Returns the wallet account at a specific index (see [SLIP-0010](https://slips.readthedocs.io/en/latest/slip-0010/)).
      *
      * @example
-     * // Returns the account with derivation path m/44'/501'/0'/0/1
+     * // Returns the account with derivation path m/44'/501'/index'/0'
      * const account = await wallet.getAccount(1);
      * @param {number} [index] - The index of the account to get (default: 0).
      * @returns {Promise<WalletAccountSolana>} The account.
      */
     getAccount(index?: number): Promise<WalletAccountSolana>;
     /**
-     * Returns the wallet account at a specific BIP-44 derivation path.
+     * Returns the wallet account at a specific SLIP-0010 derivation path.
      *
      * @example
-     * // Returns the account with derivation path m/44'/501'/0'/0/1
-     * const account = await wallet.getAccountByPath("0'/0/1");
-     * @param {string} path - The derivation path (e.g. "0'/0/0").
+     * // Returns the account with derivation path m/44'/501'/0'/0'/1'
+     * const account = await wallet.getAccountByPath("0'/0'/1'");
+     * @param {string} path - The derivation path (e.g. "0'/0'/0'").
      * @returns {Promise<WalletAccountSolana>} The account.
      */
     getAccountByPath(path: string): Promise<WalletAccountSolana>;
-     /**
-     * Returns the current fee rates.
-     *
-     * @returns {Promise<FeeRates>} The fee rates (in lamports).
-     */
-    getFeeRates(): Promise<FeeRates>;
 }
 export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
