@@ -40,7 +40,7 @@ describe('WalletAccountSolana', () => {
         await expect(
           WalletAccountSolana.at(
             'invalid word that does not exist test test test test test test test',
-            "0'/0/0",
+            "0'/0'/0'",
             {
               rpcUrl: TEST_RPC_URL,
               commitment: 'processed',

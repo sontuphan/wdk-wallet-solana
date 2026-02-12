@@ -76,7 +76,7 @@ describe("WalletManagerSolana", () => {
   });
 
   describe("getAccountByPath", () => {
-    it('should return account for path "0\'/0/0"', async () => {
+    it('should return account for path "0\'/0\'/0\'"', async () => {
       const account = await wallet.getAccountByPath("0'/0'/0'");
       expect(account).toBeInstanceOf(WalletAccountSolana);
       expect(account.path).toBe("m/44'/501'/0'/0'/0'");
