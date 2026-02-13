@@ -29,7 +29,7 @@ describe('WalletAccountSolana', () => {
   beforeAll(async () => {
     wallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
       rpcUrl: TEST_RPC_URL,
-      commitment: 'processed',
+      commitment: 'processed'
     })
 
     account = await wallet.getAccount(0)
@@ -43,16 +43,16 @@ describe('WalletAccountSolana', () => {
             "0'/0'/0'",
             {
               rpcUrl: TEST_RPC_URL,
-              commitment: 'processed',
-            },
-          ),
+              commitment: 'processed'
+            }
+          )
         ).rejects.toThrow('The seed phrase is invalid')
       })
 
       it('should accept valid BIP-39 seed phrase as string', async () => {
         const account = await WalletAccountSolana.at(TEST_SEED_PHRASE, "0'/0'/0'", {
           rpcUrl: TEST_RPC_URL,
-          commitment: 'confirmed',
+          commitment: 'confirmed'
         })
 
         expect(account).toBeDefined()
@@ -99,10 +99,10 @@ describe('WalletAccountSolana', () => {
       it('should have consistent keyPair', () => {
         const keyPair = account.keyPair
         expect(Buffer.from(keyPair.publicKey).toString('hex')).toBe(
-          '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19',
+          '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
         )
         expect(Buffer.from(keyPair.privateKey).toString('hex')).toBe(
-          'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f',
+          'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
         )
       })
 
@@ -114,16 +114,16 @@ describe('WalletAccountSolana', () => {
         const keyPair1 = account1.keyPair
 
         expect(Buffer.from(keyPair0.publicKey).toString('hex')).toBe(
-          '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19',
+          '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
         )
         expect(Buffer.from(keyPair0.privateKey).toString('hex')).toBe(
-          'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f',
+          'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
         )
         expect(Buffer.from(keyPair1.publicKey).toString('hex')).toBe(
-          'ad3e499bc158a797574c53bcca546939f0de16242b85ed39a848092c4d9d5274',
+          'ad3e499bc158a797574c53bcca546939f0de16242b85ed39a848092c4d9d5274'
         )
         expect(Buffer.from(keyPair1.privateKey).toString('hex')).toBe(
-          '4642fc818f6525a2c5ae784cc98f44d639492c21271c5f7f0ac30ee95a3357bb',
+          '4642fc818f6525a2c5ae784cc98f44d639492c21271c5f7f0ac30ee95a3357bb'
         )
       })
     })
@@ -177,7 +177,7 @@ describe('WalletAccountSolana', () => {
       it('should clear private key from memory', async () => {
         const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
           rpcUrl: TEST_RPC_URL,
-          commitment: 'confirmed',
+          commitment: 'confirmed'
         })
         const tempAccount = await tempWallet.getAccount(99)
 
@@ -193,7 +193,7 @@ describe('WalletAccountSolana', () => {
       it('should dispose all accounts when wallet manager is disposed', async () => {
         const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
           rpcUrl: TEST_RPC_URL,
-          commitment: 'confirmed',
+          commitment: 'confirmed'
         })
 
         const account0 = await tempWallet.getAccount(0)
@@ -213,7 +213,7 @@ describe('WalletAccountSolana', () => {
       it('should keep public key accessible after disposal', async () => {
         const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
           rpcUrl: TEST_RPC_URL,
-          commitment: 'confirmed',
+          commitment: 'confirmed'
         })
         const tempAccount = await tempWallet.getAccount(98)
 
@@ -233,7 +233,7 @@ describe('WalletAccountSolana', () => {
         const signature = await account.sign(message)
 
         expect(signature).toBe(
-          '90d1d5dc7430f3efa9fa037ba2179458fad9a8bfdf42ba74fff4581ce9e0ac2fba1562483b072e9eee709ef8d59448b379d9a61e634b37a3c13858bab7754f08',
+          '90d1d5dc7430f3efa9fa037ba2179458fad9a8bfdf42ba74fff4581ce9e0ac2fba1562483b072e9eee709ef8d59448b379d9a61e634b37a3c13858bab7754f08'
         )
       })
 
@@ -245,17 +245,17 @@ describe('WalletAccountSolana', () => {
         const signature2 = await account.sign(message2)
 
         expect(signature1).toBe(
-          '06f06d64f9a5338595410825aee9ae6b04bd0069fcd36afca765f75b3c4ebb42c2ee35a62961b8edc3afc1d10b50dcdb558d9904707326236598d0b7c0385204',
+          '06f06d64f9a5338595410825aee9ae6b04bd0069fcd36afca765f75b3c4ebb42c2ee35a62961b8edc3afc1d10b50dcdb558d9904707326236598d0b7c0385204'
         )
         expect(signature2).toBe(
-          'c4d4f624a1d7ba1992cdfd6ce5a8a3e7e2ac46ad342ef8b00b8c10f73633223a882ff8230b009691d57291aa6224a648371f9208c447ed695be47ec395a6ad0d',
+          'c4d4f624a1d7ba1992cdfd6ce5a8a3e7e2ac46ad342ef8b00b8c10f73633223a882ff8230b009691d57291aa6224a648371f9208c447ed695be47ec395a6ad0d'
         )
       })
 
       it('should throw error after account disposal', async () => {
         const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
           rpcUrl: TEST_RPC_URL,
-          commitment: 'confirmed',
+          commitment: 'confirmed'
         })
         const tempAccount = await tempWallet.getAccount(95)
 
@@ -284,10 +284,10 @@ describe('WalletAccountSolana', () => {
           send: jest.fn().mockResolvedValue({
             value: {
               blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
-              lastValidBlockHeight: 1000000,
-            },
-          }),
-        }),
+              lastValidBlockHeight: 1000000
+            }
+          })
+        })
       }
     })
 
@@ -301,21 +301,21 @@ describe('WalletAccountSolana', () => {
         const noRpcAccount = await noRpcWallet.getAccount(0)
 
         await expect(
-          noRpcAccount.sendTransaction({ to: 'DummyAddress', value: 1000n }),
+          noRpcAccount.sendTransaction({ to: 'DummyAddress', value: 1000n })
         ).rejects.toThrow('The wallet must be connected to a provider')
       })
 
       it('should throw if account is disposed', async () => {
         const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
           rpcUrl: TEST_RPC_URL,
-          commitment: 'confirmed',
+          commitment: 'confirmed'
         })
         const tempAccount = await tempWallet.getAccount(90)
 
         tempAccount.dispose()
 
         await expect(
-          tempAccount.sendTransaction({ to: 'DummyAddress', value: 1000n }),
+          tempAccount.sendTransaction({ to: 'DummyAddress', value: 1000n })
         ).rejects.toThrow('The wallet account has been disposed.')
       })
     })
@@ -323,22 +323,22 @@ describe('WalletAccountSolana', () => {
     describe('Native Transfer Transaction', () => {
       it('should accept simple {to, value} transaction format', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 }),
+          send: jest.fn().mockResolvedValue({ value: 5000 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('mock-signature-123'),
+          send: jest.fn().mockResolvedValue('mock-signature-123')
         })
         mockRpc.getSignatureStatuses.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: [{ err: null, confirmationStatus: 'confirmed' }],
-          }),
+            value: [{ err: null, confirmationStatus: 'confirmed' }]
+          })
         })
 
         account._rpc = mockRpc
 
         const tx = {
           to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
-          value: 1000000n,
+          value: 1000000n
         }
 
         const result = await account.sendTransaction(tx, { skipConfirmation: true })
@@ -351,10 +351,10 @@ describe('WalletAccountSolana', () => {
 
       it('should handle bigint and number values', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 }),
+          send: jest.fn().mockResolvedValue({ value: 5000 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig1'),
+          send: jest.fn().mockResolvedValue('sig1')
         })
 
         account._rpc = mockRpc
@@ -362,17 +362,17 @@ describe('WalletAccountSolana', () => {
         await account.sendTransaction(
           {
             to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
-            value: 1000000n,
+            value: 1000000n
           },
-          { skipConfirmation: true },
+          { skipConfirmation: true }
         )
 
         await account.sendTransaction(
           {
             to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
-            value: 1000000,
+            value: 1000000
           },
-          { skipConfirmation: true },
+          { skipConfirmation: true }
         )
 
         expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(2)
@@ -382,10 +382,10 @@ describe('WalletAccountSolana', () => {
     describe('TransactionMessage Format', () => {
       it('should accept TransactionMessage with instructions', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 }),
+          send: jest.fn().mockResolvedValue({ value: 5000 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('mock-sig'),
+          send: jest.fn().mockResolvedValue('mock-sig')
         })
 
         account._rpc = mockRpc
@@ -395,10 +395,10 @@ describe('WalletAccountSolana', () => {
             {
               programAddress: '11111111111111111111111111111111',
               accounts: [],
-              data: new Uint8Array(),
-            },
+              data: new Uint8Array()
+            }
           ],
-          version: 0,
+          version: 0
         }
 
         const result = await account.sendTransaction(txMessage)
@@ -409,17 +409,17 @@ describe('WalletAccountSolana', () => {
 
       it('should add fee payer if missing', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 }),
+          send: jest.fn().mockResolvedValue({ value: 5000 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('mock-sig'),
+          send: jest.fn().mockResolvedValue('mock-sig')
         })
 
         account._rpc = mockRpc
 
         const txMessage = {
           instructions: [],
-          version: 0,
+          version: 0
         }
 
         await account.sendTransaction(txMessage, { skipConfirmation: true })
@@ -429,10 +429,10 @@ describe('WalletAccountSolana', () => {
 
       it('should verify fee payer matches account address (string format)', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 }),
+          send: jest.fn().mockResolvedValue({ value: 5000 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('mock-sig'),
+          send: jest.fn().mockResolvedValue('mock-sig')
         })
 
         account._rpc = mockRpc
@@ -444,11 +444,11 @@ describe('WalletAccountSolana', () => {
             {
               programAddress: '11111111111111111111111111111111',
               accounts: [],
-              data: new Uint8Array(),
-            },
+              data: new Uint8Array()
+            }
           ],
           version: 0,
-          feePayer: accountAddress,
+          feePayer: accountAddress
         }
 
         const result = await account.sendTransaction(txMessage, { skipConfirmation: true })
@@ -464,12 +464,12 @@ describe('WalletAccountSolana', () => {
           instructions: [],
           version: 0,
           feePayer: {
-            address: 'DifferentAddress11111111111111111111111',
-          },
+            address: 'DifferentAddress11111111111111111111111'
+          }
         }
 
         await expect(account.sendTransaction(txMessage)).rejects.toThrow(
-          'does not match wallet address',
+          'does not match wallet address'
         )
       })
     })
@@ -477,10 +477,10 @@ describe('WalletAccountSolana', () => {
     describe('Fee Estimation', () => {
       it('should estimate and return transaction fee', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 7500 }),
+          send: jest.fn().mockResolvedValue({ value: 7500 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig'),
+          send: jest.fn().mockResolvedValue('sig')
         })
 
         account._rpc = mockRpc
@@ -488,9 +488,9 @@ describe('WalletAccountSolana', () => {
         const result = await account.sendTransaction(
           {
             to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
-            value: 1000n,
+            value: 1000n
           },
-          { skipConfirmation: true },
+          { skipConfirmation: true }
         )
 
         expect(result.fee).toBe(7500n)
@@ -499,7 +499,7 @@ describe('WalletAccountSolana', () => {
 
       it('should throw if fee estimation fails', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: null }),
+          send: jest.fn().mockResolvedValue({ value: null })
         })
 
         account._rpc = mockRpc
@@ -507,8 +507,8 @@ describe('WalletAccountSolana', () => {
         await expect(
           account.sendTransaction({
             to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
-            value: 1000n,
-          }),
+            value: 1000n
+          })
         ).rejects.toThrow('Failed to calculate transaction fee')
       })
     })
@@ -530,10 +530,10 @@ describe('WalletAccountSolana', () => {
           send: jest.fn().mockResolvedValue({
             value: {
               blockhash: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
-              lastValidBlockHeight: 2000000,
-            },
-          }),
-        }),
+              lastValidBlockHeight: 2000000
+            }
+          })
+        })
       }
     })
 
@@ -550,15 +550,15 @@ describe('WalletAccountSolana', () => {
           noRpcAccount.transfer({
             token: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
             recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
-            amount: 1000n,
-          }),
+            amount: 1000n
+          })
         ).rejects.toThrow('The wallet must be connected to a provider')
       })
 
       it('should throw if account is disposed', async () => {
         const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
           rpcUrl: TEST_RPC_URL,
-          commitment: 'confirmed',
+          commitment: 'confirmed'
         })
         const tempAccount = await tempWallet.getAccount(89)
 
@@ -568,8 +568,8 @@ describe('WalletAccountSolana', () => {
           tempAccount.transfer({
             token: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
             recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
-            amount: 1000n,
-          }),
+            amount: 1000n
+          })
         ).rejects.toThrow('The wallet account has been disposed.')
       })
 
@@ -578,8 +578,8 @@ describe('WalletAccountSolana', () => {
           account.transfer({
             token: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
             recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
-            amount: 0xffffffffffffffffn + 1n,
-          }),
+            amount: 0xffffffffffffffffn + 1n
+          })
         ).rejects.toThrow('Amount exceeds u64 maximum value')
       })
 
@@ -588,8 +588,8 @@ describe('WalletAccountSolana', () => {
           account.transfer({
             token: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
             recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
-            amount: Number.MAX_SAFE_INTEGER + 1,
-          }),
+            amount: Number.MAX_SAFE_INTEGER + 1
+          })
         ).rejects.toThrow('Amount exceeds safe integer range')
       })
 
@@ -599,14 +599,14 @@ describe('WalletAccountSolana', () => {
 
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: { data: mintData },
-          }),
+            value: { data: mintData }
+          })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 }),
+          send: jest.fn().mockResolvedValue({ value: 5000 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig'),
+          send: jest.fn().mockResolvedValue('sig')
         })
 
         account._rpc = mockRpc
@@ -615,18 +615,18 @@ describe('WalletAccountSolana', () => {
           {
             token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
-            amount: 1000000n,
+            amount: 1000000n
           },
-          { skipConfirmation: true },
+          { skipConfirmation: true }
         )
 
         await account.transfer(
           {
             token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
-            amount: 1000000,
+            amount: 1000000
           },
-          { skipConfirmation: true },
+          { skipConfirmation: true }
         )
 
         expect(mockRpc.sendTransaction).toHaveBeenCalledTimes(2)
@@ -638,7 +638,7 @@ describe('WalletAccountSolana', () => {
         const limitedWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed',
-          transferMaxFee: 10000n,
+          transferMaxFee: 10000n
         })
         const limitedAccount = await limitedWallet.getAccount(0)
 
@@ -647,11 +647,11 @@ describe('WalletAccountSolana', () => {
 
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: { data: mintData },
-          }),
+            value: { data: mintData }
+          })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 15000 }),
+          send: jest.fn().mockResolvedValue({ value: 15000 })
         })
 
         limitedAccount._rpc = mockRpc
@@ -660,8 +660,8 @@ describe('WalletAccountSolana', () => {
           limitedAccount.transfer({
             token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
-            amount: 1000n,
-          }),
+            amount: 1000n
+          })
         ).rejects.toThrow('Exceeded maximum fee cost')
       })
 
@@ -669,7 +669,7 @@ describe('WalletAccountSolana', () => {
         const limitedWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
           rpcUrl: TEST_RPC_URL,
           commitment: 'confirmed',
-          transferMaxFee: 10000n,
+          transferMaxFee: 10000n
         })
         const limitedAccount = await limitedWallet.getAccount(0)
 
@@ -678,14 +678,14 @@ describe('WalletAccountSolana', () => {
 
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: { data: mintData },
-          }),
+            value: { data: mintData }
+          })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 }),
+          send: jest.fn().mockResolvedValue({ value: 5000 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig'),
+          send: jest.fn().mockResolvedValue('sig')
         })
 
         limitedAccount._rpc = mockRpc
@@ -694,9 +694,9 @@ describe('WalletAccountSolana', () => {
           {
             token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
             recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
-            amount: 1000n,
+            amount: 1000n
           },
-          { skipConfirmation: true },
+          { skipConfirmation: true }
         )
 
         expect(result.hash).toBe('sig')
@@ -709,14 +709,14 @@ describe('WalletAccountSolana', () => {
         const mintData = new Uint8Array(165)
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: { data: mintData },
-          }),
+            value: { data: mintData }
+          })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 }),
+          send: jest.fn().mockResolvedValue({ value: 5000 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('transfer-sig'),
+          send: jest.fn().mockResolvedValue('transfer-sig')
         })
 
         account._rpc = mockRpc
@@ -725,9 +725,9 @@ describe('WalletAccountSolana', () => {
           {
             token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
             recipient: '11111111111111111111111111111111',
-            amount: 1000000n,
+            amount: 1000000n
           },
-          { skipConfirmation: true },
+          { skipConfirmation: true }
         )
 
         expect(result.hash).toBe('transfer-sig')

@@ -40,7 +40,7 @@ npm install @tetherto/wdk-wallet-solana
 ```javascript
 import WalletManagerSolana, {
   WalletAccountSolana,
-  WalletAccountReadOnlySolana,
+  WalletAccountReadOnlySolana
 } from '@tetherto/wdk-wallet-solana'
 
 // Use a BIP-39 seed phrase (replace with your own secure phrase)
@@ -49,7 +49,7 @@ const seedPhrase = 'test only example nut use this real life secret phrase must 
 // Create wallet manager with Solana RPC provider
 const wallet = new WalletManagerSolana(seedPhrase, {
   rpcUrl: 'https://api.mainnet-beta.solana.com', // or any Solana RPC endpoint
-  commitment: 'confirmed', // Optional: commitment level
+  commitment: 'confirmed' // Optional: commitment level
 })
 
 // Get a full access account
@@ -118,7 +118,7 @@ import { WalletAccountReadOnlySolana } from '@tetherto/wdk-wallet-solana'
 const readOnlyAccount = new WalletAccountReadOnlySolana('publicKey', {
   // Base58-encoded public key
   rpcUrl: 'https://api.mainnet-beta.solana.com',
-  commitment: 'confirmed',
+  commitment: 'confirmed'
 })
 
 // Check native SOL balance
@@ -141,7 +141,7 @@ console.log('Token balance:', tokenBalance)
 // Send native SOL
 const result = await account.sendTransaction({
   to: 'recipientPublicKey', // Recipient's base58-encoded public key
-  value: 1000000000n, // 1 SOL in lamports (use BigInt)
+  value: 1000000000n // 1 SOL in lamports (use BigInt)
 })
 console.log('Transaction hash:', result.hash)
 console.log('Transaction fee:', result.fee, 'lamports')
@@ -149,7 +149,7 @@ console.log('Transaction fee:', result.fee, 'lamports')
 // Quote transaction fee before sending
 const quote = await account.quoteSendTransaction({
   to: 'recipientPublicKey',
-  value: 1000000000n,
+  value: 1000000000n
 })
 console.log('Estimated fee:', quote.fee, 'lamports')
 ```
@@ -166,11 +166,11 @@ const fromAddress = await account.getAddress()
 const transferInstruction = getTransferSolInstruction({
   source: { address: fromAddress },
   destination: 'DYw8jCTfwHNRJhhmFcbXvVDTqWMEVFBX6ZKUmG5CNSKK',
-  amount: 1000000n,
+  amount: 1000000n
 })
 
 const txMessage = pipe(createTransactionMessage({ version: 0 }), (tx) =>
-  appendTransactionMessageInstruction(transferInstruction, tx),
+  appendTransactionMessageInstruction(transferInstruction, tx)
 )
 
 const result = await account.sendTransaction(txMessage)
@@ -187,11 +187,11 @@ const transferResult = await account.transfer(
   {
     token: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // Token mint address
     recipient: 'publicKey', // Recipient's base58-encoded public key
-    amount: 1000000n, // Amount in token's base units (use BigInt for large numbers)
+    amount: 1000000n // Amount in token's base units (use BigInt for large numbers)
   },
   {
-    commitment: 'confirmed', // Optional: commitment level
-  },
+    commitment: 'confirmed' // Optional: commitment level
+  }
 )
 console.log('Transaction signature:', transferResult.signature)
 console.log('Transfer fee:', transferResult.fee, 'lamports')
@@ -200,7 +200,7 @@ console.log('Transfer fee:', transferResult.fee, 'lamports')
 const transferQuote = await account.quoteTransfer({
   token: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // Token mint address
   recipient: 'publicKey', // Recipient's base58-encoded public key
-  amount: 1000000n, // Amount in token's base units
+  amount: 1000000n // Amount in token's base units
 })
 console.log('Transfer fee estimate:', transferQuote.fee, 'lamports')
 
@@ -280,7 +280,7 @@ new WalletManagerSolana(seed, config)
 const wallet = new WalletManagerSolana(seedPhrase, {
   rpcUrl: 'https://api.mainnet-beta.solana.com',
   commitment: 'confirmed',
-  transferMaxFee: 5000, // Maximum fee in lamports
+  transferMaxFee: 5000 // Maximum fee in lamports
 })
 ```
 
@@ -348,7 +348,7 @@ console.log('Fast fee rate:', feeRates.fast, 'lamports')
 // Use in transaction
 const result = await account.sendTransaction({
   recipient: '11111111111111111111111111111112',
-  value: 1000000000n, // 1 SOL in lamports
+  value: 1000000000n // 1 SOL in lamports
 })
 ```
 
@@ -447,7 +447,7 @@ Sends a Solana transaction and broadcasts it to the network.
 const result = await account.sendTransaction({
   recipient: '11111111111111111111111111111112',
   value: 1000000000n, // 1 SOL in lamports
-  commitment: 'confirmed',
+  commitment: 'confirmed'
 })
 console.log('Transaction signature:', result.signature)
 console.log('Fee paid:', result.fee, 'lamports')
@@ -471,7 +471,7 @@ Estimates the fee for a Solana transaction without broadcasting it.
 ```javascript
 const quote = await account.quoteSendTransaction({
   recipient: '11111111111111111111111111111112',
-  value: 1000000000n, // 1 SOL in lamports
+  value: 1000000000n // 1 SOL in lamports
 })
 console.log('Estimated fee:', quote.fee, 'lamports')
 console.log('Estimated fee in SOL:', Number(quote.fee) / 1e9)
@@ -498,7 +498,7 @@ const result = await account.transfer({
   token: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
   recipient: '11111111111111111111111111111112',
   amount: 1000000n, // 1 USDT (6 decimals)
-  commitment: 'confirmed',
+  commitment: 'confirmed'
 })
 console.log('Transfer signature:', result.signature)
 console.log('Gas fee:', result.fee, 'lamports')
@@ -524,7 +524,7 @@ Estimates the fee for an SPL token transfer without broadcasting it.
 const quote = await account.quoteTransfer({
   token: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
   recipient: '11111111111111111111111111111112',
-  amount: 1000000n, // 1 USDT (6 decimals)
+  amount: 1000000n // 1 USDT (6 decimals)
 })
 console.log('Estimated transfer fee:', quote.fee, 'lamports')
 ```
@@ -640,7 +640,7 @@ Returns the balance of a specific SPL token.
 ```javascript
 // Get USDT balance (6 decimals)
 const usdtBalance = await readOnlyAccount.getTokenBalance(
-  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+  'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
 )
 console.log('USDT balance:', Number(usdtBalance) / 1e6)
 ```
@@ -682,7 +682,7 @@ Estimates the fee for a Solana transaction without broadcasting it.
 const quote = await readOnlyAccount.quoteSendTransaction({
   recipient: '11111111111111111111111111111112',
   value: 1000000000n, // 1 SOL in lamports
-  commitment: 'confirmed',
+  commitment: 'confirmed'
 })
 console.log('Estimated fee:', quote.fee, 'lamports')
 console.log('Estimated fee in SOL:', Number(quote.fee) / 1e9)
@@ -709,7 +709,7 @@ const quote = await readOnlyAccount.quoteTransfer({
   token: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', // USDT
   recipient: '11111111111111111111111111111112',
   amount: 1000000n, // 1 USDT (6 decimals)
-  commitment: 'confirmed',
+  commitment: 'confirmed'
 })
 console.log('Estimated transfer fee:', quote.fee, 'lamports')
 console.log('Estimated fee in SOL:', Number(quote.fee) / 1e9)

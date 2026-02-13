@@ -27,7 +27,7 @@ describe('WalletManagerSolana', () => {
   beforeEach(() => {
     wallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
       rpcUrl: TEST_RPC_URL,
-      commitment: 'confirmed',
+      commitment: 'confirmed'
     })
   })
 
@@ -39,7 +39,7 @@ describe('WalletManagerSolana', () => {
 
     it('should create wallet manager with string seed phrase', () => {
       const newWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
-        rpcUrl: TEST_RPC_URL,
+        rpcUrl: TEST_RPC_URL
       })
       expect(newWallet).toBeInstanceOf(WalletManagerSolana)
     })
@@ -90,7 +90,7 @@ describe('WalletManagerSolana', () => {
       originalRpc = wallet._rpc
 
       mockRpc = {
-        getRecentPrioritizationFees: jest.fn(),
+        getRecentPrioritizationFees: jest.fn()
       }
     })
 
@@ -103,8 +103,8 @@ describe('WalletManagerSolana', () => {
         send: jest.fn().mockResolvedValue([
           { slot: 1, prioritizationFee: 1000 },
           { slot: 2, prioritizationFee: 2000 },
-          { slot: 3, prioritizationFee: 3000 },
-        ]),
+          { slot: 3, prioritizationFee: 3000 }
+        ])
       })
 
       wallet._rpc = mockRpc
@@ -120,7 +120,7 @@ describe('WalletManagerSolana', () => {
 
     it('should calculate normal rate as 110% of max fee', async () => {
       mockRpc.getRecentPrioritizationFees.mockReturnValue({
-        send: jest.fn().mockResolvedValue([{ slot: 1, prioritizationFee: 1000 }]),
+        send: jest.fn().mockResolvedValue([{ slot: 1, prioritizationFee: 1000 }])
       })
 
       wallet._rpc = mockRpc
@@ -132,7 +132,7 @@ describe('WalletManagerSolana', () => {
 
     it('should calculate fast rate as 200% of max fee', async () => {
       mockRpc.getRecentPrioritizationFees.mockReturnValue({
-        send: jest.fn().mockResolvedValue([{ slot: 1, prioritizationFee: 1000 }]),
+        send: jest.fn().mockResolvedValue([{ slot: 1, prioritizationFee: 1000 }])
       })
 
       wallet._rpc = mockRpc
@@ -147,8 +147,8 @@ describe('WalletManagerSolana', () => {
         send: jest.fn().mockResolvedValue([
           { slot: 1, prioritizationFee: 1000 },
           { slot: 2, prioritizationFee: 5000 },
-          { slot: 3, prioritizationFee: 3000 },
-        ]),
+          { slot: 3, prioritizationFee: 3000 }
+        ])
       })
 
       wallet._rpc = mockRpc
@@ -164,8 +164,8 @@ describe('WalletManagerSolana', () => {
         send: jest.fn().mockResolvedValue([
           { slot: 1, prioritizationFee: 0 },
           { slot: 2, prioritizationFee: 0 },
-          { slot: 3, prioritizationFee: 2000 },
-        ]),
+          { slot: 3, prioritizationFee: 2000 }
+        ])
       })
 
       wallet._rpc = mockRpc
@@ -180,8 +180,8 @@ describe('WalletManagerSolana', () => {
       mockRpc.getRecentPrioritizationFees.mockReturnValue({
         send: jest.fn().mockResolvedValue([
           { slot: 1, prioritizationFee: 0 },
-          { slot: 2, prioritizationFee: 0 },
-        ]),
+          { slot: 2, prioritizationFee: 0 }
+        ])
       })
 
       wallet._rpc = mockRpc
@@ -194,7 +194,7 @@ describe('WalletManagerSolana', () => {
 
     it('should use default fee when no fees returned', async () => {
       mockRpc.getRecentPrioritizationFees.mockReturnValue({
-        send: jest.fn().mockResolvedValue([]),
+        send: jest.fn().mockResolvedValue([])
       })
 
       wallet._rpc = mockRpc
@@ -209,13 +209,13 @@ describe('WalletManagerSolana', () => {
       const noRpcWallet = new WalletManagerSolana(TEST_SEED_PHRASE)
 
       await expect(noRpcWallet.getFeeRates()).rejects.toThrow(
-        'The wallet must be connected to a provider to get fee rates',
+        'The wallet must be connected to a provider to get fee rates'
       )
     })
 
     it('should handle RPC errors gracefully', async () => {
       mockRpc.getRecentPrioritizationFees.mockReturnValue({
-        send: jest.fn().mockRejectedValue(new Error('RPC connection failed')),
+        send: jest.fn().mockRejectedValue(new Error('RPC connection failed'))
       })
 
       wallet._rpc = mockRpc
