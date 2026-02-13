@@ -18,7 +18,7 @@ import WalletManager from '@tetherto/wdk-wallet'
 
 import { createSolanaRpc } from '@solana/rpc'
 
-import WalletAccountSolana, { assertFullHardenedPath } from './wallet-account-solana.js'
+import WalletAccountSolana from './wallet-account-solana.js'
 
 /** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
 
@@ -94,8 +94,6 @@ export default class WalletManagerSolana extends WalletManager {
    * @returns {Promise<WalletAccountSolana>} The account.
    */
   async getAccountByPath (path) {
-    assertFullHardenedPath(path)
-
     if (!this._accounts[path]) {
       const account = await WalletAccountSolana.at(this.seed, path, this._config)
 

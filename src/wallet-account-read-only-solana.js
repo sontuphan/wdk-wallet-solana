@@ -64,9 +64,10 @@ import { verifySignature } from '@solana/keys'
  * @property {number | bigint} [transferMaxFee] - Maximum allowed fee in lamports for transfer operations.
  */
 
+const MAX_U64 = 0xffffffffffffffffn
+
 /**
  * Read-only Solana wallet account implementation.
- *
  */
 export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   /**
@@ -273,7 +274,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @todo Support transfer with memo for tokens that require it.
    */
   async _buildSPLTransferTransactionMessage (token, recipient, amount) {
-    if (typeof amount === 'bigint' && amount > 0xffffffffffffffffn) {
+    if (typeof amount === 'bigint' && amount > MAX_U64) {
       throw new Error('Amount exceeds u64 maximum value')
     }
     if (typeof amount === 'number' && amount > Number.MAX_SAFE_INTEGER) {

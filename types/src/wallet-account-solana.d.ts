@@ -22,9 +22,14 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      * Use {@link WalletAccountSolana.at} instead.
      */
     private constructor();
-    /** @private */
+    /**
+     * @private
+     */
     private _seed;
-    _path: string;
+    /**
+     * @private
+     */
+    private _path;
     /**
      * The Ed25519 key pair signer for signing transactions.
      *

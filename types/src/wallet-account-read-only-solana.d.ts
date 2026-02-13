@@ -1,26 +1,5 @@
-/** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
-/** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
-/** @typedef {import('@tetherto/wdk-wallet').TransferResult} TransferResult */
-/** @typedef {import('@solana/transaction-messages').TransactionMessage} TransactionMessage */
-/** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
-/** @typedef {ReturnType<import("@solana/rpc-api").SolanaRpcApi['getTransaction']>} SolanaTransactionReceipt */
-/**
- * @typedef {Object} SimpleSolanaTransaction
- * @property {string} to - The recipient's Solana address.
- * @property {number | bigint} value - The amount of SOL to send in lamports (1 SOL = 1,000,000,000 lamports).
- */
-/**
- * @typedef {SimpleSolanaTransaction | TransactionMessage} SolanaTransaction
- */
-/**
- * @typedef {Object} SolanaWalletConfig
- * @property {string} [rpcUrl] - The provider's rpc url.
- * @property {'processed' | 'confirmed' | 'finalized'} [commitment] - The commitment level (default: 'confirmed').
- * @property {number | bigint} [transferMaxFee] - Maximum allowed fee in lamports for transfer operations.
- */
 /**
  * Read-only Solana wallet account implementation.
- *
  */
 export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     /**

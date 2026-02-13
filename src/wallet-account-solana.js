@@ -74,6 +74,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
+    assertFullHardenedPath(path)
+
     super(undefined, config)
 
     /**
@@ -84,11 +86,14 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      */
     this._config = config
 
-    /** @private */
+    /**
+     * @private
+     */
     this._seed = seed
 
-    /** @private */
-    assertFullHardenedPath(path)
+    /**
+     * @private
+     */
     this._path = `${SLIP_0010_SOL_DERIVATION_PATH_PREFIX}/${path}`
 
     /**
