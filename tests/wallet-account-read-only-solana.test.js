@@ -20,7 +20,8 @@ import WalletAccountSolana from '../src/wallet-account-solana.js'
 
 const TEST_ADDRESS = 'HmWPZeFgxZAJQYgwh5ipYwjbVTHtjEHB3dnJ5xcQBHX9'
 const TEST_ACCOUNT_ADDRESS = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
-const TEST_SEED_PHRASE = 'test walk nut penalty hip pave soap entry language right filter choice'
+const TEST_SEED_PHRASE =
+  'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mockurl.com'
 
 describe('WalletAccountReadOnlySolana', () => {
@@ -91,7 +92,10 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should throw error when not connected to provider', async () => {
-      const disconnectedAccount = new WalletAccountReadOnlySolana(TEST_ADDRESS, {})
+      const disconnectedAccount = new WalletAccountReadOnlySolana(
+        TEST_ADDRESS,
+        {}
+      )
 
       await expect(disconnectedAccount.getBalance()).rejects.toThrow(
         'The wallet must be connected to a provider to retrieve balances.'
@@ -196,9 +200,14 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should throw error when not connected to provider', async () => {
-      const disconnectedAccount = new WalletAccountReadOnlySolana(TEST_ADDRESS, {})
+      const disconnectedAccount = new WalletAccountReadOnlySolana(
+        TEST_ADDRESS,
+        {}
+      )
 
-      await expect(disconnectedAccount.getTokenBalance(MOCK_TOKEN_MINT)).rejects.toThrow(
+      await expect(
+        disconnectedAccount.getTokenBalance(MOCK_TOKEN_MINT)
+      ).rejects.toThrow(
         'The wallet must be connected to a provider to retrieve token balances.'
       )
     })
@@ -206,17 +215,23 @@ describe('WalletAccountReadOnlySolana', () => {
     it('should throw error for invalid token mint address', async () => {
       const invalidMint = 'invalid-mint-address'
 
-      await expect(readOnlyAccount.getTokenBalance(invalidMint)).rejects.toThrow()
+      await expect(
+        readOnlyAccount.getTokenBalance(invalidMint)
+      ).rejects.toThrow()
     })
 
     it('should throw error when getAccountInfo fails', async () => {
       mockRpc.getAccountInfo.mockReturnValue({
-        send: jest.fn().mockRejectedValue(new Error('RPC error: Failed to fetch account info'))
+        send: jest
+          .fn()
+          .mockRejectedValue(
+            new Error('RPC error: Failed to fetch account info')
+          )
       })
 
-      await expect(readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)).rejects.toThrow(
-        'RPC error: Failed to fetch account info'
-      )
+      await expect(
+        readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
+      ).rejects.toThrow('RPC error: Failed to fetch account info')
     })
 
     it('should throw error when getTokenAccountBalance fails', async () => {
@@ -231,12 +246,14 @@ describe('WalletAccountReadOnlySolana', () => {
       })
 
       mockRpc.getTokenAccountBalance.mockReturnValue({
-        send: jest.fn().mockRejectedValue(new Error('Failed to get token balance'))
+        send: jest
+          .fn()
+          .mockRejectedValue(new Error('Failed to get token balance'))
       })
 
-      await expect(readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)).rejects.toThrow(
-        'Failed to get token balance'
-      )
+      await expect(
+        readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
+      ).rejects.toThrow('Failed to get token balance')
     })
 
     it('should handle different token mints', async () => {
@@ -328,7 +345,9 @@ describe('WalletAccountReadOnlySolana', () => {
       it('should throw error for invalid recipient address', async () => {
         const invalidTx = { to: 'invalid-address', value: 1000 }
 
-        await expect(readOnlyAccount.quoteSendTransaction(invalidTx)).rejects.toThrow()
+        await expect(
+          readOnlyAccount.quoteSendTransaction(invalidTx)
+        ).rejects.toThrow()
       })
 
       it('should throw error for negative value', async () => {
@@ -337,7 +356,9 @@ describe('WalletAccountReadOnlySolana', () => {
           value: -1000
         }
 
-        await expect(readOnlyAccount.quoteSendTransaction(invalidTx)).rejects.toThrow()
+        await expect(
+          readOnlyAccount.quoteSendTransaction(invalidTx)
+        ).rejects.toThrow()
       })
 
       it('should handle getLatestBlockhash failure', async () => {
@@ -350,14 +371,16 @@ describe('WalletAccountReadOnlySolana', () => {
           value: 1000000n
         }
 
-        await expect(readOnlyAccount.quoteSendTransaction(nativeTx)).rejects.toThrow(
-          'Network error'
-        )
+        await expect(
+          readOnlyAccount.quoteSendTransaction(nativeTx)
+        ).rejects.toThrow('Network error')
       })
 
       it('should handle getFeeForMessage failure', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockRejectedValue(new Error('Failed to calculate fee'))
+          send: jest
+            .fn()
+            .mockRejectedValue(new Error('Failed to calculate fee'))
         })
 
         const nativeTx = {
@@ -365,9 +388,9 @@ describe('WalletAccountReadOnlySolana', () => {
           value: 1000000n
         }
 
-        await expect(readOnlyAccount.quoteSendTransaction(nativeTx)).rejects.toThrow(
-          'Failed to calculate fee'
-        )
+        await expect(
+          readOnlyAccount.quoteSendTransaction(nativeTx)
+        ).rejects.toThrow('Failed to calculate fee')
       })
 
       it('should handle null fee response', async () => {
@@ -380,9 +403,9 @@ describe('WalletAccountReadOnlySolana', () => {
           value: 1000000n
         }
 
-        await expect(readOnlyAccount.quoteSendTransaction(nativeTx)).rejects.toThrow(
-          'Failed to calculate transaction fee'
-        )
+        await expect(
+          readOnlyAccount.quoteSendTransaction(nativeTx)
+        ).rejects.toThrow('Failed to calculate transaction fee')
       })
     })
 
@@ -418,7 +441,8 @@ describe('WalletAccountReadOnlySolana', () => {
           }
         }
 
-        const result = await readOnlyAccount.quoteSendTransaction(transactionMessage)
+        const result =
+          await readOnlyAccount.quoteSendTransaction(transactionMessage)
 
         expect(result).toEqual({ fee: 5000n })
         expect(mockRpc.getFeeForMessage).toHaveBeenCalledTimes(1)
@@ -436,7 +460,8 @@ describe('WalletAccountReadOnlySolana', () => {
           ]
         }
 
-        const result = await readOnlyAccount.quoteSendTransaction(transactionMessage)
+        const result =
+          await readOnlyAccount.quoteSendTransaction(transactionMessage)
 
         expect(result).toEqual({ fee: 5000n })
         expect(mockRpc.getLatestBlockhash).toHaveBeenCalledTimes(1)
@@ -463,7 +488,8 @@ describe('WalletAccountReadOnlySolana', () => {
           }
         }
 
-        const result = await readOnlyAccount.quoteSendTransaction(transactionMessage)
+        const result =
+          await readOnlyAccount.quoteSendTransaction(transactionMessage)
 
         expect(result).toEqual({ fee: 5000n })
       })
@@ -486,7 +512,9 @@ describe('WalletAccountReadOnlySolana', () => {
           }
         }
 
-        await expect(readOnlyAccount.quoteSendTransaction(transactionMessage)).rejects.toThrow(
+        await expect(
+          readOnlyAccount.quoteSendTransaction(transactionMessage)
+        ).rejects.toThrow(
           `Transaction fee payer (${differentAddress}) does not match wallet address (${TEST_ADDRESS})`
         )
 
@@ -509,7 +537,8 @@ describe('WalletAccountReadOnlySolana', () => {
           }
         }
 
-        const result = await readOnlyAccount.quoteSendTransaction(transactionMessage)
+        const result =
+          await readOnlyAccount.quoteSendTransaction(transactionMessage)
 
         expect(result).toEqual({ fee: 5000n })
         expect(mockRpc.getFeeForMessage).toHaveBeenCalledTimes(1)
@@ -517,7 +546,9 @@ describe('WalletAccountReadOnlySolana', () => {
 
       it('should handle RPC error when fetching latest blockhash for TransactionMessage', async () => {
         mockRpc.getLatestBlockhash.mockReturnValue({
-          send: jest.fn().mockRejectedValue(new Error('Blockhash fetch failed'))
+          send: jest
+            .fn()
+            .mockRejectedValue(new Error('Blockhash fetch failed'))
         })
 
         const transactionMessage = {
@@ -531,14 +562,16 @@ describe('WalletAccountReadOnlySolana', () => {
           ]
         }
 
-        await expect(readOnlyAccount.quoteSendTransaction(transactionMessage)).rejects.toThrow(
-          'Blockhash fetch failed'
-        )
+        await expect(
+          readOnlyAccount.quoteSendTransaction(transactionMessage)
+        ).rejects.toThrow('Blockhash fetch failed')
       })
 
       it('should handle RPC error when calculating fee for TransactionMessage', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockRejectedValue(new Error('Fee calculation failed'))
+          send: jest
+            .fn()
+            .mockRejectedValue(new Error('Fee calculation failed'))
         })
 
         const transactionMessage = {
@@ -557,9 +590,9 @@ describe('WalletAccountReadOnlySolana', () => {
           }
         }
 
-        await expect(readOnlyAccount.quoteSendTransaction(transactionMessage)).rejects.toThrow(
-          'Fee calculation failed'
-        )
+        await expect(
+          readOnlyAccount.quoteSendTransaction(transactionMessage)
+        ).rejects.toThrow('Fee calculation failed')
       })
 
       it('should throw error when getFeeForMessage returns null for TransactionMessage', async () => {
@@ -583,21 +616,26 @@ describe('WalletAccountReadOnlySolana', () => {
           }
         }
 
-        await expect(readOnlyAccount.quoteSendTransaction(transactionMessage)).rejects.toThrow(
-          'Failed to calculate transaction fee'
-        )
+        await expect(
+          readOnlyAccount.quoteSendTransaction(transactionMessage)
+        ).rejects.toThrow('Failed to calculate transaction fee')
       })
     })
 
     describe('Error Handling', () => {
       it('should throw error when not connected to provider', async () => {
-        const disconnectedAccount = new WalletAccountReadOnlySolana(TEST_ADDRESS, {})
+        const disconnectedAccount = new WalletAccountReadOnlySolana(
+          TEST_ADDRESS,
+          {}
+        )
         const tx = {
           to: '3gx5puA146Y1jb6dV4KS8vQnXtuXSZsAPV89JeaqfFXW',
           value: 1000n
         }
 
-        await expect(disconnectedAccount.quoteSendTransaction(tx)).rejects.toThrow(
+        await expect(
+          disconnectedAccount.quoteSendTransaction(tx)
+        ).rejects.toThrow(
           'The wallet must be connected to a provider to quote transactions.'
         )
       })
@@ -743,7 +781,10 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should throw error when not connected to provider', async () => {
-      const disconnectedAccount = new WalletAccountReadOnlySolana(TEST_ADDRESS, {})
+      const disconnectedAccount = new WalletAccountReadOnlySolana(
+        TEST_ADDRESS,
+        {}
+      )
 
       await expect(
         disconnectedAccount.quoteTransfer({
@@ -751,7 +792,9 @@ describe('WalletAccountReadOnlySolana', () => {
           recipient: MOCK_RECIPIENT,
           amount: 1000000n
         })
-      ).rejects.toThrow('The wallet must be connected to a provider to quote transfer operations.')
+      ).rejects.toThrow(
+        'The wallet must be connected to a provider to quote transfer operations.'
+      )
     })
 
     it('should throw error when getFeeForMessage returns null', async () => {
@@ -830,7 +873,8 @@ describe('WalletAccountReadOnlySolana', () => {
         send: jest.fn().mockResolvedValue(mockReceipt)
       })
 
-      const receipt = await readOnlyAccount.getTransactionReceipt(MOCK_TX_SIGNATURE)
+      const receipt =
+        await readOnlyAccount.getTransactionReceipt(MOCK_TX_SIGNATURE)
 
       expect(receipt).toEqual(mockReceipt)
       expect(receipt.slot).toBe(123456n)
@@ -852,48 +896,67 @@ describe('WalletAccountReadOnlySolana', () => {
         send: jest.fn().mockResolvedValue(null)
       })
 
-      const receipt = await readOnlyAccount.getTransactionReceipt(MOCK_TX_SIGNATURE)
+      const receipt =
+        await readOnlyAccount.getTransactionReceipt(MOCK_TX_SIGNATURE)
 
       expect(receipt).toBeNull()
       expect(mockRpc.getTransaction).toHaveBeenCalledTimes(1)
     })
 
     it('should throw error when not connected to provider', async () => {
-      const disconnectedAccount = new WalletAccountReadOnlySolana(TEST_ADDRESS, {})
+      const disconnectedAccount = new WalletAccountReadOnlySolana(
+        TEST_ADDRESS,
+        {}
+      )
 
-      await expect(disconnectedAccount.getTransactionReceipt(MOCK_TX_SIGNATURE)).rejects.toThrow(
+      await expect(
+        disconnectedAccount.getTransactionReceipt(MOCK_TX_SIGNATURE)
+      ).rejects.toThrow(
         'The wallet must be connected to a provider to fetch transaction receipts.'
       )
     })
 
     it('should throw error when getTransaction fails', async () => {
       mockRpc.getTransaction.mockReturnValue({
-        send: jest.fn().mockRejectedValue(new Error('RPC error: Failed to fetch transaction'))
+        send: jest
+          .fn()
+          .mockRejectedValue(
+            new Error('RPC error: Failed to fetch transaction')
+          )
       })
 
-      await expect(readOnlyAccount.getTransactionReceipt(MOCK_TX_SIGNATURE)).rejects.toThrow(
-        'RPC error: Failed to fetch transaction'
-      )
+      await expect(
+        readOnlyAccount.getTransactionReceipt(MOCK_TX_SIGNATURE)
+      ).rejects.toThrow('RPC error: Failed to fetch transaction')
 
       expect(mockRpc.getTransaction).toHaveBeenCalledTimes(1)
     })
     it('should throw error for invalid signature format', async () => {
       const invalidSignature = 'invalid-signature'
 
-      await expect(readOnlyAccount.getTransactionReceipt(invalidSignature)).rejects.toThrow()
+      await expect(
+        readOnlyAccount.getTransactionReceipt(invalidSignature)
+      ).rejects.toThrow()
     })
   })
 
   describe('verify', () => {
     it('should verify signature for same message across multiple verifications', async () => {
-      const account = await WalletAccountSolana.at(TEST_SEED_PHRASE, "0'/0'/0'", {
-        rpcUrl: TEST_RPC_URL,
-        commitment: 'processed'
-      })
+      const account = await WalletAccountSolana.at(
+        TEST_SEED_PHRASE,
+        "0'/0'/0'",
+        {
+          rpcUrl: TEST_RPC_URL,
+          commitment: 'processed'
+        }
+      )
       const message = 'Persistent message'
       const signature = await account.sign(message)
 
-      const readOnlyAccount = new WalletAccountReadOnlySolana(await account.getAddress(), {})
+      const readOnlyAccount = new WalletAccountReadOnlySolana(
+        await account.getAddress(),
+        {}
+      )
       const isValid1 = await readOnlyAccount.verify(message, signature)
       const isValid2 = await readOnlyAccount.verify(message, signature)
       const isValid3 = await readOnlyAccount.verify(message, signature)
@@ -906,15 +969,22 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should reject signature for different message', async () => {
-      const account = await WalletAccountSolana.at(TEST_SEED_PHRASE, "0'/0'/0'", {
-        rpcUrl: TEST_RPC_URL,
-        commitment: 'processed'
-      })
+      const account = await WalletAccountSolana.at(
+        TEST_SEED_PHRASE,
+        "0'/0'/0'",
+        {
+          rpcUrl: TEST_RPC_URL,
+          commitment: 'processed'
+        }
+      )
       const message1 = 'Message 1'
       const message2 = 'Message 2'
       const signature1 = await account.sign(message1)
 
-      const readOnlyAccount = new WalletAccountReadOnlySolana(await account.getAddress(), {})
+      const readOnlyAccount = new WalletAccountReadOnlySolana(
+        await account.getAddress(),
+        {}
+      )
       expect(await readOnlyAccount.verify(message1, signature1)).toBe(true)
       expect(await readOnlyAccount.verify(message2, signature1)).toBe(false)
 
@@ -925,8 +995,13 @@ describe('WalletAccountReadOnlySolana', () => {
       const message = 'Test message'
       const invalidSignature = 'not-a-valid-hex-signature'
 
-      const readOnlyAccount = new WalletAccountReadOnlySolana(TEST_ACCOUNT_ADDRESS, {})
-      expect(await readOnlyAccount.verify(message, invalidSignature)).toBe(false)
+      const readOnlyAccount = new WalletAccountReadOnlySolana(
+        TEST_ACCOUNT_ADDRESS,
+        {}
+      )
+      expect(await readOnlyAccount.verify(message, invalidSignature)).toBe(
+        false
+      )
     })
   })
 })

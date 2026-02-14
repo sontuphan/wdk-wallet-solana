@@ -14,12 +14,21 @@
 
 'use strict'
 
-import { describe, it, expect, beforeAll, jest, beforeEach, afterEach } from '@jest/globals'
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  jest,
+  beforeEach,
+  afterEach
+} from '@jest/globals'
 import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
 
-const TEST_SEED_PHRASE = 'test walk nut penalty hip pave soap entry language right filter choice'
+const TEST_SEED_PHRASE =
+  'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mockurl.com'
 
 describe('WalletAccountSolana', () => {
@@ -50,10 +59,14 @@ describe('WalletAccountSolana', () => {
       })
 
       it('should accept valid BIP-39 seed phrase as string', async () => {
-        const account = await WalletAccountSolana.at(TEST_SEED_PHRASE, "0'/0'/0'", {
-          rpcUrl: TEST_RPC_URL,
-          commitment: 'confirmed'
-        })
+        const account = await WalletAccountSolana.at(
+          TEST_SEED_PHRASE,
+          "0'/0'/0'",
+          {
+            rpcUrl: TEST_RPC_URL,
+            commitment: 'confirmed'
+          }
+        )
 
         expect(account).toBeDefined()
         expect(account).toBeInstanceOf(WalletAccountSolana)
@@ -75,9 +88,15 @@ describe('WalletAccountSolana', () => {
         const address1 = await account1.getAddress()
         const address2 = await account2.getAddress()
 
-        expect(address0).toMatch('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
-        expect(address1).toMatch('CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK')
-        expect(address2).toMatch('Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq')
+        expect(address0).toMatch(
+          '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
+        )
+        expect(address1).toMatch(
+          'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'
+        )
+        expect(address2).toMatch(
+          'Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq'
+        )
       })
 
       it('should return different addresses for different derivation paths', async () => {
@@ -89,9 +108,13 @@ describe('WalletAccountSolana', () => {
         const address2 = await accountPath2.getAddress()
         const address3 = await accountPath3.getAddress()
 
-        expect(address1).toMatch('DPGHHHMaayXkaThUJCUnUAJCdgc9sxNh1UEGa6vJximM')
+        expect(address1).toMatch(
+          'DPGHHHMaayXkaThUJCUnUAJCdgc9sxNh1UEGa6vJximM'
+        )
         expect(address2).toMatch('jbhYXhWfRPqPvaKqaWCJEgBdZMquFxUvjWaWLEH3YCz')
-        expect(address3).toMatch('57hwCai22XueypvXcXKotkuAQYj2eukFcY5ymWB7Arvg')
+        expect(address3).toMatch(
+          '57hwCai22XueypvXcXKotkuAQYj2eukFcY5ymWB7Arvg'
+        )
       })
     })
 
@@ -341,7 +364,9 @@ describe('WalletAccountSolana', () => {
           value: 1000000n
         }
 
-        const result = await account.sendTransaction(tx, { skipConfirmation: true })
+        const result = await account.sendTransaction(tx, {
+          skipConfirmation: true
+        })
 
         expect(result).toBeDefined()
         expect(result.hash).toBe('mock-signature-123')
@@ -451,7 +476,9 @@ describe('WalletAccountSolana', () => {
           feePayer: accountAddress
         }
 
-        const result = await account.sendTransaction(txMessage, { skipConfirmation: true })
+        const result = await account.sendTransaction(txMessage, {
+          skipConfirmation: true
+        })
 
         expect(result.hash).toBe('mock-sig')
         expect(mockRpc.sendTransaction).toHaveBeenCalled()
