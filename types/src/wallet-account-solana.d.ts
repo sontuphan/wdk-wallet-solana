@@ -1,9 +1,4 @@
 /**
- * Assert the full path is hardened.
- * @param {string} path The derivation path.
- */
-export function assertFullHardenedPath(path: string): void;
-/**
  * Full-featured Solana wallet account implementation with signing capabilities.
  *
  */

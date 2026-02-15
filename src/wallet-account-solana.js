@@ -48,11 +48,13 @@ const SLIP_0010_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
  * Assert the full path is hardened.
  * @param {string} path The derivation path.
  */
-export function assertFullHardenedPath (path) {
+function assertFullHardenedPath (path) {
   const isValid = path.split('/').reduce((s, e) => s && e.endsWith("'"), true)
 
   if (!isValid) {
-    throw new Error('In Solana, every child path in a derivation path must be hardened.')
+    throw new Error(
+      'In Solana, every child path in a derivation path must be hardened.'
+    )
   }
 }
 
@@ -135,7 +137,10 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     const hdKey = HDKey.fromMasterSeed(account._seed)
     const { privateKey } = hdKey.derive(account._path, true)
     account._signer = await createKeyPairSignerFromPrivateKeyBytes(privateKey)
-    const publicKey = await crypto.subtle.exportKey('raw', account._signer.keyPair.publicKey)
+    const publicKey = await crypto.subtle.exportKey(
+      'raw',
+      account._signer.keyPair.publicKey
+    )
     account._rawPublicKey = new Uint8Array(publicKey)
     account._rawPrivateKey = new Uint8Array(privateKey)
     sodium_memzero(privateKey)
@@ -198,7 +203,10 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
       throw new Error('The wallet account has been disposed.')
     }
     const messageBytes = Buffer.from(message, 'utf8')
-    const signatureBytes = await signBytes(this._signer.keyPair.privateKey, messageBytes)
+    const signatureBytes = await signBytes(
+      this._signer.keyPair.privateKey,
+      messageBytes
+    )
     const signature = Buffer.from(signatureBytes).toString('hex')
 
     return signature
@@ -216,13 +224,18 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     }
 
     if (!this._rpc) {
-      throw new Error('The wallet must be connected to a provider to send transactions.')
+      throw new Error(
+        'The wallet must be connected to a provider to send transactions.'
+      )
     }
 
     let transactionMessage = tx
     if (tx?.to !== undefined && tx?.value !== undefined) {
       // Handle native token transfer { to, value } transaction
-      transactionMessage = await this._buildNativeTransferTransactionMessage(tx.to, tx.value)
+      transactionMessage = await this._buildNativeTransferTransactionMessage(
+        tx.to,
+        tx.value
+      )
     }
     if (
       transactionMessage?.instructions !== undefined &&
@@ -256,14 +269,19 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
           )
         }
       }
-      transactionMessage = setTransactionMessageFeePayerSigner(this._signer, transactionMessage)
+      transactionMessage = setTransactionMessageFeePayerSigner(
+        this._signer,
+        transactionMessage
+      )
     }
 
     const fee = await this._getTransactionFee(transactionMessage)
 
-    const signedtransaction = await signTransactionMessageWithSigners(transactionMessage)
+    const signedtransaction =
+      await signTransactionMessageWithSigners(transactionMessage)
 
-    const encodedTransaction = getBase64EncodedWireTransaction(signedtransaction)
+    const encodedTransaction =
+      getBase64EncodedWireTransaction(signedtransaction)
     const signature = await this._rpc
       .sendTransaction(encodedTransaction, { encoding: 'base64' })
       .send()
@@ -287,7 +305,9 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     }
 
     if (!this._rpc) {
-      throw new Error('The wallet must be connected to a provider to transfer tokens.')
+      throw new Error(
+        'The wallet must be connected to a provider to transfer tokens.'
+      )
     }
 
     const { token, recipient, amount } = options
@@ -298,7 +318,10 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
       amount
     )
     const fee = await this._getTransactionFee(transactionMessage)
-    if (this._config.transferMaxFee !== undefined && fee >= this._config.transferMaxFee) {
+    if (
+      this._config.transferMaxFee !== undefined &&
+      fee >= this._config.transferMaxFee
+    ) {
       throw new Error('Exceeded maximum fee cost for transfer operation.')
     }
 
@@ -315,7 +338,10 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
   async toReadOnlyAccount () {
     const address = await this.getAddress()
 
-    const readOnlyAccount = new WalletAccountReadOnlySolana(address, this._config)
+    const readOnlyAccount = new WalletAccountReadOnlySolana(
+      address,
+      this._config
+    )
 
     return readOnlyAccount
   }
