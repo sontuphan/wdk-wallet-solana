@@ -41,6 +41,7 @@ import {
   getTransferInstruction,
   TOKEN_PROGRAM_ADDRESS
 } from '@solana-program/token'
+import { TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022'
 import { isSignature, verifySignature } from '@solana/keys'
 
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
@@ -49,6 +50,8 @@ import { isSignature, verifySignature } from '@solana/keys'
 /** @typedef {import('@tetherto/wdk-wallet').TransactionReceipt} TransactionReceipt */
 /** @typedef {import('@tetherto/wdk-wallet').WaitForTransactionOptions} WaitForTransactionOptions */
 
+/** @typedef {import('@solana/addresses').Address} Address */
+/** @typedef {import('@solana/codecs').ReadonlyUint8Array} ReadonlyUint8Array */
 /** @typedef {import('@solana/transaction-messages').TransactionMessage} TransactionMessage */
 /** @typedef {import('@solana/transactions').FullySignedTransaction} FullySignedTransaction */
 /** @typedef {import('@solana/transactions').Transaction} Transaction */
@@ -88,7 +91,52 @@ import { isSignature, verifySignature } from '@solana/keys'
  * @property {number | bigint} [transactionMaxFee] - The maximum fee amount for sendTransaction and signTransaction operations.
  */
 
+/**
+ * A mint account, as fetched from the chain and cached by mint address.
+ *
+ * @typedef {Object} MintAccount
+ * @property {Address} tokenProgram - The address of the token program owning the mint.
+ * @property {ReadonlyUint8Array} data - The raw account data.
+ */
+
 const MAX_U64 = 0xffffffffffffffffn
+
+/** The size, in bytes, of the base mint layout shared by both token programs. */
+const MINT_SIZE = 82
+
+/** The offset, in bytes, of the account type discriminator in a Token-2022 account. */
+const TOKEN_2022_ACCOUNT_TYPE_OFFSET = 165
+
+/** The account type discriminator of a Token-2022 mint. */
+const TOKEN_2022_ACCOUNT_TYPE_MINT = 1
+
+/** The maximum number of addresses the `getMultipleAccounts` RPC accepts per call. */
+const MAX_ACCOUNTS_PER_REQUEST = 100
+
+/**
+ * Tells whether the data of an account owned by a token program is a mint.
+ *
+ * A classic SPL mint is exactly {@link MINT_SIZE} bytes. A Token-2022 mint is either the
+ * same bare layout or, once it carries extensions, a longer account tagged with the mint
+ * discriminator at {@link TOKEN_2022_ACCOUNT_TYPE_OFFSET}. That tag is what tells a mint
+ * apart from a token account, which is otherwise indistinguishable by owner alone.
+ *
+ * @param {Address} tokenProgram - The address of the token program owning the account.
+ * @param {ReadonlyUint8Array} data - The raw account data.
+ * @returns {boolean} Whether the account is a mint.
+ */
+function isMintAccountData (tokenProgram, data) {
+  if (data.length === MINT_SIZE) {
+    return true
+  }
+
+  if (tokenProgram !== TOKEN_2022_PROGRAM_ADDRESS) {
+    return false
+  }
+
+  return data.length > TOKEN_2022_ACCOUNT_TYPE_OFFSET &&
+    data[TOKEN_2022_ACCOUNT_TYPE_OFFSET] === TOKEN_2022_ACCOUNT_TYPE_MINT
+}
 
 /**
  * Read-only Solana wallet account implementation.
@@ -130,6 +178,15 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @type {SolanaRpc | undefined}
      */
     this._rpc = undefined
+
+    /**
+     * The cache of mint accounts already fetched by this instance, keyed by mint address.
+     * A mint never changes owner, so an entry is kept for the lifetime of the account.
+     *
+     * @protected
+     * @type {Map<string, MintAccount>}
+     */
+    this._mintAccountCache = new Map()
 
     if (Array.isArray(rpcTarget)) {
       if (rpcTarget.length > 0) {
@@ -233,12 +290,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     const balances = {}
     const base64Encoder = getBase64Encoder()
-    // Solana's getMultipleAccounts RPC enforces a 100-pubkey limit per call.
-    const BATCH_SIZE = 100
 
-    for (let offset = 0; offset < atas.length; offset += BATCH_SIZE) {
-      const batchAtas = atas.slice(offset, offset + BATCH_SIZE)
-      const batchTokenAddresses = uniqueTokenAddresses.slice(offset, offset + BATCH_SIZE)
+    for (let offset = 0; offset < atas.length; offset += MAX_ACCOUNTS_PER_REQUEST) {
+      const batchAtas = atas.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
+      const batchTokenAddresses = uniqueTokenAddresses.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
 
       const { value: accounts } = await this._rpc
         .getMultipleAccounts(batchAtas, {
@@ -427,6 +482,125 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    */
   async waitForTransaction (hash, options = {}) {
     return await super.waitForTransaction(hash, options)
+  }
+
+  /**
+   * Resolves the token program owning a mint: either the classic SPL Token Program or
+   * the Token Extensions Program (Token-2022).
+   *
+   * @protected
+   * @param {string} mintAddress - The mint's address (base58-encoded public key).
+   * @returns {Promise<Address>} The address of the owning token program.
+   * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+   * @throws {NoSuchElementError} If no account exists at the given address.
+   * @throws {ValueError} If the account is not a mint owned by a supported token program.
+   */
+  async _resolveTokenProgram (mintAddress) {
+    const { tokenProgram } = await this._fetchMintAccount(mintAddress)
+
+    return tokenProgram
+  }
+
+  /**
+   * Resolves the token program owning each of the given mints, fetching in as few RPC
+   * calls as the `getMultipleAccounts` limit allows.
+   *
+   * @protected
+   * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
+   * @returns {Promise<Record<string, Address>>} A mapping of mint addresses to the addresses of their owning token programs.
+   * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+   * @throws {NoSuchElementError} If no account exists at one of the given addresses.
+   * @throws {ValueError} If one of the accounts is not a mint owned by a supported token program.
+   */
+  async _resolveTokenPrograms (mintAddresses) {
+    const mintAccounts = await this._fetchMintAccounts(mintAddresses)
+
+    const tokenPrograms = {}
+    for (const [mintAddress, { tokenProgram }] of Object.entries(mintAccounts)) {
+      tokenPrograms[mintAddress] = tokenProgram
+    }
+
+    return tokenPrograms
+  }
+
+  /**
+   * Returns the mint account for the given address, from the cache when it has already
+   * been fetched by this instance.
+   *
+   * @protected
+   * @param {string} mintAddress - The mint's address (base58-encoded public key).
+   * @returns {Promise<MintAccount>} The mint account.
+   * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+   * @throws {NoSuchElementError} If no account exists at the given address.
+   * @throws {ValueError} If the account is not a mint owned by a supported token program.
+   */
+  async _fetchMintAccount (mintAddress) {
+    const mintAccounts = await this._fetchMintAccounts([mintAddress])
+
+    return mintAccounts[mintAddress]
+  }
+
+  /**
+   * Returns the mint accounts for the given addresses, fetching only those missing from
+   * the cache and batching them within the `getMultipleAccounts` limit.
+   *
+   * @protected
+   * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
+   * @returns {Promise<Record<string, MintAccount>>} A mapping of mint addresses to their mint accounts.
+   * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+   * @throws {NoSuchElementError} If no account exists at one of the given addresses.
+   * @throws {ValueError} If one of the accounts is not a mint owned by a supported token program.
+   */
+  async _fetchMintAccounts (mintAddresses) {
+    if (!this._rpc) {
+      throw new ProviderRequiredError('The wallet must be connected to a provider to resolve token programs.')
+    }
+
+    const uniqueMintAddresses = [...new Set(mintAddresses)]
+    const missingMintAddresses = uniqueMintAddresses.filter(mintAddress => !this._mintAccountCache.has(mintAddress))
+
+    const base64Encoder = getBase64Encoder()
+
+    for (let offset = 0; offset < missingMintAddresses.length; offset += MAX_ACCOUNTS_PER_REQUEST) {
+      const batchMintAddresses = missingMintAddresses.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
+
+      const { value: accounts } = await this._rpc
+        .getMultipleAccounts(batchMintAddresses.map(mintAddress => address(mintAddress)), {
+          commitment: this._commitment,
+          encoding: 'base64'
+        })
+        .send()
+
+      for (let i = 0; i < batchMintAddresses.length; i++) {
+        const mintAddress = batchMintAddresses[i]
+        const account = accounts[i]
+
+        if (!account) {
+          throw new NoSuchElementError(`No mint account found for '${mintAddress}'.`)
+        }
+
+        const tokenProgram = account.owner
+
+        if (tokenProgram !== TOKEN_PROGRAM_ADDRESS && tokenProgram !== TOKEN_2022_PROGRAM_ADDRESS) {
+          throw new ValueError(`'${mintAddress}' is not owned by a supported token program.`)
+        }
+
+        const data = base64Encoder.encode(account.data[0])
+
+        if (!isMintAccountData(tokenProgram, data)) {
+          throw new ValueError(`'${mintAddress}' is not a mint account.`)
+        }
+
+        this._mintAccountCache.set(mintAddress, { tokenProgram, data })
+      }
+    }
+
+    const mintAccounts = {}
+    for (const mintAddress of uniqueMintAddresses) {
+      mintAccounts[mintAddress] = this._mintAccountCache.get(mintAddress)
+    }
+
+    return mintAccounts
   }
 
   /**

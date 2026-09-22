@@ -17,13 +17,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _config: Omit<SolanaWalletConfig, "transferMaxFee" | "transactionMaxFee">;
     /**
-     * A Solana RPC client for HTTP requests.
-     *
-     * @protected
-     * @type {SolanaRpc | undefined}
-     */
-    protected _rpc: SolanaRpc | undefined;
-    /**
      * The commitment level for querying transaction and account states.
      * Determines the level of finality required before returning results.
      *
@@ -32,20 +25,20 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _commitment: Commitment;
     /**
-     * Returns the account's native SOL balance.
+     * A Solana RPC client for HTTP requests.
      *
-     * @returns {Promise<bigint>} The sol balance (in lamports).
-     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     * @protected
+     * @type {SolanaRpc | undefined}
      */
-    getBalance(): Promise<bigint>;
+    protected _rpc: SolanaRpc | undefined;
     /**
-     * Returns the account balance for a specific SPL token.
+     * The cache of mint accounts already fetched by this instance, keyed by mint address.
+     * A mint never changes owner, so an entry is kept for the lifetime of the account.
      *
-     * @param {string} tokenAddress - The smart contract address of the token.
-     * @returns {Promise<bigint>} The token balance (in base unit).
-     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     * @protected
+     * @type {Map<string, MintAccount>}
      */
-    getTokenBalance(tokenAddress: string): Promise<bigint>;
+    protected _mintAccountCache: Map<string, MintAccount>;
     /**
      * Returns the account balances for a list of SPL tokens.
      *
@@ -63,14 +56,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
      */
     quoteSendTransaction(tx: SolanaTransaction): Promise<Omit<TransactionResult, "hash">>;
-    /**
-     * Quotes the costs of a transfer operation.
-     *
-     * @param {TransferOptions} options - The transfer's options.
-     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
-     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
-     */
-    quoteTransfer(options: TransferOptions): Promise<Omit<TransferResult, "hash">>;
     /**
      * Retrieves a transaction receipt by its signature
      *
@@ -105,6 +90,54 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @throws {TimeoutError} If the target is not reached before the timeout.
      */
     waitForTransaction(hash: string, options?: WaitForTransactionOptions): Promise<TransactionReceipt & SolanaTransactionDetails>;
+    /**
+     * Resolves the token program owning a mint: either the classic SPL Token Program or
+     * the Token Extensions Program (Token-2022).
+     *
+     * @protected
+     * @param {string} mintAddress - The mint's address (base58-encoded public key).
+     * @returns {Promise<Address>} The address of the owning token program.
+     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     * @throws {NoSuchElementError} If no account exists at the given address.
+     * @throws {ValueError} If the account is not a mint owned by a supported token program.
+     */
+    protected _resolveTokenProgram(mintAddress: string): Promise<Address>;
+    /**
+     * Resolves the token program owning each of the given mints, fetching in as few RPC
+     * calls as the `getMultipleAccounts` limit allows.
+     *
+     * @protected
+     * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
+     * @returns {Promise<Record<string, Address>>} A mapping of mint addresses to the addresses of their owning token programs.
+     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     * @throws {NoSuchElementError} If no account exists at one of the given addresses.
+     * @throws {ValueError} If one of the accounts is not a mint owned by a supported token program.
+     */
+    protected _resolveTokenPrograms(mintAddresses: string[]): Promise<Record<string, Address>>;
+    /**
+     * Returns the mint account for the given address, from the cache when it has already
+     * been fetched by this instance.
+     *
+     * @protected
+     * @param {string} mintAddress - The mint's address (base58-encoded public key).
+     * @returns {Promise<MintAccount>} The mint account.
+     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     * @throws {NoSuchElementError} If no account exists at the given address.
+     * @throws {ValueError} If the account is not a mint owned by a supported token program.
+     */
+    protected _fetchMintAccount(mintAddress: string): Promise<MintAccount>;
+    /**
+     * Returns the mint accounts for the given addresses, fetching only those missing from
+     * the cache and batching them within the `getMultipleAccounts` limit.
+     *
+     * @protected
+     * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
+     * @returns {Promise<Record<string, MintAccount>>} A mapping of mint addresses to their mint accounts.
+     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     * @throws {NoSuchElementError} If no account exists at one of the given addresses.
+     * @throws {ValueError} If one of the accounts is not a mint owned by a supported token program.
+     */
+    protected _fetchMintAccounts(mintAddresses: string[]): Promise<Record<string, MintAccount>>;
     /**
      * Builds a transaction message for SPL token transfer.
      * Creates instructions for ATA creation (if needed) and token transfer.
@@ -155,14 +188,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _decodeSerializedTransaction(serializedTransaction: string): Transaction;
     /**
-     * Verifies a message's signature.
-     *
-     * @param {string} message - The original message.
-     * @param {string} signature - The signature to verify.
-     * @returns {Promise<boolean>} True if the signature is valid.
-     */
-    verify(message: string, signature: string): Promise<boolean>;
-    /**
      * Ensures the transaction has either a blockhash lifetime or a durable nonce lifetime.
      *
      * @protected
@@ -185,6 +210,8 @@ export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
 export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
 export type TransactionReceipt = import("@tetherto/wdk-wallet").TransactionReceipt;
 export type WaitForTransactionOptions = import("@tetherto/wdk-wallet").WaitForTransactionOptions;
+export type Address = import("@solana/addresses").Address;
+export type ReadonlyUint8Array = import("@solana/codecs").ReadonlyUint8Array;
 export type TransactionMessage = import("@solana/transaction-messages").TransactionMessage;
 export type FullySignedTransaction = import("@solana/transactions").FullySignedTransaction;
 export type Transaction = import("@solana/transactions").Transaction;
@@ -246,4 +273,17 @@ export type SolanaWalletConfig = {
      */
     transactionMaxFee?: number | bigint;
 };
-import { WalletAccountReadOnly } from "@tetherto/wdk-wallet";
+/**
+ * A mint account, as fetched from the chain and cached by mint address.
+ */
+export type MintAccount = {
+    /**
+     * - The address of the token program owning the mint.
+     */
+    tokenProgram: Address;
+    /**
+     * - The raw account data.
+     */
+    data: ReadonlyUint8Array;
+};
+import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';

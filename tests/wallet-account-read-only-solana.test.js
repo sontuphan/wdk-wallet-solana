@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 
-import { address } from '@solana/addresses'
+import { address, getAddressDecoder } from '@solana/addresses'
 import {
   compileTransaction,
   getBase64EncodedWireTransaction
@@ -27,9 +27,10 @@ import {
   getTokenEncoder,
   TOKEN_PROGRAM_ADDRESS
 } from '@solana-program/token'
+import { TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022'
 
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
-import { NoSuchElementError, ValueError } from '@tetherto/wdk-wallet'
+import { NoSuchElementError, ProviderRequiredError, ValueError } from '@tetherto/wdk-wallet'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 
 const TEST_ADDRESS = 'HmWPZeFgxZAJQYgwh5ipYwjbVTHtjEHB3dnJ5xcQBHX9'
@@ -494,6 +495,151 @@ describe('WalletAccountReadOnlySolana', () => {
 
     it('should throw error for invalid token mint address', async () => {
       await expect(readOnlyAccount.getTokenBalances(['invalid-mint'])).rejects.toThrow()
+    })
+  })
+
+  describe('token program resolution', () => {
+    const CLASSIC_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
+    const TOKEN_2022_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+    const UNKNOWN_PROGRAM_ADDRESS = '11111111111111111111111111111111'
+
+    /**
+     * Creates mock account data of the given size, base64-encoded. When `accountType` is
+     * given, it is written at offset 165, where Token-2022 tags the account's type.
+     */
+    function createAccountData (size, accountType) {
+      const buffer = Buffer.alloc(size)
+      if (accountType !== undefined) {
+        buffer.writeUInt8(accountType, 165)
+      }
+      return buffer.toString('base64')
+    }
+
+    function mintAccount (owner, size = 82, accountType) {
+      return { data: [createAccountData(size, accountType), 'base64'], owner, lamports: 1461600n }
+    }
+
+    function mockAccounts (accounts) {
+      mockRpc.getMultipleAccounts.mockReturnValue({
+        send: jest.fn().mockResolvedValue({ value: accounts })
+      })
+    }
+
+    it('should resolve a classic SPL mint to the token program', async () => {
+      mockAccounts([mintAccount(TOKEN_PROGRAM_ADDRESS)])
+
+      const tokenProgram = await readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)
+
+      expect(tokenProgram).toBe(TOKEN_PROGRAM_ADDRESS)
+    })
+
+    it('should resolve a bare Token-2022 mint to the token extensions program', async () => {
+      mockAccounts([mintAccount(TOKEN_2022_PROGRAM_ADDRESS)])
+
+      const tokenProgram = await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
+
+      expect(tokenProgram).toBe(TOKEN_2022_PROGRAM_ADDRESS)
+    })
+
+    it('should resolve a Token-2022 mint carrying extensions', async () => {
+      mockAccounts([mintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 1)])
+
+      const tokenProgram = await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
+
+      expect(tokenProgram).toBe(TOKEN_2022_PROGRAM_ADDRESS)
+    })
+
+    it('should resolve several mints across both programs in a single call', async () => {
+      mockAccounts([
+        mintAccount(TOKEN_PROGRAM_ADDRESS),
+        mintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 1)
+      ])
+
+      const tokenPrograms = await readOnlyAccount._resolveTokenPrograms([CLASSIC_MINT, TOKEN_2022_MINT])
+
+      expect(tokenPrograms).toEqual({
+        [CLASSIC_MINT]: TOKEN_PROGRAM_ADDRESS,
+        [TOKEN_2022_MINT]: TOKEN_2022_PROGRAM_ADDRESS
+      })
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
+    })
+
+    it('should request each mint once when the same mint is repeated', async () => {
+      mockAccounts([mintAccount(TOKEN_PROGRAM_ADDRESS)])
+
+      const tokenPrograms = await readOnlyAccount._resolveTokenPrograms([CLASSIC_MINT, CLASSIC_MINT, CLASSIC_MINT])
+
+      expect(tokenPrograms).toEqual({ [CLASSIC_MINT]: TOKEN_PROGRAM_ADDRESS })
+      expect(mockRpc.getMultipleAccounts.mock.calls[0][0]).toEqual([address(CLASSIC_MINT)])
+    })
+
+    it('should split requests beyond the 100-account RPC limit', async () => {
+      const addressDecoder = getAddressDecoder()
+      const mints = Array.from({ length: 101 }, (_, i) => {
+        const bytes = new Uint8Array(32)
+        bytes[0] = i + 1
+        return addressDecoder.decode(bytes)
+      })
+
+      mockRpc.getMultipleAccounts
+        .mockReturnValueOnce({
+          send: jest.fn().mockResolvedValue({
+            value: Array.from({ length: 100 }, () => mintAccount(TOKEN_PROGRAM_ADDRESS))
+          })
+        })
+        .mockReturnValueOnce({
+          send: jest.fn().mockResolvedValue({
+            value: [mintAccount(TOKEN_2022_PROGRAM_ADDRESS)]
+          })
+        })
+
+      const tokenPrograms = await readOnlyAccount._resolveTokenPrograms(mints)
+
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(2)
+      expect(mockRpc.getMultipleAccounts.mock.calls[0][0]).toHaveLength(100)
+      expect(mockRpc.getMultipleAccounts.mock.calls[1][0]).toHaveLength(1)
+      expect(tokenPrograms[mints[0]]).toBe(TOKEN_PROGRAM_ADDRESS)
+      expect(tokenPrograms[mints[100]]).toBe(TOKEN_2022_PROGRAM_ADDRESS)
+    })
+
+    it('should not issue a second request for an already resolved mint', async () => {
+      mockAccounts([mintAccount(TOKEN_2022_PROGRAM_ADDRESS)])
+
+      await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
+      const tokenProgram = await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
+
+      expect(tokenProgram).toBe(TOKEN_2022_PROGRAM_ADDRESS)
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
+    })
+
+    it('should throw NoSuchElementError when the account does not exist', async () => {
+      mockAccounts([null])
+
+      await expect(readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(NoSuchElementError)
+    })
+
+    it('should throw ValueError when the account is owned by another program', async () => {
+      mockAccounts([mintAccount(UNKNOWN_PROGRAM_ADDRESS)])
+
+      await expect(readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(ValueError)
+    })
+
+    it('should throw ValueError when the account is a token account, not a mint', async () => {
+      mockAccounts([mintAccount(TOKEN_PROGRAM_ADDRESS, 165)])
+
+      await expect(readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(ValueError)
+    })
+
+    it('should throw ValueError for a Token-2022 account tagged as a token account', async () => {
+      mockAccounts([mintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 2)])
+
+      await expect(readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)).rejects.toThrow(ValueError)
+    })
+
+    it('should throw ProviderRequiredError when not connected to a provider', async () => {
+      const disconnectedAccount = new WalletAccountReadOnlySolana(TEST_ADDRESS, {})
+
+      await expect(disconnectedAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(ProviderRequiredError)
     })
   })
 
