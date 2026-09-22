@@ -114,6 +114,13 @@ const TOKEN_2022_ACCOUNT_TYPE_MINT = 1
 const MAX_ACCOUNTS_PER_REQUEST = 100
 
 /**
+ * The offset, in bytes, of the amount field in a token account. Token-2022 keeps the
+ * classic base layout and appends its extensions after {@link TOKEN_2022_ACCOUNT_TYPE_OFFSET},
+ * so this offset reads the amount of an account of either program.
+ */
+const TOKEN_ACCOUNT_AMOUNT_OFFSET = 64
+
+/**
  * Tells whether the data of an account owned by a token program is a mint.
  *
  * A classic SPL mint is exactly {@link MINT_SIZE} bytes. A Token-2022 mint is either the
@@ -220,7 +227,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   }
 
   /**
-   * Returns the account balance for a specific SPL token.
+   * Returns the account balance for a specific token, held under either the SPL Token
+   * Program or the Token Extensions Program (Token-2022).
    *
    * @param {string} tokenAddress - The smart contract address of the token.
    * @returns {Promise<bigint>} The token balance (in base unit).
@@ -235,10 +243,12 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const ownerAddress = address(addr)
     const mint = address(tokenAddress)
 
+    const tokenProgram = await this._resolveTokenProgram(tokenAddress)
+
     const [ata] = await findAssociatedTokenPda({
       mint,
       owner: ownerAddress,
-      tokenProgram: TOKEN_PROGRAM_ADDRESS
+      tokenProgram
     })
     const accountInfo = await this._rpc
       .getAccountInfo(ata, { commitment: this._commitment, encoding: 'base64' })
@@ -255,7 +265,9 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   }
 
   /**
-   * Returns the account balances for a list of SPL tokens.
+   * Returns the account balances for a list of tokens, held under either the SPL Token
+   * Program or the Token Extensions Program (Token-2022). The two may be mixed freely
+   * within one call.
    *
    * @param {string[]} tokenAddresses - The smart contract addresses of the tokens.
    * @returns {Promise<Record<string, bigint>>} A mapping of token addresses to their balances (in base units).
@@ -276,14 +288,14 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const ownerAddress = address(addr)
 
     const uniqueTokenAddresses = [...new Set(tokenAddresses)]
-    const mints = uniqueTokenAddresses.map(t => address(t))
+    const tokenPrograms = await this._resolveTokenPrograms(uniqueTokenAddresses)
 
     const atas = await Promise.all(
-      mints.map(mint =>
+      uniqueTokenAddresses.map(tokenAddress =>
         findAssociatedTokenPda({
-          mint,
+          mint: address(tokenAddress),
           owner: ownerAddress,
-          tokenProgram: TOKEN_PROGRAM_ADDRESS
+          tokenProgram: tokenPrograms[tokenAddress]
         }).then(([ata]) => ata)
       )
     )
@@ -319,8 +331,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
           bytes.byteOffset,
           bytes.byteLength
         )
-        const amount = view.getBigUint64(64, true)
-        balances[tokenAddress] = amount
+        balances[tokenAddress] = view.getBigUint64(TOKEN_ACCOUNT_AMOUNT_OFFSET, true)
       }
     }
 
@@ -491,9 +502,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @protected
    * @param {string} mintAddress - The mint's address (base58-encoded public key).
    * @returns {Promise<Address>} The address of the owning token program.
-   * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
-   * @throws {NoSuchElementError} If no account exists at the given address.
-   * @throws {ValueError} If the account is not a mint owned by a supported token program.
    */
   async _resolveTokenProgram (mintAddress) {
     const { tokenProgram } = await this._fetchMintAccount(mintAddress)
@@ -508,9 +516,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @protected
    * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
    * @returns {Promise<Record<string, Address>>} A mapping of mint addresses to the addresses of their owning token programs.
-   * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
-   * @throws {NoSuchElementError} If no account exists at one of the given addresses.
-   * @throws {ValueError} If one of the accounts is not a mint owned by a supported token program.
    */
   async _resolveTokenPrograms (mintAddresses) {
     const mintAccounts = await this._fetchMintAccounts(mintAddresses)
@@ -530,9 +535,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @protected
    * @param {string} mintAddress - The mint's address (base58-encoded public key).
    * @returns {Promise<MintAccount>} The mint account.
-   * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
-   * @throws {NoSuchElementError} If no account exists at the given address.
-   * @throws {ValueError} If the account is not a mint owned by a supported token program.
    */
   async _fetchMintAccount (mintAddress) {
     const mintAccounts = await this._fetchMintAccounts([mintAddress])

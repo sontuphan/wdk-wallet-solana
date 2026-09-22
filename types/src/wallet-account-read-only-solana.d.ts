@@ -40,7 +40,9 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _mintAccountCache: Map<string, MintAccount>;
     /**
-     * Returns the account balances for a list of SPL tokens.
+     * Returns the account balances for a list of tokens, held under either the SPL Token
+     * Program or the Token Extensions Program (Token-2022). The two may be mixed freely
+     * within one call.
      *
      * @param {string[]} tokenAddresses - The smart contract addresses of the tokens.
      * @returns {Promise<Record<string, bigint>>} A mapping of token addresses to their balances (in base units).
@@ -97,9 +99,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @protected
      * @param {string} mintAddress - The mint's address (base58-encoded public key).
      * @returns {Promise<Address>} The address of the owning token program.
-     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
-     * @throws {NoSuchElementError} If no account exists at the given address.
-     * @throws {ValueError} If the account is not a mint owned by a supported token program.
      */
     protected _resolveTokenProgram(mintAddress: string): Promise<Address>;
     /**
@@ -109,9 +108,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @protected
      * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
      * @returns {Promise<Record<string, Address>>} A mapping of mint addresses to the addresses of their owning token programs.
-     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
-     * @throws {NoSuchElementError} If no account exists at one of the given addresses.
-     * @throws {ValueError} If one of the accounts is not a mint owned by a supported token program.
      */
     protected _resolveTokenPrograms(mintAddresses: string[]): Promise<Record<string, Address>>;
     /**
@@ -121,9 +117,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @protected
      * @param {string} mintAddress - The mint's address (base58-encoded public key).
      * @returns {Promise<MintAccount>} The mint account.
-     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
-     * @throws {NoSuchElementError} If no account exists at the given address.
-     * @throws {ValueError} If the account is not a mint owned by a supported token program.
      */
     protected _fetchMintAccount(mintAddress: string): Promise<MintAccount>;
     /**

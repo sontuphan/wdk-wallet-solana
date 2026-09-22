@@ -39,6 +39,35 @@ const TEST_SEED_PHRASE =
   'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mockurl.com'
 
+/**
+ * Creates mock account data of the given size, base64-encoded. When `accountType` is
+ * given, it is written at offset 165, where Token-2022 tags an account's type.
+ */
+function createAccountData (size, accountType) {
+  const buffer = Buffer.alloc(size)
+  if (accountType !== undefined) {
+    buffer.writeUInt8(accountType, 165)
+  }
+  return buffer.toString('base64')
+}
+
+/** Creates a mock mint account owned by the given token program. */
+function createMintAccount (tokenProgram = TOKEN_PROGRAM_ADDRESS, size = 82, accountType) {
+  return { data: [createAccountData(size, accountType), 'base64'], owner: tokenProgram, lamports: 1461600n }
+}
+
+/** Creates a mock token account holding the given amount (offset 64, little-endian u64). */
+function createTokenAccount (amount, tokenProgram = TOKEN_PROGRAM_ADDRESS, size = 165) {
+  const buffer = Buffer.alloc(size)
+  buffer.writeBigUInt64LE(BigInt(amount), 64)
+  return { data: [buffer.toString('base64'), 'base64'], owner: tokenProgram, lamports: 2039280n }
+}
+
+/** Creates a mock RPC response resolving to the given value. */
+function mockSend (value) {
+  return { send: jest.fn().mockResolvedValue({ value }) }
+}
+
 describe('WalletAccountReadOnlySolana', () => {
   let readOnlyAccount
   let mockRpc
@@ -143,44 +172,60 @@ describe('WalletAccountReadOnlySolana', () => {
 
   describe('getTokenBalance', () => {
     const MOCK_TOKEN_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
+    const MOCK_TOKEN_2022_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+
+    beforeEach(() => {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount()]))
+    })
 
     it('should return token balance when ATA exists (TOKEN_PROGRAM)', async () => {
-      mockRpc.getAccountInfo.mockReturnValueOnce({
-        send: jest.fn().mockResolvedValue({
-          value: {
-            owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            lamports: 2039280n,
-            data: [Buffer.alloc(165).toString('base64'), 'base64']
-          }
-        })
-      })
-
-      mockRpc.getTokenAccountBalance.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: {
-            amount: '1000000',
-            decimals: 6,
-            uiAmount: 1.0,
-            uiAmountString: '1.0'
-          }
-        })
-      })
+      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(createTokenAccount(0)))
+      mockRpc.getTokenAccountBalance.mockReturnValue(mockSend({
+        amount: '1000000',
+        decimals: 6,
+        uiAmount: 1.0,
+        uiAmountString: '1.0'
+      }))
 
       const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
 
+      const [ata] = await findAssociatedTokenPda({
+        mint: address(MOCK_TOKEN_MINT),
+        owner: address(TEST_ADDRESS),
+        tokenProgram: TOKEN_PROGRAM_ADDRESS
+      })
+
       expect(balance).toBe(1000000n)
       expect(mockRpc.getAccountInfo).toHaveBeenCalledTimes(1)
+      expect(mockRpc.getAccountInfo).toHaveBeenCalledWith(ata, expect.anything())
       expect(mockRpc.getTokenAccountBalance).toHaveBeenCalledTimes(1)
     })
 
+    it('should read the Token-2022 ATA when the mint belongs to the token extensions program', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 1)]))
+      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS)))
+      mockRpc.getTokenAccountBalance.mockReturnValue(mockSend({
+        amount: '2500000',
+        decimals: 6,
+        uiAmount: 2.5,
+        uiAmountString: '2.5'
+      }))
+
+      const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_2022_MINT)
+
+      const [ata] = await findAssociatedTokenPda({
+        mint: address(MOCK_TOKEN_2022_MINT),
+        owner: address(TEST_ADDRESS),
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS
+      })
+
+      expect(balance).toBe(2500000n)
+      expect(mockRpc.getAccountInfo).toHaveBeenCalledWith(ata, expect.anything())
+      expect(mockRpc.getTokenAccountBalance).toHaveBeenCalledWith(ata, expect.anything())
+    })
+
     it('should return zero when ATA does not exist', async () => {
-      mockRpc.getAccountInfo
-        .mockReturnValueOnce({
-          send: jest.fn().mockResolvedValue({ value: null })
-        })
-        .mockReturnValueOnce({
-          send: jest.fn().mockResolvedValue({ value: null })
-        })
+      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(null))
 
       const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
 
@@ -190,30 +235,39 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should return zero balance when ATA exists but has no tokens', async () => {
-      mockRpc.getAccountInfo.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: {
-            owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            lamports: 2039280n,
-            data: [Buffer.alloc(165).toString('base64'), 'base64']
-          }
-        })
-      })
-
-      mockRpc.getTokenAccountBalance.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: {
-            amount: '0',
-            decimals: 6,
-            uiAmount: 0,
-            uiAmountString: '0'
-          }
-        })
-      })
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
+      mockRpc.getTokenAccountBalance.mockReturnValue(mockSend({
+        amount: '0',
+        decimals: 6,
+        uiAmount: 0,
+        uiAmountString: '0'
+      }))
 
       const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
 
       expect(balance).toBe(0n)
+    })
+
+    it('should resolve the mint only once across calls', async () => {
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(null))
+
+      await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
+      await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
+
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
+      expect(mockRpc.getAccountInfo).toHaveBeenCalledTimes(2)
+    })
+
+    it('should throw NoSuchElementError when the mint does not exist', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([null]))
+
+      await expect(readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)).rejects.toThrow(NoSuchElementError)
+    })
+
+    it('should throw ValueError when the address is not a mint', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createTokenAccount(0)]))
+
+      await expect(readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)).rejects.toThrow(ValueError)
     })
 
     it('should throw error when not connected to provider', async () => {
@@ -252,16 +306,7 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should throw error when getTokenAccountBalance fails', async () => {
-      mockRpc.getAccountInfo.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: {
-            owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            lamports: 2039280n,
-            data: [Buffer.alloc(165).toString('base64'), 'base64']
-          }
-        })
-      })
-
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
       mockRpc.getTokenAccountBalance.mockReturnValue({
         send: jest
           .fn()
@@ -277,37 +322,20 @@ describe('WalletAccountReadOnlySolana', () => {
       const USDT_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
       const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
 
-      mockRpc.getAccountInfo.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: {
-            owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            lamports: 2039280n,
-            data: [Buffer.alloc(165).toString('base64'), 'base64']
-          }
-        })
-      })
-
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
       mockRpc.getTokenAccountBalance
-        .mockReturnValueOnce({
-          send: jest.fn().mockResolvedValue({
-            value: {
-              amount: '1000000',
-              decimals: 6,
-              uiAmount: 1.0,
-              uiAmountString: '1.0'
-            }
-          })
-        })
-        .mockReturnValueOnce({
-          send: jest.fn().mockResolvedValue({
-            value: {
-              amount: '5000000',
-              decimals: 6,
-              uiAmount: 5.0,
-              uiAmountString: '5.0'
-            }
-          })
-        })
+        .mockReturnValueOnce(mockSend({
+          amount: '1000000',
+          decimals: 6,
+          uiAmount: 1.0,
+          uiAmountString: '1.0'
+        }))
+        .mockReturnValueOnce(mockSend({
+          amount: '5000000',
+          decimals: 6,
+          uiAmount: 5.0,
+          uiAmountString: '5.0'
+        }))
 
       const usdtBalance = await readOnlyAccount.getTokenBalance(USDT_MINT)
       const usdcBalance = await readOnlyAccount.getTokenBalance(USDC_MINT)
@@ -343,39 +371,52 @@ describe('WalletAccountReadOnlySolana', () => {
     const MOCK_TOKEN_MINT_1 = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
     const MOCK_TOKEN_MINT_2 = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
 
-    /**
-     * Creates mock SPL token account data with the given amount at offset 64 (little-endian u64).
-     * Standard SPL token account is 165 bytes.
-     */
-    function createTokenAccountData (amount) {
-      const buffer = Buffer.alloc(165)
-      buffer.writeBigUInt64LE(BigInt(amount), 64)
-      return buffer.toString('base64')
+    /** Mocks the mint resolution call, then the ATA call, in that order. */
+    function mockMintsThenAtas (mints, atas) {
+      mockRpc.getMultipleAccounts
+        .mockReturnValueOnce(mockSend(mints))
+        .mockReturnValueOnce(mockSend(atas))
     }
 
     it('should return balances for multiple tokens', async () => {
-      mockRpc.getMultipleAccounts.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: [
-            { data: [createTokenAccountData(1000000), 'base64'], owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', lamports: 2039280n },
-            { data: [createTokenAccountData(5000000), 'base64'], owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', lamports: 2039280n }
-          ]
-        })
-      })
+      mockMintsThenAtas(
+        [createMintAccount(), createMintAccount()],
+        [createTokenAccount(1000000), createTokenAccount(5000000)]
+      )
 
       const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_2])
 
       expect(balances[MOCK_TOKEN_MINT_1]).toBe(1000000n)
       expect(balances[MOCK_TOKEN_MINT_2]).toBe(5000000n)
-      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(2)
+    })
+
+    it('should return balances for a mix of both token programs in one call', async () => {
+      mockMintsThenAtas(
+        [createMintAccount(), createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 1)],
+        [createTokenAccount(1000000), createTokenAccount(7000000, TOKEN_2022_PROGRAM_ADDRESS, 170)]
+      )
+
+      const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_2])
+
+      const [classicAta] = await findAssociatedTokenPda({
+        mint: address(MOCK_TOKEN_MINT_1),
+        owner: address(TEST_ADDRESS),
+        tokenProgram: TOKEN_PROGRAM_ADDRESS
+      })
+      const [token2022Ata] = await findAssociatedTokenPda({
+        mint: address(MOCK_TOKEN_MINT_2),
+        owner: address(TEST_ADDRESS),
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS
+      })
+
+      expect(balances[MOCK_TOKEN_MINT_1]).toBe(1000000n)
+      expect(balances[MOCK_TOKEN_MINT_2]).toBe(7000000n)
+      expect(mockRpc.getMultipleAccounts.mock.calls[1][0]).toEqual([classicAta, token2022Ata])
     })
 
     it('should return 0n for tokens where ATA does not exist', async () => {
-      mockRpc.getMultipleAccounts.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: [null, null]
-        })
-      })
+      mockMintsThenAtas([createMintAccount(), createMintAccount()], [null, null])
 
       const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_2])
 
@@ -384,14 +425,10 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should handle mix of existing and non-existing ATAs', async () => {
-      mockRpc.getMultipleAccounts.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: [
-            { data: [createTokenAccountData(1000000), 'base64'], owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', lamports: 2039280n },
-            null
-          ]
-        })
-      })
+      mockMintsThenAtas(
+        [createMintAccount(), createMintAccount()],
+        [createTokenAccount(1000000), null]
+      )
 
       const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_2])
 
@@ -400,30 +437,18 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should deduplicate token addresses', async () => {
-      mockRpc.getMultipleAccounts.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: [
-            { data: [createTokenAccountData(1000000), 'base64'], owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', lamports: 2039280n }
-          ]
-        })
-      })
+      mockMintsThenAtas([createMintAccount()], [createTokenAccount(1000000)])
 
       const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_1])
 
       expect(Object.keys(balances)).toHaveLength(1)
       expect(balances[MOCK_TOKEN_MINT_1]).toBe(1000000n)
-      const callArgs = mockRpc.getMultipleAccounts.mock.calls[0]
-      expect(callArgs[0]).toHaveLength(1)
+      expect(mockRpc.getMultipleAccounts.mock.calls[0][0]).toHaveLength(1)
+      expect(mockRpc.getMultipleAccounts.mock.calls[1][0]).toHaveLength(1)
     })
 
     it('should handle single token address', async () => {
-      mockRpc.getMultipleAccounts.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: [
-            { data: [createTokenAccountData(999999), 'base64'], owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', lamports: 2039280n }
-          ]
-        })
-      })
+      mockMintsThenAtas([createMintAccount()], [createTokenAccount(999999)])
 
       const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1])
 
@@ -432,29 +457,29 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should handle zero balance in existing ATA', async () => {
-      mockRpc.getMultipleAccounts.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: [
-            { data: [createTokenAccountData(0), 'base64'], owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', lamports: 2039280n }
-          ]
-        })
-      })
+      mockMintsThenAtas([createMintAccount()], [createTokenAccount(0)])
 
       const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1])
 
       expect(balances[MOCK_TOKEN_MINT_1]).toBe(0n)
     })
 
-    it('should handle empty token addresses array', async () => {
-      mockRpc.getMultipleAccounts.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: []
-        })
-      })
+    it('should reuse mints already resolved by an earlier call', async () => {
+      mockMintsThenAtas([createMintAccount()], [createTokenAccount(1000000)])
+      mockRpc.getMultipleAccounts.mockReturnValueOnce(mockSend([createTokenAccount(2000000)]))
 
+      await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1])
+      const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1])
+
+      expect(balances[MOCK_TOKEN_MINT_1]).toBe(2000000n)
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(3)
+    })
+
+    it('should handle empty token addresses array', async () => {
       const balances = await readOnlyAccount.getTokenBalances([])
 
       expect(balances).toEqual({})
+      expect(mockRpc.getMultipleAccounts).not.toHaveBeenCalled()
     })
 
     it('should throw error when not connected to provider', async () => {
@@ -463,6 +488,13 @@ describe('WalletAccountReadOnlySolana', () => {
       await expect(disconnectedAccount.getTokenBalances([MOCK_TOKEN_MINT_1])).rejects.toThrow(
         'The wallet must be connected to a provider to retrieve token balances.'
       )
+    })
+
+    it('should throw NoSuchElementError when one of the mints does not exist', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValueOnce(mockSend([createMintAccount(), null]))
+
+      await expect(readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_2]))
+        .rejects.toThrow(NoSuchElementError)
     })
 
     it('should handle RPC error from getMultipleAccounts', async () => {
@@ -476,11 +508,7 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should pass commitment and encoding to getMultipleAccounts', async () => {
-      mockRpc.getMultipleAccounts.mockReturnValue({
-        send: jest.fn().mockResolvedValue({
-          value: [null]
-        })
-      })
+      mockMintsThenAtas([createMintAccount()], [null])
 
       await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1])
 
@@ -503,30 +531,12 @@ describe('WalletAccountReadOnlySolana', () => {
     const TOKEN_2022_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
     const UNKNOWN_PROGRAM_ADDRESS = '11111111111111111111111111111111'
 
-    /**
-     * Creates mock account data of the given size, base64-encoded. When `accountType` is
-     * given, it is written at offset 165, where Token-2022 tags the account's type.
-     */
-    function createAccountData (size, accountType) {
-      const buffer = Buffer.alloc(size)
-      if (accountType !== undefined) {
-        buffer.writeUInt8(accountType, 165)
-      }
-      return buffer.toString('base64')
-    }
-
-    function mintAccount (owner, size = 82, accountType) {
-      return { data: [createAccountData(size, accountType), 'base64'], owner, lamports: 1461600n }
-    }
-
     function mockAccounts (accounts) {
-      mockRpc.getMultipleAccounts.mockReturnValue({
-        send: jest.fn().mockResolvedValue({ value: accounts })
-      })
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend(accounts))
     }
 
     it('should resolve a classic SPL mint to the token program', async () => {
-      mockAccounts([mintAccount(TOKEN_PROGRAM_ADDRESS)])
+      mockAccounts([createMintAccount(TOKEN_PROGRAM_ADDRESS)])
 
       const tokenProgram = await readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)
 
@@ -534,7 +544,7 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should resolve a bare Token-2022 mint to the token extensions program', async () => {
-      mockAccounts([mintAccount(TOKEN_2022_PROGRAM_ADDRESS)])
+      mockAccounts([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)])
 
       const tokenProgram = await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
 
@@ -542,7 +552,7 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should resolve a Token-2022 mint carrying extensions', async () => {
-      mockAccounts([mintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 1)])
+      mockAccounts([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 1)])
 
       const tokenProgram = await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
 
@@ -551,8 +561,8 @@ describe('WalletAccountReadOnlySolana', () => {
 
     it('should resolve several mints across both programs in a single call', async () => {
       mockAccounts([
-        mintAccount(TOKEN_PROGRAM_ADDRESS),
-        mintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 1)
+        createMintAccount(TOKEN_PROGRAM_ADDRESS),
+        createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 1)
       ])
 
       const tokenPrograms = await readOnlyAccount._resolveTokenPrograms([CLASSIC_MINT, TOKEN_2022_MINT])
@@ -565,7 +575,7 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should request each mint once when the same mint is repeated', async () => {
-      mockAccounts([mintAccount(TOKEN_PROGRAM_ADDRESS)])
+      mockAccounts([createMintAccount(TOKEN_PROGRAM_ADDRESS)])
 
       const tokenPrograms = await readOnlyAccount._resolveTokenPrograms([CLASSIC_MINT, CLASSIC_MINT, CLASSIC_MINT])
 
@@ -584,12 +594,12 @@ describe('WalletAccountReadOnlySolana', () => {
       mockRpc.getMultipleAccounts
         .mockReturnValueOnce({
           send: jest.fn().mockResolvedValue({
-            value: Array.from({ length: 100 }, () => mintAccount(TOKEN_PROGRAM_ADDRESS))
+            value: Array.from({ length: 100 }, () => createMintAccount(TOKEN_PROGRAM_ADDRESS))
           })
         })
         .mockReturnValueOnce({
           send: jest.fn().mockResolvedValue({
-            value: [mintAccount(TOKEN_2022_PROGRAM_ADDRESS)]
+            value: [createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)]
           })
         })
 
@@ -603,7 +613,7 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should not issue a second request for an already resolved mint', async () => {
-      mockAccounts([mintAccount(TOKEN_2022_PROGRAM_ADDRESS)])
+      mockAccounts([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)])
 
       await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
       const tokenProgram = await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
@@ -619,19 +629,19 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should throw ValueError when the account is owned by another program', async () => {
-      mockAccounts([mintAccount(UNKNOWN_PROGRAM_ADDRESS)])
+      mockAccounts([createMintAccount(UNKNOWN_PROGRAM_ADDRESS)])
 
       await expect(readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(ValueError)
     })
 
     it('should throw ValueError when the account is a token account, not a mint', async () => {
-      mockAccounts([mintAccount(TOKEN_PROGRAM_ADDRESS, 165)])
+      mockAccounts([createMintAccount(TOKEN_PROGRAM_ADDRESS, 165)])
 
       await expect(readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(ValueError)
     })
 
     it('should throw ValueError for a Token-2022 account tagged as a token account', async () => {
-      mockAccounts([mintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 2)])
+      mockAccounts([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, 278, 2)])
 
       await expect(readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)).rejects.toThrow(ValueError)
     })
