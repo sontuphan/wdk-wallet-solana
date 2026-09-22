@@ -27,9 +27,16 @@ import {
   getTokenEncoder,
   TOKEN_PROGRAM_ADDRESS
 } from '@solana-program/token'
-import { TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022'
+import { AccountState as AccountState2022, getExtensionEncoder, TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022'
 
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
+import {
+  ConfidentialTransferNotSupportedError,
+  FrozenTokenAccountError,
+  NonTransferableTokenError,
+  RequiredMemoNotSupportedError,
+  TransferHookNotSupportedError
+} from '../src/errors.js'
 import { NoSuchElementError, ProviderRequiredError, ValueError } from '@tetherto/wdk-wallet'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 
@@ -39,29 +46,48 @@ const TEST_SEED_PHRASE =
   'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mockurl.com'
 
+const ACCOUNT_TYPE_MINT = 1
+const ACCOUNT_TYPE_TOKEN = 2
+
 /**
- * Creates mock account data of the given size, base64-encoded. When `accountType` is
- * given, it is written at offset 165, where Token-2022 tags an account's type.
+ * Appends a Token-2022 extension suffix to a base layout: the base padded to 165 bytes,
+ * the account type discriminator, then one TLV entry per extension.
  */
-function createAccountData (size, accountType) {
-  const buffer = Buffer.alloc(size)
-  if (accountType !== undefined) {
-    buffer.writeUInt8(accountType, 165)
-  }
-  return buffer.toString('base64')
+function withExtensions (base, accountType, extensions) {
+  const padded = Buffer.alloc(166)
+  base.copy(padded)
+  padded.writeUInt8(accountType, 165)
+
+  const entries = extensions.map(extension => Buffer.from(getExtensionEncoder().encode(extension)))
+
+  return Buffer.concat([padded, ...entries])
 }
 
 /** Creates a mock mint account owned by the given token program. */
-function createMintAccount (tokenProgram = TOKEN_PROGRAM_ADDRESS, { size = 82, accountType, decimals = 0 } = {}) {
-  const buffer = Buffer.from(createAccountData(size, accountType), 'base64')
+function createMintAccount (tokenProgram = TOKEN_PROGRAM_ADDRESS, { size = 82, accountType, decimals = 0, extensions } = {}) {
+  let buffer = Buffer.alloc(size)
   buffer.writeUInt8(decimals, 44)
+
+  if (accountType !== undefined) {
+    buffer.writeUInt8(accountType, 165)
+  }
+  if (extensions) {
+    buffer = withExtensions(buffer, ACCOUNT_TYPE_MINT, extensions)
+  }
+
   return { data: [buffer.toString('base64'), 'base64'], owner: tokenProgram, lamports: 1461600n }
 }
 
 /** Creates a mock token account holding the given amount (offset 64, little-endian u64). */
-function createTokenAccount (amount, tokenProgram = TOKEN_PROGRAM_ADDRESS, size = 165) {
-  const buffer = Buffer.alloc(size)
+function createTokenAccount (amount, tokenProgram = TOKEN_PROGRAM_ADDRESS, { state = 1, extensions } = {}) {
+  let buffer = Buffer.alloc(165)
   buffer.writeBigUInt64LE(BigInt(amount), 64)
+  buffer.writeUInt8(state, 108)
+
+  if (extensions) {
+    buffer = withExtensions(buffer, ACCOUNT_TYPE_TOKEN, extensions)
+  }
+
   return { data: [buffer.toString('base64'), 'base64'], owner: tokenProgram, lamports: 2039280n }
 }
 
@@ -205,7 +231,7 @@ describe('WalletAccountReadOnlySolana', () => {
 
     it('should read the Token-2022 ATA when the mint belongs to the token extensions program', async () => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: 1 })]))
-      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS)))
+      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] })))
       mockRpc.getTokenAccountBalance.mockReturnValue(mockSend({
         amount: '2500000',
         decimals: 6,
@@ -396,7 +422,7 @@ describe('WalletAccountReadOnlySolana', () => {
     it('should return balances for a mix of both token programs in one call', async () => {
       mockMintsThenAtas(
         [createMintAccount(), createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: 1 })],
-        [createTokenAccount(1000000), createTokenAccount(7000000, TOKEN_2022_PROGRAM_ADDRESS, 170)]
+        [createTokenAccount(1000000), createTokenAccount(7000000, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] })]
       )
 
       const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_2])
@@ -1084,7 +1110,7 @@ describe('WalletAccountReadOnlySolana', () => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([
         createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: 1, decimals: 9 })
       ]))
-      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, 170)))
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] })))
 
       const message = await readOnlyAccount._buildSPLTransferTransactionMessage(TOKEN_2022_MINT, RECIPIENT, 5n)
 
@@ -1140,6 +1166,150 @@ describe('WalletAccountReadOnlySolana', () => {
       await expect(
         readOnlyAccount._buildSPLTransferTransactionMessage(CLASSIC_MINT, RECIPIENT, Number.MAX_SAFE_INTEGER + 2)
       ).rejects.toThrow(ValueError)
+    })
+  })
+
+  describe('token extension policy', () => {
+    const TOKEN_2022_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+    const CLASSIC_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
+    const RECIPIENT = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
+    const SYSTEM_PROGRAM = '11111111111111111111111111111111'
+
+    beforeEach(() => {
+      mockRpc.getLatestBlockhash.mockReturnValue(mockSend({
+        blockhash: 'HhqkdqemrKDK5Wd4oiCtzfpBWfdGS79YhLtzAck5Nz7T',
+        lastValidBlockHeight: 100000n
+      }))
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] })))
+    })
+
+    function mockMintWithExtensions (extensions) {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([
+        createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { decimals: 6, extensions })
+      ]))
+    }
+
+    function buildTransfer (mint = TOKEN_2022_MINT) {
+      return readOnlyAccount._buildSPLTransferTransactionMessage(mint, RECIPIENT, 1000n)
+    }
+
+    it('should reject a non-transferable mint', async () => {
+      mockMintWithExtensions([{ __kind: 'NonTransferable' }])
+
+      await expect(buildTransfer()).rejects.toThrow(NonTransferableTokenError)
+    })
+
+    it('should reject a mint carrying a transfer hook', async () => {
+      mockMintWithExtensions([
+        { __kind: 'TransferHook', authority: address(SYSTEM_PROGRAM), programId: address(SYSTEM_PROGRAM) }
+      ])
+
+      await expect(buildTransfer()).rejects.toThrow(TransferHookNotSupportedError)
+    })
+
+    it('should reject a mint configured for confidential transfers', async () => {
+      mockMintWithExtensions([
+        {
+          __kind: 'ConfidentialTransferMint',
+          authority: { __option: 'None' },
+          autoApproveNewAccounts: false,
+          auditorElgamalPubkey: { __option: 'None' }
+        }
+      ])
+
+      await expect(buildTransfer()).rejects.toThrow(ConfidentialTransferNotSupportedError)
+    })
+
+    it('should reject a mint that freezes the accounts it creates', async () => {
+      mockMintWithExtensions([{ __kind: 'DefaultAccountState', state: AccountState2022.Frozen }])
+
+      await expect(buildTransfer()).rejects.toThrow(FrozenTokenAccountError)
+    })
+
+    it('should accept a mint whose default account state is initialized', async () => {
+      mockMintWithExtensions([{ __kind: 'DefaultAccountState', state: AccountState2022.Initialized }])
+
+      const message = await buildTransfer()
+
+      expect(message.instructions).toHaveLength(1)
+    })
+
+    it('should transfer the requested amount gross for a fee-bearing mint', async () => {
+      mockMintWithExtensions([
+        {
+          __kind: 'TransferFeeConfig',
+          transferFeeConfigAuthority: address(SYSTEM_PROGRAM),
+          withdrawWithheldAuthority: address(SYSTEM_PROGRAM),
+          withheldAmount: 0n,
+          olderTransferFee: { epoch: 0n, maximumFee: 100n, transferFeeBasisPoints: 100 },
+          newerTransferFee: { epoch: 0n, maximumFee: 100n, transferFeeBasisPoints: 100 }
+        }
+      ])
+
+      const message = await buildTransfer()
+
+      const [transfer] = message.instructions
+      const amount = Buffer.from(transfer.data).readBigUInt64LE(1)
+      expect(amount).toBe(1000n)
+    })
+
+    it('should accept an interest-bearing mint', async () => {
+      mockMintWithExtensions([
+        {
+          __kind: 'InterestBearingConfig',
+          rateAuthority: address(SYSTEM_PROGRAM),
+          initializationTimestamp: 0n,
+          preUpdateAverageRate: 0,
+          lastUpdateTimestamp: 0n,
+          currentRate: 0
+        }
+      ])
+
+      const message = await buildTransfer()
+
+      expect(message.instructions).toHaveLength(1)
+    })
+
+    it('should reject a frozen recipient account', async () => {
+      mockMintWithExtensions([])
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(
+        createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, { state: AccountState2022.Frozen, extensions: [] })
+      ))
+
+      await expect(buildTransfer()).rejects.toThrow(FrozenTokenAccountError)
+    })
+
+    it('should reject a recipient account requiring a memo', async () => {
+      mockMintWithExtensions([])
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(
+        createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, {
+          extensions: [{ __kind: 'MemoTransfer', requireIncomingTransferMemos: true }]
+        })
+      ))
+
+      await expect(buildTransfer()).rejects.toThrow(RequiredMemoNotSupportedError)
+    })
+
+    it('should accept a recipient account not requiring a memo', async () => {
+      mockMintWithExtensions([])
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(
+        createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, {
+          extensions: [{ __kind: 'MemoTransfer', requireIncomingTransferMemos: false }]
+        })
+      ))
+
+      const message = await buildTransfer()
+
+      expect(message.instructions).toHaveLength(1)
+    })
+
+    it('should not inspect extensions of a classic SPL mint', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount(TOKEN_PROGRAM_ADDRESS, { decimals: 6 })]))
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
+
+      const message = await buildTransfer(CLASSIC_MINT)
+
+      expect(message.instructions).toHaveLength(1)
     })
   })
 

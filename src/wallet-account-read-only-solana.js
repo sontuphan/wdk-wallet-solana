@@ -42,10 +42,21 @@ import {
   TOKEN_PROGRAM_ADDRESS
 } from '@solana-program/token'
 import {
+  AccountState,
   getCreateAssociatedTokenIdempotentInstruction as getCreateAssociatedToken2022IdempotentInstruction,
+  getMintDecoder as getMint2022Decoder,
+  getTokenDecoder as getToken2022Decoder,
   getTransferCheckedInstruction as getTransferChecked2022Instruction,
   TOKEN_2022_PROGRAM_ADDRESS
 } from '@solana-program/token-2022'
+
+import {
+  ConfidentialTransferNotSupportedError,
+  FrozenTokenAccountError,
+  NonTransferableTokenError,
+  RequiredMemoNotSupportedError,
+  TransferHookNotSupportedError
+} from './errors.js'
 import { isSignature, verifySignature } from '@solana/keys'
 
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
@@ -126,6 +137,24 @@ const TOKEN_ACCOUNT_AMOUNT_OFFSET = 64
 
 /** The offset, in bytes, of the decimals field in a mint of either token program. */
 const MINT_DECIMALS_OFFSET = 44
+
+/**
+ * The mint extensions a transfer is refused for, each mapped to the error it raises.
+ * An entry returns `null` when the extension is present but harmless in its current
+ * configuration. Every other extension, including the transfer fee and interest-bearing
+ * ones, is transferred through unchanged.
+ */
+const REJECTED_MINT_EXTENSIONS = {
+  NonTransferable: token =>
+    new NonTransferableTokenError(`Token '${token}' is non-transferable.`),
+  TransferHook: token =>
+    new TransferHookNotSupportedError(`Token '${token}' carries a transfer hook, which is not supported.`),
+  ConfidentialTransferMint: token =>
+    new ConfidentialTransferNotSupportedError(`Token '${token}' is configured for confidential transfers, which are not supported.`),
+  DefaultAccountState: (token, extension) => extension.state === AccountState.Frozen
+    ? new FrozenTokenAccountError(`Token '${token}' freezes by default the accounts it creates.`)
+    : null
+}
 
 /**
  * The instruction builders of each supported token program. The two programs share their
@@ -627,6 +656,65 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   }
 
   /**
+   * Asserts that a Token-2022 mint may be transferred at all, by refusing the extensions
+   * whose transfers this wallet cannot construct correctly.
+   *
+   * @protected
+   * @param {string} token - The token mint address (base58-encoded public key).
+   * @param {ReadonlyUint8Array} mintData - The raw mint account data.
+   * @returns {void}
+   * @throws {NonTransferableTokenError} If the mint is non-transferable.
+   * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook.
+   * @throws {ConfidentialTransferNotSupportedError} If the mint is configured for confidential transfers.
+   * @throws {FrozenTokenAccountError} If the mint freezes by default the accounts it creates.
+   */
+  _assertMintIsTransferable (token, mintData) {
+    const { extensions } = getMint2022Decoder().decode(mintData)
+
+    if (extensions.__option !== 'Some') {
+      return
+    }
+
+    for (const extension of extensions.value) {
+      const rejection = REJECTED_MINT_EXTENSIONS[extension.__kind]
+      const error = rejection && rejection(token, extension)
+
+      if (error) {
+        throw error
+      }
+    }
+  }
+
+  /**
+   * Asserts that an existing Token-2022 recipient account can receive the transfer this
+   * wallet builds.
+   *
+   * @protected
+   * @param {string} recipient - The recipient's wallet address (base58-encoded public key).
+   * @param {ReadonlyUint8Array} accountData - The raw data of the recipient's associated token account.
+   * @returns {void}
+   * @throws {FrozenTokenAccountError} If the recipient's account is frozen.
+   * @throws {RequiredMemoNotSupportedError} If the recipient's account requires a memo on incoming transfers.
+   */
+  _assertRecipientAccepts (recipient, accountData) {
+    const { state, extensions } = getToken2022Decoder().decode(accountData)
+
+    if (state === AccountState.Frozen) {
+      throw new FrozenTokenAccountError(`The token account of '${recipient}' is frozen.`)
+    }
+
+    if (extensions.__option !== 'Some') {
+      return
+    }
+
+    const memoTransfer = extensions.value.find(extension => extension.__kind === 'MemoTransfer')
+
+    if (memoTransfer?.requireIncomingTransferMemos) {
+      throw new RequiredMemoNotSupportedError(`The token account of '${recipient}' requires a memo on incoming transfers.`)
+    }
+  }
+
+  /**
    * Builds a transaction message for a token transfer, under either the SPL Token Program
    * or the Token Extensions Program (Token-2022). Creates instructions for ATA creation
    * (if needed) and token transfer.
@@ -655,6 +743,11 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const { tokenProgram, data: mintData } = await this._fetchMintAccount(token)
     const decimals = mintData[MINT_DECIMALS_OFFSET]
     const instructionsFor = TOKEN_PROGRAM_INSTRUCTIONS[tokenProgram]
+    const isToken2022 = tokenProgram === TOKEN_2022_PROGRAM_ADDRESS
+
+    if (isToken2022) {
+      this._assertMintIsTransferable(token, mintData)
+    }
 
     const [fromATA] = await findAssociatedTokenPda({
       mint: tokenMint,
@@ -676,6 +769,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
         encoding: 'base64'
       })
       .send()
+
+    if (recipientATAInfo.value && isToken2022) {
+      this._assertRecipientAccepts(recipient, getBase64Encoder().encode(recipientATAInfo.value.data[0]))
+    }
 
     if (!recipientATAInfo.value) {
       const createATAInstruction = instructionsFor.createAssociatedTokenIdempotent({

@@ -38,6 +38,14 @@ export { default as WalletAccountReadOnlySolana } from './src/wallet-account-rea
 export { default as WalletAccountSolana } from './src/wallet-account-solana.js'
 
 export {
+  ConfidentialTransferNotSupportedError,
+  FrozenTokenAccountError,
+  NonTransferableTokenError,
+  RequiredMemoNotSupportedError,
+  TransferHookNotSupportedError
+} from './src/errors.js'
+
+export {
   AssertionError,
   MaximumFeeExceededError,
   NoSuchElementError,

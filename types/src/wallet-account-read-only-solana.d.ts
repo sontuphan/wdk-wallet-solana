@@ -132,6 +132,32 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _fetchMintAccounts(mintAddresses: string[]): Promise<Record<string, MintAccount>>;
     /**
+     * Asserts that a Token-2022 mint may be transferred at all, by refusing the extensions
+     * whose transfers this wallet cannot construct correctly.
+     *
+     * @protected
+     * @param {string} token - The token mint address (base58-encoded public key).
+     * @param {ReadonlyUint8Array} mintData - The raw mint account data.
+     * @returns {void}
+     * @throws {NonTransferableTokenError} If the mint is non-transferable.
+     * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook.
+     * @throws {ConfidentialTransferNotSupportedError} If the mint is configured for confidential transfers.
+     * @throws {FrozenTokenAccountError} If the mint freezes by default the accounts it creates.
+     */
+    protected _assertMintIsTransferable(token: string, mintData: ReadonlyUint8Array): void;
+    /**
+     * Asserts that an existing Token-2022 recipient account can receive the transfer this
+     * wallet builds.
+     *
+     * @protected
+     * @param {string} recipient - The recipient's wallet address (base58-encoded public key).
+     * @param {ReadonlyUint8Array} accountData - The raw data of the recipient's associated token account.
+     * @returns {void}
+     * @throws {FrozenTokenAccountError} If the recipient's account is frozen.
+     * @throws {RequiredMemoNotSupportedError} If the recipient's account requires a memo on incoming transfers.
+     */
+    protected _assertRecipientAccepts(recipient: string, accountData: ReadonlyUint8Array): void;
+    /**
      * Builds a transaction message for a token transfer, under either the SPL Token Program
      * or the Token Extensions Program (Token-2022). Creates instructions for ATA creation
      * (if needed) and token transfer.
