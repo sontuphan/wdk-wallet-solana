@@ -35,6 +35,18 @@ const TEST_SEED_PHRASE =
   'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mockurl.com'
 
+/** Creates a mock SPL mint account with the given decimals, as returned by the RPC. */
+function createMintAccount (decimals = 6) {
+  const buffer = Buffer.alloc(82)
+  buffer.writeUInt8(decimals, 44)
+
+  return {
+    data: [buffer.toString('base64'), 'base64'],
+    owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    lamports: 1461600n
+  }
+}
+
 // Manually builds a fully-signed transaction using the Solana SDK directly,
 // without relying on the account's `signTransaction` method.
 async function buildSignedTransaction (account, tx) {
@@ -971,6 +983,9 @@ describe('WalletAccountSolana', () => {
         getFeeForMessage: jest.fn(),
         sendTransaction: jest.fn(),
         getSignatureStatuses: jest.fn(),
+        getMultipleAccounts: jest.fn().mockReturnValue({
+          send: jest.fn().mockResolvedValue({ value: [createMintAccount()] })
+        }),
         getLatestBlockhash: jest.fn().mockReturnValue({
           send: jest.fn().mockResolvedValue({
             value: {

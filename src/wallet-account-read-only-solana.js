@@ -38,10 +38,14 @@ import { getTransferSolInstruction } from '@solana-program/system'
 import {
   findAssociatedTokenPda,
   getCreateAssociatedTokenIdempotentInstruction,
-  getTransferInstruction,
+  getTransferCheckedInstruction,
   TOKEN_PROGRAM_ADDRESS
 } from '@solana-program/token'
-import { TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022'
+import {
+  getCreateAssociatedTokenIdempotentInstruction as getCreateAssociatedToken2022IdempotentInstruction,
+  getTransferCheckedInstruction as getTransferChecked2022Instruction,
+  TOKEN_2022_PROGRAM_ADDRESS
+} from '@solana-program/token-2022'
 import { isSignature, verifySignature } from '@solana/keys'
 
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
@@ -119,6 +123,25 @@ const MAX_ACCOUNTS_PER_REQUEST = 100
  * so this offset reads the amount of an account of either program.
  */
 const TOKEN_ACCOUNT_AMOUNT_OFFSET = 64
+
+/** The offset, in bytes, of the decimals field in a mint of either token program. */
+const MINT_DECIMALS_OFFSET = 44
+
+/**
+ * The instruction builders of each supported token program. The two programs share their
+ * instruction layouts but not their addresses, so a transfer is built from the entry of
+ * the program owning the mint.
+ */
+const TOKEN_PROGRAM_INSTRUCTIONS = {
+  [TOKEN_PROGRAM_ADDRESS]: {
+    createAssociatedTokenIdempotent: getCreateAssociatedTokenIdempotentInstruction,
+    transferChecked: getTransferCheckedInstruction
+  },
+  [TOKEN_2022_PROGRAM_ADDRESS]: {
+    createAssociatedTokenIdempotent: getCreateAssociatedToken2022IdempotentInstruction,
+    transferChecked: getTransferChecked2022Instruction
+  }
+}
 
 /**
  * Tells whether the data of an account owned by a token program is a mint.
@@ -364,7 +387,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     let transactionMessage = tx
 
-    // Handle native token transfer { to, value } transaction
     if (tx.to !== undefined && tx.value !== undefined) {
       transactionMessage = await this._buildNativeTransferTransactionMessage(tx.to, tx.value)
     }
@@ -374,7 +396,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       await this._assertFeePayer(transactionMessage)
       transactionMessage = setTransactionMessageFeePayer(address(addr), transactionMessage)
     }
-    // Check if it's a native transfer object {to, value}
     const fee = await this._getTransactionFee(transactionMessage)
     return { fee }
   }
@@ -606,16 +627,16 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   }
 
   /**
-   * Builds a transaction message for SPL token transfer.
-   * Creates instructions for ATA creation (if needed) and token transfer.
+   * Builds a transaction message for a token transfer, under either the SPL Token Program
+   * or the Token Extensions Program (Token-2022). Creates instructions for ATA creation
+   * (if needed) and token transfer.
    *
    * @protected
-   * @param {string} token - The SPL token mint address (base58-encoded public key).
+   * @param {string} token - The token mint address (base58-encoded public key).
    * @param {string} recipient - The recipient's wallet address (base58-encoded public key).
    * @param {number | bigint} amount - The amount to transfer in token's base units (must be ≤ 2^64-1).
    * @returns {Promise<TransactionMessage>} The constructed transaction message.
    * @throws {ValueError} If the amount exceeds the representable range.
-   * @todo Support Token-2022 (Token Extensions Program).
    * @todo Support transfer with memo for tokens that require it.
    */
   async _buildSPLTransferTransactionMessage (token, recipient, amount) {
@@ -631,17 +652,20 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const tokenMint = address(token)
     const recipientPublicKey = address(recipient)
 
-    // Get associated token addresses
+    const { tokenProgram, data: mintData } = await this._fetchMintAccount(token)
+    const decimals = mintData[MINT_DECIMALS_OFFSET]
+    const instructionsFor = TOKEN_PROGRAM_INSTRUCTIONS[tokenProgram]
+
     const [fromATA] = await findAssociatedTokenPda({
       mint: tokenMint,
       owner: ownerPublicKey,
-      tokenProgram: TOKEN_PROGRAM_ADDRESS
+      tokenProgram
     })
 
     const [toATA] = await findAssociatedTokenPda({
       mint: tokenMint,
       owner: recipientPublicKey,
-      tokenProgram: TOKEN_PROGRAM_ADDRESS
+      tokenProgram
     })
 
     const instructions = []
@@ -653,32 +677,32 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       })
       .send()
 
-    // If recipient's ATA doesn't exist, add creation instruction (idempotent)
     if (!recipientATAInfo.value) {
-      const createATAInstruction = getCreateAssociatedTokenIdempotentInstruction({
+      const createATAInstruction = instructionsFor.createAssociatedTokenIdempotent({
         ata: toATA,
         mint: tokenMint,
         owner: recipientPublicKey,
-        payer: ownerPublicKey
+        payer: ownerPublicKey,
+        tokenProgram
       })
       instructions.push(createATAInstruction)
     }
 
-    // Add transfer instruction
-    const transferInstruction = getTransferInstruction({
+    // The checked variant makes the program verify the mint's decimals, which is
+    // mandatory under Token-2022 and a safeguard under the classic program.
+    const transferInstruction = instructionsFor.transferChecked({
       source: fromATA,
       mint: tokenMint,
       destination: toATA,
       authority: ownerPublicKey,
-      amount: BigInt(amount)
+      amount: BigInt(amount),
+      decimals
     })
 
     instructions.push(transferInstruction)
 
-    // Get latest blockhash
     const { value: latestBlockhash } = await this._rpc.getLatestBlockhash({ commitment: this._commitment }).send()
 
-    // Build transaction message using pipe
     const transactionMessage = pipe(
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayer(ownerPublicKey, tx),
@@ -703,17 +727,14 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const fromPublicKey = address(addr)
     const toPublicKey = address(to)
 
-    // Create transfer instruction
     const transferInstruction = getTransferSolInstruction({
       source: { address: fromPublicKey },
       destination: toPublicKey,
       amount: BigInt(value)
     })
 
-    // Get latest blockhash
     const { value: latestBlockhash } = await this._rpc.getLatestBlockhash({ commitment: this._commitment }).send()
 
-    // Build transaction message using pipe
     const transactionMessage = pipe(
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayer(fromPublicKey, tx),

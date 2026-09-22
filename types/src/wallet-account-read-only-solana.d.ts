@@ -132,16 +132,16 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _fetchMintAccounts(mintAddresses: string[]): Promise<Record<string, MintAccount>>;
     /**
-     * Builds a transaction message for SPL token transfer.
-     * Creates instructions for ATA creation (if needed) and token transfer.
+     * Builds a transaction message for a token transfer, under either the SPL Token Program
+     * or the Token Extensions Program (Token-2022). Creates instructions for ATA creation
+     * (if needed) and token transfer.
      *
      * @protected
-     * @param {string} token - The SPL token mint address (base58-encoded public key).
+     * @param {string} token - The token mint address (base58-encoded public key).
      * @param {string} recipient - The recipient's wallet address (base58-encoded public key).
      * @param {number | bigint} amount - The amount to transfer in token's base units (must be ≤ 2^64-1).
      * @returns {Promise<TransactionMessage>} The constructed transaction message.
      * @throws {ValueError} If the amount exceeds the representable range.
-     * @todo Support Token-2022 (Token Extensions Program).
      * @todo Support transfer with memo for tokens that require it.
      */
     protected _buildSPLTransferTransactionMessage(token: string, recipient: string, amount: number | bigint): Promise<TransactionMessage>;
