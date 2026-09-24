@@ -36,7 +36,6 @@ import {
   ConfidentialTransferNotSupportedError,
   FrozenTokenAccountError,
   NonTransferableTokenError,
-  RequiredMemoNotSupportedError,
   TransferHookNotSupportedError
 } from '../src/errors.js'
 import { NoSuchElementError, ProviderRequiredError, ValueError } from '@tetherto/wdk-wallet'
@@ -1191,8 +1190,8 @@ describe('WalletAccountReadOnlySolana', () => {
       ]))
     }
 
-    function buildTransfer (mint = TOKEN_2022_MINT) {
-      return readOnlyAccount._buildSPLTransferTransactionMessage(mint, RECIPIENT, 1000n)
+    function buildTransfer (mint = TOKEN_2022_MINT, solanaOptions) {
+      return readOnlyAccount._buildSPLTransferTransactionMessage(mint, RECIPIENT, 1000n, solanaOptions)
     }
 
     it('should reject a non-transferable mint', async () => {
@@ -1281,7 +1280,7 @@ describe('WalletAccountReadOnlySolana', () => {
       await expect(buildTransfer()).rejects.toThrow(FrozenTokenAccountError)
     })
 
-    it('should reject a recipient account requiring a memo', async () => {
+    it('should attach the memo before the transfer to a recipient account requiring a memo', async () => {
       mockMintWithExtensions([])
       mockRpc.getAccountInfo.mockReturnValue(mockSend(
         createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, {
@@ -1289,20 +1288,24 @@ describe('WalletAccountReadOnlySolana', () => {
         })
       ))
 
-      await expect(buildTransfer()).rejects.toThrow(RequiredMemoNotSupportedError)
+      const message = await buildTransfer(TOKEN_2022_MINT, { memo: 'wdk memo' })
+
+      expect(message.instructions.map(instruction => instruction.programAddress))
+        .toEqual([MEMO_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS])
     })
 
-    it('should accept a recipient account not requiring a memo', async () => {
+    it('should build a transfer without a memo to a recipient account requiring a memo', async () => {
       mockMintWithExtensions([])
       mockRpc.getAccountInfo.mockReturnValue(mockSend(
         createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, {
-          extensions: [{ __kind: 'MemoTransfer', requireIncomingTransferMemos: false }]
+          extensions: [{ __kind: 'MemoTransfer', requireIncomingTransferMemos: true }]
         })
       ))
 
       const message = await buildTransfer()
 
-      expect(message.instructions).toHaveLength(1)
+      expect(message.instructions.map(instruction => instruction.programAddress))
+        .toEqual([TOKEN_2022_PROGRAM_ADDRESS])
     })
 
     it('should not inspect extensions of a classic SPL mint', async () => {

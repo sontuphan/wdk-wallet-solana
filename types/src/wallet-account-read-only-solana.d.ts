@@ -164,18 +164,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _assertMintIsTransferable(token: string, mintData: ReadonlyUint8Array): void;
     /**
-     * Asserts that an existing Token-2022 recipient account can receive the transfer this
-     * wallet builds.
-     *
-     * @protected
-     * @param {string} recipient - The recipient's wallet address (base58-encoded public key).
-     * @param {ReadonlyUint8Array} accountData - The raw data of the recipient's associated token account.
-     * @returns {void}
-     * @throws {FrozenTokenAccountError} If the recipient's account is frozen.
-     * @throws {RequiredMemoNotSupportedError} If the recipient's account requires a memo on incoming transfers.
-     */
-    protected _assertRecipientAccepts(recipient: string, accountData: ReadonlyUint8Array): void;
-    /**
      * Builds a transaction message for a token transfer, under either the SPL Token Program
      * or the Token Extensions Program (Token-2022). Creates instructions for ATA creation
      * (if needed) and token transfer.
@@ -187,7 +175,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @param {SolanaTransferOptions} [solanaOptions] - The transfer's Solana-specific options.
      * @returns {Promise<TransactionMessage>} The constructed transaction message.
      * @throws {ValueError} If the amount exceeds the representable range, if the memo is not a string, or if the memo makes the transaction exceed the maximum transaction size.
-     * @todo Support transfer with memo for tokens that require it.
+     * @throws {FrozenTokenAccountError} If the recipient's Token-2022 account is frozen.
      */
     protected _buildSPLTransferTransactionMessage(token: string, recipient: string, amount: number | bigint, solanaOptions?: SolanaTransferOptions): Promise<TransactionMessage>;
     /**

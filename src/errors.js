@@ -88,21 +88,3 @@ export class FrozenTokenAccountError extends WdkError {
     this.name = 'FrozenTokenAccountError'
   }
 }
-
-/**
- * Thrown when the recipient's token account requires a memo on incoming transfers, which
- * this wallet's transfer options cannot carry.
- */
-export class RequiredMemoNotSupportedError extends WdkError {
-  /**
-   * Creates a new required memo not supported error.
-   *
-   * @param {string} message - The error's message.
-   * @param {ErrorOptions} [options] - The error's options.
-   */
-  constructor (message, options) {
-    super(message, options)
-
-    this.name = 'RequiredMemoNotSupportedError'
-  }
-}

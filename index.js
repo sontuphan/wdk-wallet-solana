@@ -42,7 +42,6 @@ export {
   ConfidentialTransferNotSupportedError,
   FrozenTokenAccountError,
   NonTransferableTokenError,
-  RequiredMemoNotSupportedError,
   TransferHookNotSupportedError
 } from './src/errors.js'
 

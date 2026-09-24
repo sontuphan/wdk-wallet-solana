@@ -16,5 +16,5 @@ export type SolanaTransactionDetails = import("./src/wallet-account-read-only-so
 export type SolanaTransferOptions = import("./src/wallet-account-read-only-solana.js").SolanaTransferOptions;
 export type SolanaTransaction = import("./src/wallet-account-solana.js").SolanaTransaction;
 export type SolanaWalletConfig = import("./src/wallet-account-solana.js").SolanaWalletConfig;
-export { ConfidentialTransferNotSupportedError, FrozenTokenAccountError, NonTransferableTokenError, RequiredMemoNotSupportedError, TransferHookNotSupportedError } from "./src/errors.js";
+export { ConfidentialTransferNotSupportedError, FrozenTokenAccountError, NonTransferableTokenError, TransferHookNotSupportedError } from "./src/errors.js";
 export { AssertionError, MaximumFeeExceededError, NoSuchElementError, ProviderRequiredError, TimeoutError, ValueError, WdkError } from "@tetherto/wdk-wallet";

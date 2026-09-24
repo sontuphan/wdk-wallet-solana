@@ -23,10 +23,4 @@ export class ConfidentialTransferNotSupportedError extends WdkError {
  */
 export class FrozenTokenAccountError extends WdkError {
 }
-/**
- * Thrown when the recipient's token account requires a memo on incoming transfers, which
- * this wallet's transfer options cannot carry.
- */
-export class RequiredMemoNotSupportedError extends WdkError {
-}
 import { WdkError } from '@tetherto/wdk-wallet';
