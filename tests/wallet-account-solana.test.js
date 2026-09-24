@@ -69,6 +69,15 @@ function createMint2022Account (decimals = 6, extensions = []) {
   }
 }
 
+/** Creates a mock, empty classic token account, as returned by the RPC. */
+function createTokenAccount () {
+  return {
+    data: [Buffer.alloc(165).toString('base64'), 'base64'],
+    owner: TOKEN_PROGRAM_ADDRESS,
+    lamports: 2039280n
+  }
+}
+
 // Manually builds a fully-signed transaction using the Solana SDK directly,
 // without relying on the account's `signTransaction` method.
 async function buildSignedTransaction (account, tx) {
@@ -1076,12 +1085,10 @@ describe('WalletAccountSolana', () => {
       })
 
       it('should accept valid amounts', async () => {
-        const mintData = new Uint8Array(165)
-        mintData[44] = 6
 
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: { data: mintData }
+            value: createTokenAccount()
           })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
@@ -1124,12 +1131,10 @@ describe('WalletAccountSolana', () => {
         })
         const limitedAccount = await limitedWallet.getAccount(0)
 
-        const mintData = new Uint8Array(165)
-        mintData[44] = 6
 
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: { data: mintData }
+            value: createTokenAccount()
           })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
@@ -1155,12 +1160,10 @@ describe('WalletAccountSolana', () => {
         })
         const limitedAccount = await limitedWallet.getAccount(0)
 
-        const mintData = new Uint8Array(165)
-        mintData[44] = 6
 
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: { data: mintData }
+            value: createTokenAccount()
           })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
@@ -1188,10 +1191,9 @@ describe('WalletAccountSolana', () => {
 
     describe('SPL Token Transfer', () => {
       it('should build and send SPL token transfer', async () => {
-        const mintData = new Uint8Array(165)
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: { data: mintData }
+            value: createTokenAccount()
           })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
@@ -1221,10 +1223,9 @@ describe('WalletAccountSolana', () => {
         // 'wdk memo' encoded as UTF-8.
         const EXPECTED_MEMO_DATA = new Uint8Array([119, 100, 107, 32, 109, 101, 109, 111])
 
-        const mintData = new Uint8Array(165)
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
-            value: { data: mintData }
+            value: createTokenAccount()
           })
         })
         mockRpc.getFeeForMessage.mockReturnValue({

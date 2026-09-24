@@ -125,7 +125,6 @@ describe('WalletAccountReadOnlySolana', () => {
     mockRpc = {
       getBalance: jest.fn(),
       getAccountInfo: jest.fn(),
-      getTokenAccountBalance: jest.fn(),
       getLatestBlockhash: jest.fn(),
       getFeeForMessage: jest.fn(),
       getTransaction: jest.fn(),
@@ -228,13 +227,7 @@ describe('WalletAccountReadOnlySolana', () => {
     })
 
     it('should return token balance when ATA exists (TOKEN_PROGRAM)', async () => {
-      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(createTokenAccount(0)))
-      mockRpc.getTokenAccountBalance.mockReturnValue(mockSend({
-        amount: '1000000',
-        decimals: 6,
-        uiAmount: 1.0,
-        uiAmountString: '1.0'
-      }))
+      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(createTokenAccount(1000000)))
 
       const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
 
@@ -246,19 +239,12 @@ describe('WalletAccountReadOnlySolana', () => {
 
       expect(balance).toBe(1000000n)
       expect(mockRpc.getAccountInfo).toHaveBeenCalledTimes(1)
-      expect(mockRpc.getAccountInfo).toHaveBeenCalledWith(ata, expect.anything())
-      expect(mockRpc.getTokenAccountBalance).toHaveBeenCalledTimes(1)
+      expect(mockRpc.getAccountInfo).toHaveBeenCalledWith(ata, { commitment: 'confirmed', encoding: 'base64' })
     })
 
     it('should read the Token-2022 ATA when the mint belongs to the token extensions program', async () => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: 1 })]))
-      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] })))
-      mockRpc.getTokenAccountBalance.mockReturnValue(mockSend({
-        amount: '2500000',
-        decimals: 6,
-        uiAmount: 2.5,
-        uiAmountString: '2.5'
-      }))
+      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(createTokenAccount(2500000, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] })))
 
       const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_2022_MINT)
 
@@ -269,8 +255,7 @@ describe('WalletAccountReadOnlySolana', () => {
       })
 
       expect(balance).toBe(2500000n)
-      expect(mockRpc.getAccountInfo).toHaveBeenCalledWith(ata, expect.anything())
-      expect(mockRpc.getTokenAccountBalance).toHaveBeenCalledWith(ata, expect.anything())
+      expect(mockRpc.getAccountInfo).toHaveBeenCalledWith(ata, { commitment: 'confirmed', encoding: 'base64' })
     })
 
     it('should return zero when ATA does not exist', async () => {
@@ -280,17 +265,10 @@ describe('WalletAccountReadOnlySolana', () => {
 
       expect(balance).toBe(0n)
       expect(mockRpc.getAccountInfo).toHaveBeenCalledTimes(1)
-      expect(mockRpc.getTokenAccountBalance).not.toHaveBeenCalled()
     })
 
     it('should return zero balance when ATA exists but has no tokens', async () => {
       mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
-      mockRpc.getTokenAccountBalance.mockReturnValue(mockSend({
-        amount: '0',
-        decimals: 6,
-        uiAmount: 0,
-        uiAmountString: '0'
-      }))
 
       const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
 
@@ -384,37 +362,13 @@ describe('WalletAccountReadOnlySolana', () => {
       ).rejects.toThrow('RPC error: Failed to fetch account info')
     })
 
-    it('should throw error when getTokenAccountBalance fails', async () => {
-      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
-      mockRpc.getTokenAccountBalance.mockReturnValue({
-        send: jest
-          .fn()
-          .mockRejectedValue(new Error('Failed to get token balance'))
-      })
-
-      await expect(
-        readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
-      ).rejects.toThrow('Failed to get token balance')
-    })
-
     it('should handle different token mints', async () => {
       const USDT_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
       const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
 
-      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
-      mockRpc.getTokenAccountBalance
-        .mockReturnValueOnce(mockSend({
-          amount: '1000000',
-          decimals: 6,
-          uiAmount: 1.0,
-          uiAmountString: '1.0'
-        }))
-        .mockReturnValueOnce(mockSend({
-          amount: '5000000',
-          decimals: 6,
-          uiAmount: 5.0,
-          uiAmountString: '5.0'
-        }))
+      mockRpc.getAccountInfo
+        .mockReturnValueOnce(mockSend(createTokenAccount(1000000)))
+        .mockReturnValueOnce(mockSend(createTokenAccount(5000000)))
 
       const usdtBalance = await readOnlyAccount.getTokenBalance(USDT_MINT)
       const usdcBalance = await readOnlyAccount.getTokenBalance(USDC_MINT)

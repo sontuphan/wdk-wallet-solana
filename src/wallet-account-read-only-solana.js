@@ -46,11 +46,10 @@ import {
 } from '@solana-program/token'
 import {
   AccountState,
-  getCreateAssociatedTokenIdempotentInstruction as getCreateAssociatedToken2022IdempotentInstruction,
+  fetchMaybeToken,
   getMintDecoder as getMint2022Decoder,
   getTokenDecoder as getToken2022Decoder,
   getTokenSize as getToken2022Size,
-  getTransferCheckedInstruction as getTransferChecked2022Instruction,
   TOKEN_2022_PROGRAM_ADDRESS
 } from '@solana-program/token-2022'
 
@@ -169,22 +168,6 @@ const REJECTED_MINT_EXTENSIONS = {
 }
 
 /**
- * The instruction builders of each supported token program. The two programs share their
- * instruction layouts but not their addresses, so a transfer is built from the entry of
- * the program owning the mint.
- */
-const TOKEN_PROGRAM_INSTRUCTIONS = {
-  [TOKEN_PROGRAM_ADDRESS]: {
-    createAssociatedTokenIdempotent: getCreateAssociatedTokenIdempotentInstruction,
-    transferChecked: getTransferCheckedInstruction
-  },
-  [TOKEN_2022_PROGRAM_ADDRESS]: {
-    createAssociatedTokenIdempotent: getCreateAssociatedToken2022IdempotentInstruction,
-    transferChecked: getTransferChecked2022Instruction
-  }
-}
-
-/**
  * Read-only Solana wallet account implementation.
  */
 export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
@@ -275,18 +258,9 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       owner: ownerAddress,
       tokenProgram
     })
-    const accountInfo = await this._rpc
-      .getAccountInfo(ata, { commitment: this._commitment, encoding: 'base64' })
-      .send()
+    const tokenAccount = await fetchMaybeToken(this._rpc, ata, { commitment: this._commitment })
 
-    if (!accountInfo.value) {
-      // ATA doesn't exist, user has never received this token
-      return 0n
-    }
-
-    const tokenAccountBalance = await this._rpc.getTokenAccountBalance(ata, { commitment: this._commitment }).send()
-
-    return BigInt(tokenAccountBalance.value.amount)
+    return tokenAccount.exists ? tokenAccount.data.amount : 0n
   }
 
   /**
@@ -348,8 +322,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
           continue
         }
 
-        // Token-2022 keeps the classic base layout and only appends extensions, so its
-        // decoder reads an account of either program.
         const { amount } = getToken2022Decoder().decode(base64Encoder.encode(account.data[0]))
 
         balances[tokenAddress] = amount
@@ -416,10 +388,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     const fee = await this._getTransactionFee(transactionMessage)
 
-    // The read hits the cache the builder has just filled, so it issues no further call.
     const { tokenProgram, extensions: mintExtensions } = await this._fetchMintAccount(token)
 
-    // The builder creates the recipient's account exactly when it does not exist yet.
     const createsRecipientAccount = transactionMessage.instructions
       .some(instruction => instruction.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS)
 
@@ -669,8 +639,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
           throw new ValueError(`'${mintAddress}' is not owned by a supported token program.`)
         }
 
-        // Token-2022 keeps the classic base mint layout, so its decoder reads a mint of either
-        // program, and it refuses any other account, such as a token account.
         let mint
 
         try {
@@ -786,10 +754,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const recipientPublicKey = address(recipient)
 
     const { tokenProgram, decimals, extensions: mintExtensions } = await this._fetchMintAccount(token)
-    const instructionsFor = TOKEN_PROGRAM_INSTRUCTIONS[tokenProgram]
     const isToken2022 = tokenProgram === TOKEN_2022_PROGRAM_ADDRESS
 
-    // Refuse the Token-2022 extensions whose transfers this wallet cannot construct correctly.
     for (const extension of mintExtensions) {
       const rejection = REJECTED_MINT_EXTENSIONS[extension.__kind]
       const error = rejection && rejection(token, extension)
@@ -813,23 +779,14 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     const instructions = []
 
-    const recipientATAInfo = await this._rpc
-      .getAccountInfo(toATA, {
-        commitment: this._commitment,
-        encoding: 'base64'
-      })
-      .send()
+    const recipientTokenAccount = await fetchMaybeToken(this._rpc, toATA, { commitment: this._commitment })
 
-    if (recipientATAInfo.value && isToken2022) {
-      const { state } = getToken2022Decoder().decode(getBase64Encoder().encode(recipientATAInfo.value.data[0]))
-
-      if (state === AccountState.Frozen) {
-        throw new FrozenTokenAccountError(`The token account of '${recipient}' is frozen.`)
-      }
+    if (recipientTokenAccount.exists && isToken2022 && recipientTokenAccount.data.state === AccountState.Frozen) {
+      throw new FrozenTokenAccountError(`The token account of '${recipient}' is frozen.`)
     }
 
-    if (!recipientATAInfo.value) {
-      const createATAInstruction = instructionsFor.createAssociatedTokenIdempotent({
+    if (!recipientTokenAccount.exists) {
+      const createATAInstruction = getCreateAssociatedTokenIdempotentInstruction({
         ata: toATA,
         mint: tokenMint,
         owner: recipientPublicKey,
@@ -845,16 +802,14 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       instructions.push(getAddMemoInstruction({ memo }))
     }
 
-    // The checked variant makes the program verify the mint's decimals, which is
-    // mandatory under Token-2022 and a safeguard under the classic program.
-    const transferInstruction = instructionsFor.transferChecked({
+    const transferInstruction = getTransferCheckedInstruction({
       source: fromATA,
       mint: tokenMint,
       destination: toATA,
       authority: ownerPublicKey,
       amount: BigInt(amount),
       decimals
-    })
+    }, { programAddress: tokenProgram })
 
     instructions.push(transferInstruction)
 
