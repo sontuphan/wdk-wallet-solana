@@ -92,6 +92,11 @@ function createTokenAccount (amount, tokenProgram = TOKEN_PROGRAM_ADDRESS, { sta
   return { data: [buffer.toString('base64'), 'base64'], owner: tokenProgram, lamports: 2039280n }
 }
 
+/** Returns the rent-exempt deposit for an account of the given size, as the runtime computes it. */
+function rentFor (size) {
+  return (128n + BigInt(size)) * 6960n
+}
+
 /** Creates a mock RPC response resolving to the given value. */
 function mockSend (value) {
   return { send: jest.fn().mockResolvedValue({ value }) }
@@ -112,7 +117,9 @@ describe('WalletAccountReadOnlySolana', () => {
       getFeeForMessage: jest.fn(),
       getTransaction: jest.fn(),
       getSignatureStatuses: jest.fn(),
-      getMultipleAccounts: jest.fn()
+      getMultipleAccounts: jest.fn(),
+      getMinimumBalanceForRentExemption: jest.fn(),
+      getEpochInfo: jest.fn()
     }
 
     readOnlyAccount._rpc = mockRpc
@@ -1324,6 +1331,9 @@ describe('WalletAccountReadOnlySolana', () => {
 
     beforeEach(() => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount(TOKEN_PROGRAM_ADDRESS, { decimals: 6 })]))
+      mockRpc.getMinimumBalanceForRentExemption.mockImplementation(size => ({
+        send: jest.fn().mockResolvedValue(rentFor(size))
+      }))
       mockRpc.getLatestBlockhash.mockReturnValue({
         send: jest.fn().mockResolvedValue({
           value: {
@@ -1374,7 +1384,7 @@ describe('WalletAccountReadOnlySolana', () => {
         amount: 1000000n
       })
 
-      expect(result).toEqual({ fee: 5000n })
+      expect(result).toEqual({ fee: 5000n, rent: 0n, transferFee: 0n })
     })
 
     it('should attach the memo before the transfer instruction', async () => {
@@ -1413,7 +1423,7 @@ describe('WalletAccountReadOnlySolana', () => {
 
       expect(programs).toEqual([MEMO_PROGRAM_ADDRESS, TOKEN_PROGRAM_ADDRESS])
       expect(compiledMessage.instructions[0].data).toEqual(EXPECTED_MEMO_DATA)
-      expect(result).toEqual({ fee: 5000n })
+      expect(result).toEqual({ fee: 5000n, rent: 0n, transferFee: 0n })
     })
 
     it('should attach the memo after the ATA creation and before the transfer', async () => {
@@ -1450,7 +1460,7 @@ describe('WalletAccountReadOnlySolana', () => {
         TOKEN_PROGRAM_ADDRESS
       ])
       expect(compiledMessage.instructions[1].data).toEqual(EXPECTED_MEMO_DATA)
-      expect(result).toEqual({ fee: 7000n })
+      expect(result).toEqual({ fee: 7000n, rent: rentFor(165), transferFee: 0n })
     })
 
     it('should quote a transfer when the Solana options are null', async () => {
@@ -1485,7 +1495,7 @@ describe('WalletAccountReadOnlySolana', () => {
       )
 
       expect(programs).toEqual([TOKEN_PROGRAM_ADDRESS])
-      expect(result).toEqual({ fee: 5000n })
+      expect(result).toEqual({ fee: 5000n, rent: 0n, transferFee: 0n })
     })
 
     it('should throw when the memo is not a string', async () => {
@@ -1561,7 +1571,7 @@ describe('WalletAccountReadOnlySolana', () => {
       )
 
       expect(programs).toEqual([TOKEN_PROGRAM_ADDRESS])
-      expect(result).toEqual({ fee: 5000n })
+      expect(result).toEqual({ fee: 5000n, rent: 0n, transferFee: 0n })
     })
 
     it('should not attach a memo when the transfer carries none', async () => {
@@ -1593,7 +1603,7 @@ describe('WalletAccountReadOnlySolana', () => {
       )
 
       expect(programs).toEqual([TOKEN_PROGRAM_ADDRESS])
-      expect(result).toEqual({ fee: 5000n })
+      expect(result).toEqual({ fee: 5000n, rent: 0n, transferFee: 0n })
     })
 
     it('should quote fee when recipient ATA does not exist', async () => {
@@ -1630,7 +1640,8 @@ describe('WalletAccountReadOnlySolana', () => {
         amount: 1000000n
       })
 
-      expect(result.fee).toBe(7000n)
+      expect(result).toEqual({ fee: 7000n, rent: rentFor(165), transferFee: 0n })
+      expect(mockRpc.getMinimumBalanceForRentExemption).toHaveBeenCalledWith(165n, { commitment: 'confirmed' })
     })
 
     it('should handle number amount', async () => {
@@ -1728,6 +1739,154 @@ describe('WalletAccountReadOnlySolana', () => {
           amount: 1000000n
         })
       ).rejects.toThrow('Failed to calculate transaction fee')
+    })
+  })
+
+  describe('quoteTransfer of a Token-2022 mint', () => {
+    const TOKEN_2022_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+    const RECIPIENT = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
+    const CURRENT_EPOCH = 500n
+
+    function transferFeeConfig ({ older = { epoch: 0n, maximumFee: 0n, transferFeeBasisPoints: 0 }, newer }) {
+      return {
+        __kind: 'TransferFeeConfig',
+        transferFeeConfigAuthority: address(TEST_ADDRESS),
+        withdrawWithheldAuthority: address(TEST_ADDRESS),
+        withheldAmount: 0n,
+        olderTransferFee: older,
+        newerTransferFee: newer
+      }
+    }
+
+    function mockMint (extensions) {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([
+        createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { decimals: 6, extensions })
+      ]))
+    }
+
+    function mockRecipientAccount (exists) {
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(
+        exists ? createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] }) : null
+      ))
+    }
+
+    function quote (amount = 1000000n) {
+      return readOnlyAccount.quoteTransfer({ token: TOKEN_2022_MINT, recipient: RECIPIENT, amount })
+    }
+
+    beforeEach(() => {
+      mockRpc.getLatestBlockhash.mockReturnValue(mockSend({
+        blockhash: 'HhqkdqemrKDK5Wd4oiCtzfpBWfdGS79YhLtzAck5Nz7T',
+        lastValidBlockHeight: 100000n
+      }))
+      mockRpc.getFeeForMessage.mockReturnValue(mockSend(5000n))
+      mockRpc.getMinimumBalanceForRentExemption.mockImplementation(size => ({
+        send: jest.fn().mockResolvedValue(rentFor(size))
+      }))
+      mockRpc.getEpochInfo.mockReturnValue({
+        send: jest.fn().mockResolvedValue({ epoch: CURRENT_EPOCH })
+      })
+    })
+
+    it('should quote no rent and no transfer fee for a bare mint and an existing recipient account', async () => {
+      mockMint([])
+      mockRecipientAccount(true)
+
+      const result = await quote()
+
+      expect(result).toEqual({ fee: 5000n, rent: 0n, transferFee: 0n })
+      expect(mockRpc.getMinimumBalanceForRentExemption).not.toHaveBeenCalled()
+      expect(mockRpc.getEpochInfo).not.toHaveBeenCalled()
+    })
+
+    it('should quote the rent of an immutable-owner account when creating the recipient account of a bare mint', async () => {
+      mockMint([])
+      mockRecipientAccount(false)
+
+      const result = await quote()
+
+      expect(result).toEqual({ fee: 5000n, rent: rentFor(170), transferFee: 0n })
+      expect(mockRpc.getMinimumBalanceForRentExemption).toHaveBeenCalledWith(170n, { commitment: 'confirmed' })
+    })
+
+    it('should quote the rent of the transfer fee amount extension when creating the recipient account of a fee-bearing mint', async () => {
+      mockMint([transferFeeConfig({ newer: { epoch: 0n, maximumFee: 1000000n, transferFeeBasisPoints: 50 } })])
+      mockRecipientAccount(false)
+
+      const result = await quote()
+
+      expect(result.rent).toBe(rentFor(182))
+      expect(result.rent > rentFor(165)).toBe(true)
+    })
+
+    it('should quote the rent of the pausable account extension when creating the recipient account of a pausable mint', async () => {
+      mockMint([{ __kind: 'PausableConfig', authority: null, paused: false }])
+      mockRecipientAccount(false)
+
+      const result = await quote()
+
+      expect(result.rent).toBe(rentFor(172))
+    })
+
+    it('should quote the transfer fee at the newer rate once its epoch is reached', async () => {
+      mockMint([transferFeeConfig({
+        older: { epoch: 0n, maximumFee: 1000000n, transferFeeBasisPoints: 10 },
+        newer: { epoch: CURRENT_EPOCH, maximumFee: 1000000n, transferFeeBasisPoints: 50 }
+      })])
+      mockRecipientAccount(true)
+
+      const result = await quote(1000000n)
+
+      expect(result).toEqual({ fee: 5000n, rent: 0n, transferFee: 5000n })
+      expect(mockRpc.getEpochInfo).toHaveBeenCalledWith({ commitment: 'confirmed' })
+    })
+
+    it('should quote the transfer fee at the older rate before the newer epoch', async () => {
+      mockMint([transferFeeConfig({
+        older: { epoch: 0n, maximumFee: 1000000n, transferFeeBasisPoints: 10 },
+        newer: { epoch: CURRENT_EPOCH + 1n, maximumFee: 1000000n, transferFeeBasisPoints: 50 }
+      })])
+      mockRecipientAccount(true)
+
+      const result = await quote(1000000n)
+
+      expect(result.transferFee).toBe(1000n)
+    })
+
+    it('should round the transfer fee up', async () => {
+      mockMint([transferFeeConfig({ newer: { epoch: 0n, maximumFee: 1000000n, transferFeeBasisPoints: 50 } })])
+      mockRecipientAccount(true)
+
+      const result = await quote(1001n)
+
+      expect(result.transferFee).toBe(6n)
+    })
+
+    it('should cap the transfer fee at the maximum fee', async () => {
+      mockMint([transferFeeConfig({ newer: { epoch: 0n, maximumFee: 2500n, transferFeeBasisPoints: 50 } })])
+      mockRecipientAccount(true)
+
+      const result = await quote(1000000n)
+
+      expect(result.transferFee).toBe(2500n)
+    })
+
+    it('should accept a number amount when quoting the transfer fee', async () => {
+      mockMint([transferFeeConfig({ newer: { epoch: 0n, maximumFee: 1000000n, transferFeeBasisPoints: 50 } })])
+      mockRecipientAccount(true)
+
+      const result = await quote(1000000)
+
+      expect(result.transferFee).toBe(5000n)
+    })
+
+    it('should fetch the mint once for building and quoting the transfer', async () => {
+      mockMint([transferFeeConfig({ newer: { epoch: 0n, maximumFee: 1000000n, transferFeeBasisPoints: 50 } })])
+      mockRecipientAccount(false)
+
+      await quote()
+
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
     })
   })
 

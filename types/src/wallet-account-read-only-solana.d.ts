@@ -72,10 +72,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      *
      * @param {TransferOptions} options - The transfer's options.
      * @param {SolanaTransferOptions} [solanaOptions] - The transfer's Solana-specific options.
-     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
+     * @returns {Promise<Omit<TransferResult, 'hash'> & SolanaTransferQuoteDetails>} The transfer's quotes.
      * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
      */
-    quoteTransfer(options: TransferOptions, solanaOptions?: SolanaTransferOptions): Promise<Omit<TransferResult, "hash">>;
+    quoteTransfer(options: TransferOptions, solanaOptions?: SolanaTransferOptions): Promise<Omit<TransferResult, "hash"> & SolanaTransferQuoteDetails>;
     /**
      * Retrieves a transaction receipt by its signature
      *
@@ -150,19 +150,24 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _fetchMintAccounts(mintAddresses: string[]): Promise<Record<string, MintAccount>>;
     /**
-     * Asserts that a Token-2022 mint may be transferred at all, by refusing the extensions
-     * whose transfers this wallet cannot construct correctly.
+     * Returns the rent-exempt deposit for a new associated token account of a mint.
      *
      * @protected
-     * @param {string} token - The token mint address (base58-encoded public key).
-     * @param {ReadonlyUint8Array} mintData - The raw mint account data.
-     * @returns {void}
-     * @throws {NonTransferableTokenError} If the mint is non-transferable.
-     * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook.
-     * @throws {ConfidentialTransferNotSupportedError} If the mint is configured for confidential transfers.
-     * @throws {FrozenTokenAccountError} If the mint freezes by default the accounts it creates.
+     * @param {Address} tokenProgram - The address of the token program owning the mint.
+     * @param {Extension[]} mintExtensions - The mint's extensions.
+     * @returns {Promise<bigint>} The rent-exempt deposit (in lamports).
      */
-    protected _assertMintIsTransferable(token: string, mintData: ReadonlyUint8Array): void;
+    protected _getTokenAccountRent(tokenProgram: Address, mintExtensions: Extension[]): Promise<bigint>;
+    /**
+     * Returns the fee the Token Extensions Program withholds from a transfer of the given
+     * amount, at the rate in force in the current epoch.
+     *
+     * @protected
+     * @param {Extension[]} mintExtensions - The mint's extensions.
+     * @param {number | bigint} amount - The amount to transfer in token's base units.
+     * @returns {Promise<bigint>} The fee (in the token's base units), or 0n if the mint charges none.
+     */
+    protected _getTransferFee(mintExtensions: Extension[], amount: number | bigint): Promise<bigint>;
     /**
      * Builds a transaction message for a token transfer, under either the SPL Token Program
      * or the Token Extensions Program (Token-2022). Creates instructions for ATA creation
@@ -175,7 +180,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @param {SolanaTransferOptions} [solanaOptions] - The transfer's Solana-specific options.
      * @returns {Promise<TransactionMessage>} The constructed transaction message.
      * @throws {ValueError} If the amount exceeds the representable range, if the memo is not a string, or if the memo makes the transaction exceed the maximum transaction size.
-     * @throws {FrozenTokenAccountError} If the recipient's Token-2022 account is frozen.
+     * @throws {NonTransferableTokenError} If the mint is non-transferable.
+     * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook.
+     * @throws {ConfidentialTransferNotSupportedError} If the mint is configured for confidential transfers.
+     * @throws {FrozenTokenAccountError} If the mint freezes by default the accounts it creates, or if the recipient's Token-2022 account is frozen.
      */
     protected _buildSPLTransferTransactionMessage(token: string, recipient: string, amount: number | bigint, solanaOptions?: SolanaTransferOptions): Promise<TransactionMessage>;
     /**
@@ -230,6 +238,28 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @throws {ValueError} If the transaction fee payer does not match this wallet address.
      */
     protected _assertFeePayer(tx: SolanaTransaction): Promise<void>;
+    /**
+     * Tells whether the data of an account owned by a token program is a mint.
+     *
+     * A classic SPL mint is exactly the base mint size. A Token-2022 mint is either the
+     * same bare layout or, once it carries extensions, a longer account tagged with the mint
+     * discriminator at {@link TOKEN_2022_ACCOUNT_TYPE_OFFSET}. That tag is what tells a mint
+     * apart from a token account, which is otherwise indistinguishable by owner alone.
+     *
+     * @private
+     * @param {Address} tokenProgram - The address of the token program owning the account.
+     * @param {ReadonlyUint8Array} data - The raw account data.
+     * @returns {boolean} Whether the account is a mint.
+     */
+    private _isMintAccountData;
+    /**
+     * Decodes the extensions of a Token-2022 mint.
+     *
+     * @private
+     * @param {ReadonlyUint8Array} data - The raw mint account data.
+     * @returns {Extension[]} The mint's extensions, or an empty list for a bare mint.
+     */
+    private _getMintExtensions;
 }
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
@@ -238,6 +268,7 @@ export type TransactionReceipt = import("@tetherto/wdk-wallet").TransactionRecei
 export type WaitForTransactionOptions = import("@tetherto/wdk-wallet").WaitForTransactionOptions;
 export type Address = import("@solana/addresses").Address;
 export type ReadonlyUint8Array = import("@solana/codecs").ReadonlyUint8Array;
+export type Extension = import("@solana-program/token-2022").Extension;
 export type TransactionMessage = import("@solana/transaction-messages").TransactionMessage;
 export type Transaction = import("@solana/transactions").Transaction;
 export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
@@ -261,9 +292,22 @@ export type SolanaTransactionDetails = {
  */
 export type SolanaTransferOptions = {
     /**
-     * - A UTF-8 memo to attach to the transfer, ignored when empty. It has to be short enough for the transfer to stay within the maximum transaction size. Tokens whose recipient token account enables the memo transfer extension reject transfers that carry none, but that extension is Token-2022 only and this account does not transfer Token-2022 mints yet, so today the memo serves as a payment reference.
+     * - A UTF-8 memo to attach to the transfer, ignored when empty. It has to be short enough for the transfer to stay within the maximum transaction size. A Token-2022 recipient account enabling the memo transfer extension rejects transfers that carry none.
      */
     memo?: string;
+};
+/**
+ * The Solana-specific costs of a transfer operation, next to the chain-agnostic network fee.
+ */
+export type SolanaTransferQuoteDetails = {
+    /**
+     * - The rent-exempt deposit (in lamports) the sender pays to create the recipient's token account, or 0n if it already exists.
+     */
+    rent: bigint;
+    /**
+     * - The fee (in the token's base units) the token program withholds from the transferred amount, or 0n if the mint charges none. The recipient receives the amount less this fee.
+     */
+    transferFee: bigint;
 };
 export type SimpleSolanaTransaction = {
     /**

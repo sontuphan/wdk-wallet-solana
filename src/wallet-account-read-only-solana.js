@@ -37,8 +37,11 @@ import { getBase64Decoder, getBase64Encoder } from '@solana/codecs'
 import { getTransferSolInstruction } from '@solana-program/system'
 import { getAddMemoInstruction } from '@solana-program/memo'
 import {
+  ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   findAssociatedTokenPda,
   getCreateAssociatedTokenIdempotentInstruction,
+  getMintSize,
+  getTokenSize,
   getTransferCheckedInstruction,
   TOKEN_PROGRAM_ADDRESS
 } from '@solana-program/token'
@@ -47,6 +50,7 @@ import {
   getCreateAssociatedTokenIdempotentInstruction as getCreateAssociatedToken2022IdempotentInstruction,
   getMintDecoder as getMint2022Decoder,
   getTokenDecoder as getToken2022Decoder,
+  getTokenSize as getToken2022Size,
   getTransferCheckedInstruction as getTransferChecked2022Instruction,
   TOKEN_2022_PROGRAM_ADDRESS
 } from '@solana-program/token-2022'
@@ -67,6 +71,7 @@ import { isSignature, verifySignature } from '@solana/keys'
 
 /** @typedef {import('@solana/addresses').Address} Address */
 /** @typedef {import('@solana/codecs').ReadonlyUint8Array} ReadonlyUint8Array */
+/** @typedef {import('@solana-program/token-2022').Extension} Extension */
 /** @typedef {import('@solana/transaction-messages').TransactionMessage} TransactionMessage */
 /** @typedef {import('@solana/transactions').Transaction} Transaction */
 /** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
@@ -85,7 +90,15 @@ import { isSignature, verifySignature } from '@solana/keys'
  * The Solana-specific options of a transfer operation, next to the chain-agnostic {@link TransferOptions}.
  *
  * @typedef {Object} SolanaTransferOptions
- * @property {string} [memo] - A UTF-8 memo to attach to the transfer, ignored when empty. It has to be short enough for the transfer to stay within the maximum transaction size. Tokens whose recipient token account enables the memo transfer extension reject transfers that carry none, but that extension is Token-2022 only and this account does not transfer Token-2022 mints yet, so today the memo serves as a payment reference.
+ * @property {string} [memo] - A UTF-8 memo to attach to the transfer, ignored when empty. It has to be short enough for the transfer to stay within the maximum transaction size. A Token-2022 recipient account enabling the memo transfer extension rejects transfers that carry none.
+ */
+
+/**
+ * The Solana-specific costs of a transfer operation, next to the chain-agnostic network fee.
+ *
+ * @typedef {Object} SolanaTransferQuoteDetails
+ * @property {bigint} rent - The rent-exempt deposit (in lamports) the sender pays to create the recipient's token account, or 0n if it already exists.
+ * @property {bigint} transferFee - The fee (in the token's base units) the token program withholds from the transferred amount, or 0n if the mint charges none. The recipient receives the amount less this fee.
  */
 
 /**
@@ -122,11 +135,11 @@ import { isSignature, verifySignature } from '@solana/keys'
 
 const MAX_U64 = 0xffffffffffffffffn
 
-/** The size, in bytes, of the base mint layout shared by both token programs. */
-const MINT_SIZE = 82
-
-/** The offset, in bytes, of the account type discriminator in a Token-2022 account. */
-const TOKEN_2022_ACCOUNT_TYPE_OFFSET = 165
+/**
+ * The offset, in bytes, of the account type discriminator in a Token-2022 account: right
+ * after the base token account layout, which a Token-2022 mint is padded to.
+ */
+const TOKEN_2022_ACCOUNT_TYPE_OFFSET = getTokenSize()
 
 /** The account type discriminator of a Token-2022 mint. */
 const TOKEN_2022_ACCOUNT_TYPE_MINT = 1
@@ -134,15 +147,18 @@ const TOKEN_2022_ACCOUNT_TYPE_MINT = 1
 /** The maximum number of addresses the `getMultipleAccounts` RPC accepts per call. */
 const MAX_ACCOUNTS_PER_REQUEST = 100
 
-/**
- * The offset, in bytes, of the amount field in a token account. Token-2022 keeps the
- * classic base layout and appends its extensions after {@link TOKEN_2022_ACCOUNT_TYPE_OFFSET},
- * so this offset reads the amount of an account of either program.
- */
-const TOKEN_ACCOUNT_AMOUNT_OFFSET = 64
+/** The number of basis points in a whole, the unit of a Token-2022 transfer fee rate. */
+const BASIS_POINTS_PER_WHOLE = 10000n
 
-/** The offset, in bytes, of the decimals field in a mint of either token program. */
-const MINT_DECIMALS_OFFSET = 44
+/**
+ * The account extensions the Token Extensions Program adds to every token account of a
+ * mint carrying the given mint extension, sized with zeroed fields. The associated token
+ * account program also adds `ImmutableOwner` to every account it creates.
+ */
+const REQUIRED_ACCOUNT_EXTENSIONS = {
+  TransferFeeConfig: { __kind: 'TransferFeeAmount', withheldAmount: 0n },
+  PausableConfig: { __kind: 'PausableAccount' }
+}
 
 /**
  * The mint extensions a transfer is refused for, each mapped to the error it raises.
@@ -176,31 +192,6 @@ const TOKEN_PROGRAM_INSTRUCTIONS = {
     createAssociatedTokenIdempotent: getCreateAssociatedToken2022IdempotentInstruction,
     transferChecked: getTransferChecked2022Instruction
   }
-}
-
-/**
- * Tells whether the data of an account owned by a token program is a mint.
- *
- * A classic SPL mint is exactly {@link MINT_SIZE} bytes. A Token-2022 mint is either the
- * same bare layout or, once it carries extensions, a longer account tagged with the mint
- * discriminator at {@link TOKEN_2022_ACCOUNT_TYPE_OFFSET}. That tag is what tells a mint
- * apart from a token account, which is otherwise indistinguishable by owner alone.
- *
- * @param {Address} tokenProgram - The address of the token program owning the account.
- * @param {ReadonlyUint8Array} data - The raw account data.
- * @returns {boolean} Whether the account is a mint.
- */
-function isMintAccountData (tokenProgram, data) {
-  if (data.length === MINT_SIZE) {
-    return true
-  }
-
-  if (tokenProgram !== TOKEN_2022_PROGRAM_ADDRESS) {
-    return false
-  }
-
-  return data.length > TOKEN_2022_ACCOUNT_TYPE_OFFSET &&
-    data[TOKEN_2022_ACCOUNT_TYPE_OFFSET] === TOKEN_2022_ACCOUNT_TYPE_MINT
 }
 
 /**
@@ -251,41 +242,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @type {Map<string, MintAccount>}
      */
     this._mintAccountCache = new Map()
-  }
-
-  /**
-   * Builds a Solana RPC client from the wallet configuration: a url string, an already-built
-   * client reused as-is, or a list of either (with connection errors failing over to the next).
-   *
-   * @protected
-   * @param {Omit<SolanaWalletConfig, 'transferMaxFee' | 'transactionMaxFee'>} [config] - The configuration object.
-   * @returns {SolanaRpc | undefined} The rpc client, or undefined if none is configured.
-   */
-  static _buildRpc (config = {}) {
-    const { provider, rpcUrl, retries = 3 } = config
-    const rpcTarget = provider ?? rpcUrl
-
-    const toOption = (entry) => (typeof entry === 'string' ? createSolanaRpc(entry) : entry)
-
-    if (Array.isArray(rpcTarget)) {
-      if (rpcTarget.length === 0) {
-        return undefined
-      }
-
-      const failoverProvider = new FailoverProvider({ retries })
-
-      for (const entry of rpcTarget) {
-        failoverProvider.addProvider(toOption(entry))
-      }
-
-      return failoverProvider.initialize()
-    }
-
-    if (rpcTarget) {
-      return toOption(rpcTarget)
-    }
-
-    return undefined
   }
 
   /**
@@ -402,15 +358,11 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
           continue
         }
 
-        const dataBase64 = account.data[0]
-        const bytes = base64Encoder.encode(dataBase64)
+        // Token-2022 keeps the classic base layout and only appends extensions, so its
+        // decoder reads an account of either program.
+        const { amount } = getToken2022Decoder().decode(base64Encoder.encode(account.data[0]))
 
-        const view = new DataView(
-          bytes.buffer,
-          bytes.byteOffset,
-          bytes.byteLength
-        )
-        balances[tokenAddress] = view.getBigUint64(TOKEN_ACCOUNT_AMOUNT_OFFSET, true)
+        balances[tokenAddress] = amount
       }
     }
 
@@ -461,7 +413,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    *
    * @param {TransferOptions} options - The transfer's options.
    * @param {SolanaTransferOptions} [solanaOptions] - The transfer's Solana-specific options.
-   * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
+   * @returns {Promise<Omit<TransferResult, 'hash'> & SolanaTransferQuoteDetails>} The transfer's quotes.
    * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
    */
   async quoteTransfer (options, solanaOptions = {}) {
@@ -474,7 +426,18 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     const fee = await this._getTransactionFee(transactionMessage)
 
-    return { fee }
+    // Both reads hit the cache the builder has just filled, so they issue no further call.
+    const { tokenProgram, data: mintData } = await this._fetchMintAccount(token)
+    const mintExtensions = tokenProgram === TOKEN_2022_PROGRAM_ADDRESS ? this._getMintExtensions(mintData) : []
+
+    // The builder creates the recipient's account exactly when it does not exist yet.
+    const createsRecipientAccount = transactionMessage.instructions
+      .some(instruction => instruction.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS)
+
+    const rent = createsRecipientAccount ? await this._getTokenAccountRent(tokenProgram, mintExtensions) : 0n
+    const transferFee = await this._getTransferFee(mintExtensions, amount)
+
+    return { fee, rent, transferFee }
   }
 
   /**
@@ -574,6 +537,60 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   }
 
   /**
+   * Verifies a message's signature.
+   *
+   * @param {string} message - The original message.
+   * @param {string} signature - The signature to verify.
+   * @returns {Promise<boolean>} True if the signature is valid.
+   */
+  async verify (message, signature) {
+    const messageBytes = Buffer.from(message, 'utf8')
+    const signatureBytes = Buffer.from(signature, 'hex')
+
+    const addr = await this.getAddress()
+    const publicKey = await getPublicKeyFromAddress(address(addr))
+
+    const isValid = await verifySignature(publicKey, signatureBytes, messageBytes)
+
+    return isValid
+  }
+
+  /**
+   * Builds a Solana RPC client from the wallet configuration: a url string, an already-built
+   * client reused as-is, or a list of either (with connection errors failing over to the next).
+   *
+   * @protected
+   * @param {Omit<SolanaWalletConfig, 'transferMaxFee' | 'transactionMaxFee'>} [config] - The configuration object.
+   * @returns {SolanaRpc | undefined} The rpc client, or undefined if none is configured.
+   */
+  static _buildRpc (config = {}) {
+    const { provider, rpcUrl, retries = 3 } = config
+    const rpcTarget = provider ?? rpcUrl
+
+    const toOption = (entry) => (typeof entry === 'string' ? createSolanaRpc(entry) : entry)
+
+    if (Array.isArray(rpcTarget)) {
+      if (rpcTarget.length === 0) {
+        return undefined
+      }
+
+      const failoverProvider = new FailoverProvider({ retries })
+
+      for (const entry of rpcTarget) {
+        failoverProvider.addProvider(toOption(entry))
+      }
+
+      return failoverProvider.initialize()
+    }
+
+    if (rpcTarget) {
+      return toOption(rpcTarget)
+    }
+
+    return undefined
+  }
+
+  /**
    * Resolves the token program owning a mint: either the classic SPL Token Program or
    * the Token Extensions Program (Token-2022).
    *
@@ -667,7 +684,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
         const data = base64Encoder.encode(account.data[0])
 
-        if (!isMintAccountData(tokenProgram, data)) {
+        if (!this._isMintAccountData(tokenProgram, data)) {
           throw new ValueError(`'${mintAddress}' is not a mint account.`)
         }
 
@@ -684,33 +701,54 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   }
 
   /**
-   * Asserts that a Token-2022 mint may be transferred at all, by refusing the extensions
-   * whose transfers this wallet cannot construct correctly.
+   * Returns the rent-exempt deposit for a new associated token account of a mint.
    *
    * @protected
-   * @param {string} token - The token mint address (base58-encoded public key).
-   * @param {ReadonlyUint8Array} mintData - The raw mint account data.
-   * @returns {void}
-   * @throws {NonTransferableTokenError} If the mint is non-transferable.
-   * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook.
-   * @throws {ConfidentialTransferNotSupportedError} If the mint is configured for confidential transfers.
-   * @throws {FrozenTokenAccountError} If the mint freezes by default the accounts it creates.
+   * @param {Address} tokenProgram - The address of the token program owning the mint.
+   * @param {Extension[]} mintExtensions - The mint's extensions.
+   * @returns {Promise<bigint>} The rent-exempt deposit (in lamports).
    */
-  _assertMintIsTransferable (token, mintData) {
-    const { extensions } = getMint2022Decoder().decode(mintData)
+  async _getTokenAccountRent (tokenProgram, mintExtensions) {
+    let size = getTokenSize()
 
-    if (extensions.__option !== 'Some') {
-      return
+    if (tokenProgram === TOKEN_2022_PROGRAM_ADDRESS) {
+      const accountExtensions = mintExtensions
+        .map(extension => REQUIRED_ACCOUNT_EXTENSIONS[extension.__kind])
+        .filter(Boolean)
+
+      size = getToken2022Size([{ __kind: 'ImmutableOwner' }, ...accountExtensions])
     }
 
-    for (const extension of extensions.value) {
-      const rejection = REJECTED_MINT_EXTENSIONS[extension.__kind]
-      const error = rejection && rejection(token, extension)
+    return await this._rpc
+      .getMinimumBalanceForRentExemption(BigInt(size), { commitment: this._commitment })
+      .send()
+  }
 
-      if (error) {
-        throw error
-      }
+  /**
+   * Returns the fee the Token Extensions Program withholds from a transfer of the given
+   * amount, at the rate in force in the current epoch.
+   *
+   * @protected
+   * @param {Extension[]} mintExtensions - The mint's extensions.
+   * @param {number | bigint} amount - The amount to transfer in token's base units.
+   * @returns {Promise<bigint>} The fee (in the token's base units), or 0n if the mint charges none.
+   */
+  async _getTransferFee (mintExtensions, amount) {
+    const transferFeeConfig = mintExtensions.find(extension => extension.__kind === 'TransferFeeConfig')
+
+    if (!transferFeeConfig) {
+      return 0n
     }
+
+    const { olderTransferFee, newerTransferFee } = transferFeeConfig
+    const { epoch } = await this._rpc.getEpochInfo({ commitment: this._commitment }).send()
+
+    const { transferFeeBasisPoints, maximumFee } = epoch >= newerTransferFee.epoch ? newerTransferFee : olderTransferFee
+
+    // Rounded up, as the token program does, then capped at the mint's maximum fee.
+    const rawFee = (BigInt(amount) * BigInt(transferFeeBasisPoints) + BASIS_POINTS_PER_WHOLE - 1n) / BASIS_POINTS_PER_WHOLE
+
+    return rawFee < maximumFee ? rawFee : maximumFee
   }
 
   /**
@@ -725,7 +763,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @param {SolanaTransferOptions} [solanaOptions] - The transfer's Solana-specific options.
    * @returns {Promise<TransactionMessage>} The constructed transaction message.
    * @throws {ValueError} If the amount exceeds the representable range, if the memo is not a string, or if the memo makes the transaction exceed the maximum transaction size.
-   * @throws {FrozenTokenAccountError} If the recipient's Token-2022 account is frozen.
+   * @throws {NonTransferableTokenError} If the mint is non-transferable.
+   * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook.
+   * @throws {ConfidentialTransferNotSupportedError} If the mint is configured for confidential transfers.
+   * @throws {FrozenTokenAccountError} If the mint freezes by default the accounts it creates, or if the recipient's Token-2022 account is frozen.
    */
   async _buildSPLTransferTransactionMessage (token, recipient, amount, solanaOptions = {}) {
     const { memo } = solanaOptions ?? {}
@@ -748,12 +789,21 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const recipientPublicKey = address(recipient)
 
     const { tokenProgram, data: mintData } = await this._fetchMintAccount(token)
-    const decimals = mintData[MINT_DECIMALS_OFFSET]
+    // Token-2022 keeps the classic base mint layout, so its decoder reads a mint of either program.
+    const { decimals } = getMint2022Decoder().decode(mintData)
     const instructionsFor = TOKEN_PROGRAM_INSTRUCTIONS[tokenProgram]
     const isToken2022 = tokenProgram === TOKEN_2022_PROGRAM_ADDRESS
 
+    // Refuse the Token-2022 extensions whose transfers this wallet cannot construct correctly.
     if (isToken2022) {
-      this._assertMintIsTransferable(token, mintData)
+      for (const extension of this._getMintExtensions(mintData)) {
+        const rejection = REJECTED_MINT_EXTENSIONS[extension.__kind]
+        const error = rejection && rejection(token, extension)
+
+        if (error) {
+          throw error
+        }
+      }
     }
 
     const [fromATA] = await findAssociatedTokenPda({
@@ -922,25 +972,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   }
 
   /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    const messageBytes = Buffer.from(message, 'utf8')
-    const signatureBytes = Buffer.from(signature, 'hex')
-
-    const addr = await this.getAddress()
-    const publicKey = await getPublicKeyFromAddress(address(addr))
-
-    const isValid = await verifySignature(publicKey, signatureBytes, messageBytes)
-
-    return isValid
-  }
-
-  /**
    * Ensures the transaction has either a blockhash lifetime or a durable nonce lifetime.
    *
    * @protected
@@ -975,5 +1006,44 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
         throw new ValueError(`Transaction fee payer (${feePayerAddress}) does not match wallet address (${ownerAddress})`)
       }
     }
+  }
+
+  /**
+   * Tells whether the data of an account owned by a token program is a mint.
+   *
+   * A classic SPL mint is exactly the base mint size. A Token-2022 mint is either the
+   * same bare layout or, once it carries extensions, a longer account tagged with the mint
+   * discriminator at {@link TOKEN_2022_ACCOUNT_TYPE_OFFSET}. That tag is what tells a mint
+   * apart from a token account, which is otherwise indistinguishable by owner alone.
+   *
+   * @private
+   * @param {Address} tokenProgram - The address of the token program owning the account.
+   * @param {ReadonlyUint8Array} data - The raw account data.
+   * @returns {boolean} Whether the account is a mint.
+   */
+  _isMintAccountData (tokenProgram, data) {
+    if (data.length === getMintSize()) {
+      return true
+    }
+
+    if (tokenProgram !== TOKEN_2022_PROGRAM_ADDRESS) {
+      return false
+    }
+
+    return data.length > TOKEN_2022_ACCOUNT_TYPE_OFFSET &&
+      data[TOKEN_2022_ACCOUNT_TYPE_OFFSET] === TOKEN_2022_ACCOUNT_TYPE_MINT
+  }
+
+  /**
+   * Decodes the extensions of a Token-2022 mint.
+   *
+   * @private
+   * @param {ReadonlyUint8Array} data - The raw mint account data.
+   * @returns {Extension[]} The mint's extensions, or an empty list for a bare mint.
+   */
+  _getMintExtensions (data) {
+    const { extensions } = getMint2022Decoder().decode(data)
+
+    return extensions.__option === 'Some' ? extensions.value : []
   }
 }
