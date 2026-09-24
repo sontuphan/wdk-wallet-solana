@@ -300,7 +300,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     )
 
     const balances = {}
-    const base64Encoder = getBase64Encoder()
 
     for (let offset = 0; offset < atas.length; offset += MAX_ACCOUNTS_PER_REQUEST) {
       const batchAtas = atas.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
@@ -322,7 +321,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
           continue
         }
 
-        const { amount } = getToken2022Decoder().decode(base64Encoder.encode(account.data[0]))
+        const data = getBase64Encoder().encode(account.data[0])
+        const { amount } = getToken2022Decoder().decode(data)
 
         balances[tokenAddress] = amount
       }
