@@ -29,6 +29,8 @@ import { getBase64EncodedWireTransaction, getTransactionDecoder } from '@solana/
 import { getBase64Decoder, getBase64Encoder } from '@solana/codecs'
 import { MEMO_PROGRAM_ADDRESS } from '@solana-program/memo'
 import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token'
+import { getExtensionEncoder, TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022'
+import { NonTransferableTokenError } from '../src/errors.js'
 import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
@@ -45,6 +47,24 @@ function createMintAccount (decimals = 6) {
   return {
     data: [buffer.toString('base64'), 'base64'],
     owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    lamports: 1461600n
+  }
+}
+
+/**
+ * Creates a mock Token-2022 mint account with the given decimals and extensions: the base mint
+ * padded to 165 bytes, the mint account type, then one TLV entry per extension.
+ */
+function createMint2022Account (decimals = 6, extensions = []) {
+  const base = Buffer.alloc(166)
+  base.writeUInt8(decimals, 44)
+  base.writeUInt8(1, 165)
+
+  const entries = extensions.map(extension => Buffer.from(getExtensionEncoder().encode(extension)))
+
+  return {
+    data: [Buffer.concat([base, ...entries]).toString('base64'), 'base64'],
+    owner: TOKEN_2022_PROGRAM_ADDRESS,
     lamports: 1461600n
   }
 }
@@ -1239,6 +1259,83 @@ describe('WalletAccountSolana', () => {
         expect(result.hash).toBe('memo-transfer-sig')
         expect(result.fee).toBe(5000n)
       })
+    })
+  })
+
+  describe('transfer of a Token-2022 token', () => {
+    // Mints no other suite uses, since the shared account caches every mint it has resolved.
+    const TOKEN_2022_MINT = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
+    const NON_TRANSFERABLE_MINT = 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr'
+    const RECIPIENT = '11111111111111111111111111111111'
+
+    let mockRpc
+    let originalRpc
+
+    beforeEach(() => {
+      originalRpc = account._rpc
+
+      mockRpc = {
+        getAccountInfo: jest.fn(),
+        getFeeForMessage: jest.fn(),
+        sendTransaction: jest.fn(),
+        getMultipleAccounts: jest.fn(),
+        getLatestBlockhash: jest.fn().mockReturnValue({
+          send: jest.fn().mockResolvedValue({
+            value: {
+              blockhash: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
+              lastValidBlockHeight: 2000000
+            }
+          })
+        })
+      }
+
+      account._rpc = mockRpc
+    })
+
+    afterEach(() => {
+      account._rpc = originalRpc
+    })
+
+    it('should send a transfer against the token extensions program', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValue({
+        send: jest.fn().mockResolvedValue({ value: [createMint2022Account(6)] })
+      })
+      mockRpc.getAccountInfo.mockReturnValue({
+        send: jest.fn().mockResolvedValue({
+          value: { data: [Buffer.alloc(165).toString('base64'), 'base64'], owner: TOKEN_2022_PROGRAM_ADDRESS }
+        })
+      })
+      mockRpc.getFeeForMessage.mockReturnValue({
+        send: jest.fn().mockResolvedValue({ value: 5000 })
+      })
+      mockRpc.sendTransaction.mockReturnValue({
+        send: jest.fn().mockResolvedValue('token-2022-transfer-sig')
+      })
+
+      const result = await account.transfer({ token: TOKEN_2022_MINT, recipient: RECIPIENT, amount: 1000000n })
+
+      const [wireTransaction] = mockRpc.sendTransaction.mock.calls[0]
+      const transaction = getTransactionDecoder()
+        .decode(getBase64Encoder().encode(wireTransaction))
+      const compiledMessage = getCompiledTransactionMessageDecoder()
+        .decode(transaction.messageBytes)
+      const programs = compiledMessage.instructions.map(
+        (instruction) => compiledMessage.staticAccounts[instruction.programAddressIndex]
+      )
+
+      expect(programs).toEqual([TOKEN_2022_PROGRAM_ADDRESS])
+      expect(result).toEqual({ hash: 'token-2022-transfer-sig', fee: 5000n })
+    })
+
+    it('should reject a non-transferable token without sending a transaction', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValue({
+        send: jest.fn().mockResolvedValue({ value: [createMint2022Account(6, [{ __kind: 'NonTransferable' }])] })
+      })
+
+      await expect(account.transfer({ token: NON_TRANSFERABLE_MINT, recipient: RECIPIENT, amount: 1000000n }))
+        .rejects.toThrow(NonTransferableTokenError)
+
+      expect(mockRpc.sendTransaction).not.toHaveBeenCalled()
     })
   })
 

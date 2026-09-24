@@ -102,6 +102,19 @@ function mockSend (value) {
   return { send: jest.fn().mockResolvedValue({ value }) }
 }
 
+/** Decodes the instructions of the message a transfer quote passed to `getFeeForMessage`. */
+function decodeQuotedInstructions (getFeeForMessage) {
+  const [base64EncodedMessage] = getFeeForMessage.mock.calls[0]
+  const { staticAccounts, instructions } = getCompiledTransactionMessageDecoder()
+    .decode(getBase64Encoder().encode(base64EncodedMessage))
+
+  return instructions.map(instruction => ({
+    programAddress: staticAccounts[instruction.programAddressIndex],
+    accounts: (instruction.accountIndices ?? []).map(index => staticAccounts[index]),
+    data: instruction.data
+  }))
+}
+
 describe('WalletAccountReadOnlySolana', () => {
   let readOnlyAccount
   let mockRpc
@@ -300,8 +313,38 @@ describe('WalletAccountReadOnlySolana', () => {
       await expect(readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)).rejects.toThrow(NoSuchElementError)
     })
 
+    it('should read the Token-2022 ATA of a Token-2022 mint without extensions', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)]))
+      mockRpc.getAccountInfo.mockReturnValueOnce(mockSend(null))
+
+      const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_2022_MINT)
+
+      const [ata] = await findAssociatedTokenPda({
+        mint: address(MOCK_TOKEN_2022_MINT),
+        owner: address(TEST_ADDRESS),
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS
+      })
+
+      expect(balance).toBe(0n)
+      expect(mockRpc.getAccountInfo).toHaveBeenCalledWith(ata, { commitment: 'confirmed', encoding: 'base64' })
+    })
+
     it('should throw ValueError when the address is not a mint', async () => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createTokenAccount(0)]))
+
+      await expect(readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)).rejects.toThrow(ValueError)
+    })
+
+    it('should throw ValueError when the address is a Token-2022 token account', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([
+        createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: ACCOUNT_TYPE_TOKEN })
+      ]))
+
+      await expect(readOnlyAccount.getTokenBalance(MOCK_TOKEN_2022_MINT)).rejects.toThrow(ValueError)
+    })
+
+    it('should throw ValueError when the address is owned by neither token program', async () => {
+      mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount('11111111111111111111111111111111')]))
 
       await expect(readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)).rejects.toThrow(ValueError)
     })
@@ -448,7 +491,36 @@ describe('WalletAccountReadOnlySolana', () => {
 
       expect(balances[MOCK_TOKEN_MINT_1]).toBe(1000000n)
       expect(balances[MOCK_TOKEN_MINT_2]).toBe(7000000n)
+      expect(mockRpc.getMultipleAccounts.mock.calls[0][0]).toEqual([address(MOCK_TOKEN_MINT_1), address(MOCK_TOKEN_MINT_2)])
       expect(mockRpc.getMultipleAccounts.mock.calls[1][0]).toEqual([classicAta, token2022Ata])
+    })
+
+    it('should split the mint and ATA requests beyond the 100-account RPC limit', async () => {
+      const addressDecoder = getAddressDecoder()
+      const mints = Array.from({ length: 101 }, (_, i) => {
+        const bytes = new Uint8Array(32)
+        bytes[0] = i + 1
+        return addressDecoder.decode(bytes)
+      })
+
+      mockRpc.getMultipleAccounts
+        .mockReturnValueOnce(mockSend(Array.from({ length: 100 }, () => createMintAccount())))
+        .mockReturnValueOnce(mockSend([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)]))
+        .mockReturnValueOnce(mockSend(Array.from({ length: 100 }, () => null)))
+        .mockReturnValueOnce(mockSend([createTokenAccount(42, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] })]))
+
+      const balances = await readOnlyAccount.getTokenBalances(mints)
+
+      const [lastAta] = await findAssociatedTokenPda({
+        mint: address(mints[100]),
+        owner: address(TEST_ADDRESS),
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS
+      })
+
+      expect(mockRpc.getMultipleAccounts.mock.calls.map(([addresses]) => addresses.length)).toEqual([100, 1, 100, 1])
+      expect(mockRpc.getMultipleAccounts.mock.calls[3][0]).toEqual([lastAta])
+      expect(balances[mints[0]]).toBe(0n)
+      expect(balances[mints[100]]).toBe(42n)
     })
 
     it('should return 0n for tokens where ATA does not exist', async () => {
@@ -559,133 +631,6 @@ describe('WalletAccountReadOnlySolana', () => {
 
     it('should throw error for invalid token mint address', async () => {
       await expect(readOnlyAccount.getTokenBalances(['invalid-mint'])).rejects.toThrow()
-    })
-  })
-
-  describe('token program resolution', () => {
-    const CLASSIC_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
-    const TOKEN_2022_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
-    const UNKNOWN_PROGRAM_ADDRESS = '11111111111111111111111111111111'
-
-    function mockAccounts (accounts) {
-      mockRpc.getMultipleAccounts.mockReturnValue(mockSend(accounts))
-    }
-
-    it('should resolve a classic SPL mint to the token program', async () => {
-      mockAccounts([createMintAccount(TOKEN_PROGRAM_ADDRESS)])
-
-      const tokenProgram = await readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)
-
-      expect(tokenProgram).toBe(TOKEN_PROGRAM_ADDRESS)
-    })
-
-    it('should resolve a bare Token-2022 mint to the token extensions program', async () => {
-      mockAccounts([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)])
-
-      const tokenProgram = await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
-
-      expect(tokenProgram).toBe(TOKEN_2022_PROGRAM_ADDRESS)
-    })
-
-    it('should resolve a Token-2022 mint carrying extensions', async () => {
-      mockAccounts([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: 1 })])
-
-      const tokenProgram = await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
-
-      expect(tokenProgram).toBe(TOKEN_2022_PROGRAM_ADDRESS)
-    })
-
-    it('should resolve several mints across both programs in a single call', async () => {
-      mockAccounts([
-        createMintAccount(TOKEN_PROGRAM_ADDRESS),
-        createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: 1 })
-      ])
-
-      const tokenPrograms = await readOnlyAccount._resolveTokenPrograms([CLASSIC_MINT, TOKEN_2022_MINT])
-
-      expect(tokenPrograms).toEqual({
-        [CLASSIC_MINT]: TOKEN_PROGRAM_ADDRESS,
-        [TOKEN_2022_MINT]: TOKEN_2022_PROGRAM_ADDRESS
-      })
-      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
-    })
-
-    it('should request each mint once when the same mint is repeated', async () => {
-      mockAccounts([createMintAccount(TOKEN_PROGRAM_ADDRESS)])
-
-      const tokenPrograms = await readOnlyAccount._resolveTokenPrograms([CLASSIC_MINT, CLASSIC_MINT, CLASSIC_MINT])
-
-      expect(tokenPrograms).toEqual({ [CLASSIC_MINT]: TOKEN_PROGRAM_ADDRESS })
-      expect(mockRpc.getMultipleAccounts.mock.calls[0][0]).toEqual([address(CLASSIC_MINT)])
-    })
-
-    it('should split requests beyond the 100-account RPC limit', async () => {
-      const addressDecoder = getAddressDecoder()
-      const mints = Array.from({ length: 101 }, (_, i) => {
-        const bytes = new Uint8Array(32)
-        bytes[0] = i + 1
-        return addressDecoder.decode(bytes)
-      })
-
-      mockRpc.getMultipleAccounts
-        .mockReturnValueOnce({
-          send: jest.fn().mockResolvedValue({
-            value: Array.from({ length: 100 }, () => createMintAccount(TOKEN_PROGRAM_ADDRESS))
-          })
-        })
-        .mockReturnValueOnce({
-          send: jest.fn().mockResolvedValue({
-            value: [createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)]
-          })
-        })
-
-      const tokenPrograms = await readOnlyAccount._resolveTokenPrograms(mints)
-
-      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(2)
-      expect(mockRpc.getMultipleAccounts.mock.calls[0][0]).toHaveLength(100)
-      expect(mockRpc.getMultipleAccounts.mock.calls[1][0]).toHaveLength(1)
-      expect(tokenPrograms[mints[0]]).toBe(TOKEN_PROGRAM_ADDRESS)
-      expect(tokenPrograms[mints[100]]).toBe(TOKEN_2022_PROGRAM_ADDRESS)
-    })
-
-    it('should not issue a second request for an already resolved mint', async () => {
-      mockAccounts([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)])
-
-      await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
-      const tokenProgram = await readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)
-
-      expect(tokenProgram).toBe(TOKEN_2022_PROGRAM_ADDRESS)
-      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
-    })
-
-    it('should throw NoSuchElementError when the account does not exist', async () => {
-      mockAccounts([null])
-
-      await expect(readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(NoSuchElementError)
-    })
-
-    it('should throw ValueError when the account is owned by another program', async () => {
-      mockAccounts([createMintAccount(UNKNOWN_PROGRAM_ADDRESS)])
-
-      await expect(readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(ValueError)
-    })
-
-    it('should throw ValueError when the account is a token account, not a mint', async () => {
-      mockAccounts([createMintAccount(TOKEN_PROGRAM_ADDRESS, { size: 165 })])
-
-      await expect(readOnlyAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(ValueError)
-    })
-
-    it('should throw ValueError for a Token-2022 account tagged as a token account', async () => {
-      mockAccounts([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: 2 })])
-
-      await expect(readOnlyAccount._resolveTokenProgram(TOKEN_2022_MINT)).rejects.toThrow(ValueError)
-    })
-
-    it('should throw ProviderRequiredError when not connected to a provider', async () => {
-      const disconnectedAccount = new WalletAccountReadOnlySolana(TEST_ADDRESS, {})
-
-      await expect(disconnectedAccount._resolveTokenProgram(CLASSIC_MINT)).rejects.toThrow(ProviderRequiredError)
     })
   })
 
@@ -1071,7 +1016,7 @@ describe('WalletAccountReadOnlySolana', () => {
     })
   })
 
-  describe('token transfer construction', () => {
+  describe('quoteTransfer transaction construction', () => {
     const CLASSIC_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
     const TOKEN_2022_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
     const RECIPIENT = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
@@ -1082,13 +1027,21 @@ describe('WalletAccountReadOnlySolana', () => {
         blockhash: 'HhqkdqemrKDK5Wd4oiCtzfpBWfdGS79YhLtzAck5Nz7T',
         lastValidBlockHeight: 100000n
       }))
+      mockRpc.getFeeForMessage.mockReturnValue(mockSend(5000n))
+      mockRpc.getMinimumBalanceForRentExemption.mockImplementation(size => ({
+        send: jest.fn().mockResolvedValue(rentFor(size))
+      }))
     })
 
-    it('should build a transferChecked instruction for a classic SPL mint', async () => {
+    function quote (token, amount) {
+      return readOnlyAccount.quoteTransfer({ token, recipient: RECIPIENT, amount })
+    }
+
+    it('should quote a transferChecked instruction for a classic SPL mint', async () => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount(TOKEN_PROGRAM_ADDRESS, { decimals: 6 })]))
       mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
 
-      const message = await readOnlyAccount._buildSPLTransferTransactionMessage(CLASSIC_MINT, RECIPIENT, 1000000n)
+      await quote(CLASSIC_MINT, 1000000n)
 
       const [fromAta] = await findAssociatedTokenPda({
         mint: address(CLASSIC_MINT),
@@ -1101,26 +1054,23 @@ describe('WalletAccountReadOnlySolana', () => {
         tokenProgram: TOKEN_PROGRAM_ADDRESS
       })
 
-      expect(message.instructions).toHaveLength(1)
-      const [transfer] = message.instructions
+      const instructions = decodeQuotedInstructions(mockRpc.getFeeForMessage)
+
+      expect(instructions).toHaveLength(1)
+      const [transfer] = instructions
       expect(transfer.programAddress).toBe(TOKEN_PROGRAM_ADDRESS)
-      expect(transfer.accounts.map(a => a.address)).toEqual([
-        fromAta,
-        address(CLASSIC_MINT),
-        toAta,
-        address(TEST_ADDRESS)
-      ])
+      expect(transfer.accounts).toEqual([fromAta, address(CLASSIC_MINT), toAta, address(TEST_ADDRESS)])
       expect(transfer.data[0]).toBe(TRANSFER_CHECKED_DISCRIMINATOR)
       expect(transfer.data[transfer.data.length - 1]).toBe(6)
     })
 
-    it('should build the transfer against the token extensions program for a Token-2022 mint', async () => {
+    it('should quote the transfer against the token extensions program for a Token-2022 mint', async () => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([
-        createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: 1, decimals: 9 })
+        createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: ACCOUNT_TYPE_MINT, decimals: 9 })
       ]))
       mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] })))
 
-      const message = await readOnlyAccount._buildSPLTransferTransactionMessage(TOKEN_2022_MINT, RECIPIENT, 5n)
+      await quote(TOKEN_2022_MINT, 5n)
 
       const [fromAta] = await findAssociatedTokenPda({
         mint: address(TOKEN_2022_MINT),
@@ -1128,20 +1078,22 @@ describe('WalletAccountReadOnlySolana', () => {
         tokenProgram: TOKEN_2022_PROGRAM_ADDRESS
       })
 
-      expect(message.instructions).toHaveLength(1)
-      const [transfer] = message.instructions
+      const instructions = decodeQuotedInstructions(mockRpc.getFeeForMessage)
+
+      expect(instructions).toHaveLength(1)
+      const [transfer] = instructions
       expect(transfer.programAddress).toBe(TOKEN_2022_PROGRAM_ADDRESS)
-      expect(transfer.accounts[0].address).toBe(fromAta)
+      expect(transfer.accounts[0]).toBe(fromAta)
       expect(transfer.data[transfer.data.length - 1]).toBe(9)
     })
 
-    it('should create the recipient ATA under the mint own token program', async () => {
+    it('should quote the creation of the recipient ATA under the mint own token program', async () => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([
-        createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: 1, decimals: 9 })
+        createMintAccount(TOKEN_2022_PROGRAM_ADDRESS, { size: 278, accountType: ACCOUNT_TYPE_MINT, decimals: 9 })
       ]))
       mockRpc.getAccountInfo.mockReturnValue(mockSend(null))
 
-      const message = await readOnlyAccount._buildSPLTransferTransactionMessage(TOKEN_2022_MINT, RECIPIENT, 5n)
+      await quote(TOKEN_2022_MINT, 5n)
 
       const [toAta] = await findAssociatedTokenPda({
         mint: address(TOKEN_2022_MINT),
@@ -1149,35 +1101,34 @@ describe('WalletAccountReadOnlySolana', () => {
         tokenProgram: TOKEN_2022_PROGRAM_ADDRESS
       })
 
-      expect(message.instructions).toHaveLength(2)
-      const [createAta] = message.instructions
-      expect(createAta.accounts[1].address).toBe(toAta)
-      expect(createAta.accounts.map(a => a.address)).toContain(TOKEN_2022_PROGRAM_ADDRESS)
+      const instructions = decodeQuotedInstructions(mockRpc.getFeeForMessage)
+
+      expect(instructions).toHaveLength(2)
+      const [createAta] = instructions
+      expect(createAta.programAddress).toBe(ASSOCIATED_TOKEN_PROGRAM_ADDRESS)
+      expect(createAta.accounts[1]).toBe(toAta)
+      expect(createAta.accounts).toContain(TOKEN_2022_PROGRAM_ADDRESS)
     })
 
-    it('should not create the recipient ATA when it already exists', async () => {
+    it('should not quote the creation of the recipient ATA when it already exists', async () => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount(TOKEN_PROGRAM_ADDRESS, { decimals: 6 })]))
       mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
 
-      const message = await readOnlyAccount._buildSPLTransferTransactionMessage(CLASSIC_MINT, RECIPIENT, 1n)
+      await quote(CLASSIC_MINT, 1n)
 
-      expect(message.instructions).toHaveLength(1)
+      expect(decodeQuotedInstructions(mockRpc.getFeeForMessage)).toHaveLength(1)
     })
 
     it('should throw ValueError when the amount exceeds the u64 maximum', async () => {
-      await expect(
-        readOnlyAccount._buildSPLTransferTransactionMessage(CLASSIC_MINT, RECIPIENT, 2n ** 64n)
-      ).rejects.toThrow(ValueError)
+      await expect(quote(CLASSIC_MINT, 2n ** 64n)).rejects.toThrow(ValueError)
     })
 
     it('should throw ValueError when a number amount exceeds the safe integer range', async () => {
-      await expect(
-        readOnlyAccount._buildSPLTransferTransactionMessage(CLASSIC_MINT, RECIPIENT, Number.MAX_SAFE_INTEGER + 2)
-      ).rejects.toThrow(ValueError)
+      await expect(quote(CLASSIC_MINT, Number.MAX_SAFE_INTEGER + 2)).rejects.toThrow(ValueError)
     })
   })
 
-  describe('token extension policy', () => {
+  describe('quoteTransfer token extension policy', () => {
     const TOKEN_2022_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
     const CLASSIC_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
     const RECIPIENT = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
@@ -1188,6 +1139,8 @@ describe('WalletAccountReadOnlySolana', () => {
         blockhash: 'HhqkdqemrKDK5Wd4oiCtzfpBWfdGS79YhLtzAck5Nz7T',
         lastValidBlockHeight: 100000n
       }))
+      mockRpc.getFeeForMessage.mockReturnValue(mockSend(5000n))
+      mockRpc.getEpochInfo.mockReturnValue({ send: jest.fn().mockResolvedValue({ epoch: 0n }) })
       mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, { extensions: [] })))
     })
 
@@ -1197,14 +1150,18 @@ describe('WalletAccountReadOnlySolana', () => {
       ]))
     }
 
-    function buildTransfer (mint = TOKEN_2022_MINT, solanaOptions) {
-      return readOnlyAccount._buildSPLTransferTransactionMessage(mint, RECIPIENT, 1000n, solanaOptions)
+    function quote (mint = TOKEN_2022_MINT, solanaOptions) {
+      return readOnlyAccount.quoteTransfer({ token: mint, recipient: RECIPIENT, amount: 1000n }, solanaOptions)
+    }
+
+    function quotedPrograms () {
+      return decodeQuotedInstructions(mockRpc.getFeeForMessage).map(instruction => instruction.programAddress)
     }
 
     it('should reject a non-transferable mint', async () => {
       mockMintWithExtensions([{ __kind: 'NonTransferable' }])
 
-      await expect(buildTransfer()).rejects.toThrow(NonTransferableTokenError)
+      await expect(quote()).rejects.toThrow(NonTransferableTokenError)
     })
 
     it('should reject a mint carrying a transfer hook', async () => {
@@ -1212,7 +1169,7 @@ describe('WalletAccountReadOnlySolana', () => {
         { __kind: 'TransferHook', authority: address(SYSTEM_PROGRAM), programId: address(SYSTEM_PROGRAM) }
       ])
 
-      await expect(buildTransfer()).rejects.toThrow(TransferHookNotSupportedError)
+      await expect(quote()).rejects.toThrow(TransferHookNotSupportedError)
     })
 
     it('should reject a mint configured for confidential transfers', async () => {
@@ -1225,21 +1182,21 @@ describe('WalletAccountReadOnlySolana', () => {
         }
       ])
 
-      await expect(buildTransfer()).rejects.toThrow(ConfidentialTransferNotSupportedError)
+      await expect(quote()).rejects.toThrow(ConfidentialTransferNotSupportedError)
     })
 
     it('should reject a mint that freezes the accounts it creates', async () => {
       mockMintWithExtensions([{ __kind: 'DefaultAccountState', state: AccountState2022.Frozen }])
 
-      await expect(buildTransfer()).rejects.toThrow(FrozenTokenAccountError)
+      await expect(quote()).rejects.toThrow(FrozenTokenAccountError)
     })
 
     it('should accept a mint whose default account state is initialized', async () => {
       mockMintWithExtensions([{ __kind: 'DefaultAccountState', state: AccountState2022.Initialized }])
 
-      const message = await buildTransfer()
+      await quote()
 
-      expect(message.instructions).toHaveLength(1)
+      expect(quotedPrograms()).toEqual([TOKEN_2022_PROGRAM_ADDRESS])
     })
 
     it('should transfer the requested amount gross for a fee-bearing mint', async () => {
@@ -1254,11 +1211,10 @@ describe('WalletAccountReadOnlySolana', () => {
         }
       ])
 
-      const message = await buildTransfer()
+      await quote()
 
-      const [transfer] = message.instructions
-      const amount = Buffer.from(transfer.data).readBigUInt64LE(1)
-      expect(amount).toBe(1000n)
+      const [transfer] = decodeQuotedInstructions(mockRpc.getFeeForMessage)
+      expect(Buffer.from(transfer.data).readBigUInt64LE(1)).toBe(1000n)
     })
 
     it('should accept an interest-bearing mint', async () => {
@@ -1273,9 +1229,9 @@ describe('WalletAccountReadOnlySolana', () => {
         }
       ])
 
-      const message = await buildTransfer()
+      await quote()
 
-      expect(message.instructions).toHaveLength(1)
+      expect(quotedPrograms()).toEqual([TOKEN_2022_PROGRAM_ADDRESS])
     })
 
     it('should reject a frozen recipient account', async () => {
@@ -1284,7 +1240,7 @@ describe('WalletAccountReadOnlySolana', () => {
         createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, { state: AccountState2022.Frozen, extensions: [] })
       ))
 
-      await expect(buildTransfer()).rejects.toThrow(FrozenTokenAccountError)
+      await expect(quote()).rejects.toThrow(FrozenTokenAccountError)
     })
 
     it('should attach the memo before the transfer to a recipient account requiring a memo', async () => {
@@ -1295,13 +1251,12 @@ describe('WalletAccountReadOnlySolana', () => {
         })
       ))
 
-      const message = await buildTransfer(TOKEN_2022_MINT, { memo: 'wdk memo' })
+      await quote(TOKEN_2022_MINT, { memo: 'wdk memo' })
 
-      expect(message.instructions.map(instruction => instruction.programAddress))
-        .toEqual([MEMO_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS])
+      expect(quotedPrograms()).toEqual([MEMO_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS])
     })
 
-    it('should build a transfer without a memo to a recipient account requiring a memo', async () => {
+    it('should quote a transfer without a memo to a recipient account requiring a memo', async () => {
       mockMintWithExtensions([])
       mockRpc.getAccountInfo.mockReturnValue(mockSend(
         createTokenAccount(0, TOKEN_2022_PROGRAM_ADDRESS, {
@@ -1309,19 +1264,18 @@ describe('WalletAccountReadOnlySolana', () => {
         })
       ))
 
-      const message = await buildTransfer()
+      await quote()
 
-      expect(message.instructions.map(instruction => instruction.programAddress))
-        .toEqual([TOKEN_2022_PROGRAM_ADDRESS])
+      expect(quotedPrograms()).toEqual([TOKEN_2022_PROGRAM_ADDRESS])
     })
 
     it('should not inspect extensions of a classic SPL mint', async () => {
       mockRpc.getMultipleAccounts.mockReturnValue(mockSend([createMintAccount(TOKEN_PROGRAM_ADDRESS, { decimals: 6 })]))
       mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(0)))
 
-      const message = await buildTransfer(CLASSIC_MINT)
+      await quote(CLASSIC_MINT)
 
-      expect(message.instructions).toHaveLength(1)
+      expect(quotedPrograms()).toEqual([TOKEN_PROGRAM_ADDRESS])
     })
   })
 
