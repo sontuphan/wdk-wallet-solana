@@ -1,6 +1,6 @@
 {
   "name": "@tetherto/wdk-wallet-solana",
-  "version": "1.0.0-beta.15",
+  "version": "1.0.0-beta.16",
   "description": "A simple package to manage BIP-32 wallets for the solana blockchain.",
   "keywords": [
     "wdk",
@@ -29,6 +29,7 @@
   "dependencies": {
     "@noble/ed25519": "3.1.0",
     "@noble/hashes": "2.2.0",
+    "@solana-program/memo": "0.9.0",
     "@solana-program/system": "0.9.0",
     "@solana-program/token": "0.7.0",
     "@solana-program/token-2022": "0.6.0",

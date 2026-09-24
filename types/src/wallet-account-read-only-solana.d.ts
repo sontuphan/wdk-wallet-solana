@@ -3,6 +3,15 @@
  */
 export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     /**
+     * Builds a Solana RPC client from the wallet configuration: a url string, an already-built
+     * client reused as-is, or a list of either (with connection errors failing over to the next).
+     *
+     * @protected
+     * @param {Omit<SolanaWalletConfig, 'transferMaxFee' | 'transactionMaxFee'>} [config] - The configuration object.
+     * @returns {SolanaRpc | undefined} The rpc client, or undefined if none is configured.
+     */
+    protected static _buildRpc(config?: Omit<SolanaWalletConfig, "transferMaxFee" | "transactionMaxFee">): SolanaRpc | undefined;
+    /**
      * Creates a new solana read-only wallet account.
      *
      * @param {string} addr - The account's address.
@@ -58,6 +67,15 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
      */
     quoteSendTransaction(tx: SolanaTransaction): Promise<Omit<TransactionResult, "hash">>;
+    /**
+     * Quotes the costs of a transfer operation.
+     *
+     * @param {TransferOptions} options - The transfer's options.
+     * @param {SolanaTransferOptions} [solanaOptions] - The transfer's Solana-specific options.
+     * @returns {Promise<Omit<TransferResult, 'hash'>>} The transfer's quotes.
+     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     */
+    quoteTransfer(options: TransferOptions, solanaOptions?: SolanaTransferOptions): Promise<Omit<TransferResult, "hash">>;
     /**
      * Retrieves a transaction receipt by its signature
      *
@@ -166,11 +184,12 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @param {string} token - The token mint address (base58-encoded public key).
      * @param {string} recipient - The recipient's wallet address (base58-encoded public key).
      * @param {number | bigint} amount - The amount to transfer in token's base units (must be ≤ 2^64-1).
+     * @param {SolanaTransferOptions} [solanaOptions] - The transfer's Solana-specific options.
      * @returns {Promise<TransactionMessage>} The constructed transaction message.
-     * @throws {ValueError} If the amount exceeds the representable range.
+     * @throws {ValueError} If the amount exceeds the representable range, if the memo is not a string, or if the memo makes the transaction exceed the maximum transaction size.
      * @todo Support transfer with memo for tokens that require it.
      */
-    protected _buildSPLTransferTransactionMessage(token: string, recipient: string, amount: number | bigint): Promise<TransactionMessage>;
+    protected _buildSPLTransferTransactionMessage(token: string, recipient: string, amount: number | bigint, solanaOptions?: SolanaTransferOptions): Promise<TransactionMessage>;
     /**
      * Builds a transaction message for native SOL transfer.
      * Creates a transfer instruction for sending SOL.
@@ -232,7 +251,6 @@ export type WaitForTransactionOptions = import("@tetherto/wdk-wallet").WaitForTr
 export type Address = import("@solana/addresses").Address;
 export type ReadonlyUint8Array = import("@solana/codecs").ReadonlyUint8Array;
 export type TransactionMessage = import("@solana/transaction-messages").TransactionMessage;
-export type FullySignedTransaction = import("@solana/transactions").FullySignedTransaction;
 export type Transaction = import("@solana/transactions").Transaction;
 export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
 export type SolanaTransactionReceipt = ReturnType<import("@solana/rpc-api").SolanaRpcApi["getTransaction"]>;
@@ -249,6 +267,15 @@ export type SolanaTransactionDetails = {
      * - The native Solana transaction object, or null while the transaction is pending.
      */
     transaction: SolanaTransactionReceipt | null;
+};
+/**
+ * The Solana-specific options of a transfer operation, next to the chain-agnostic {@link TransferOptions}.
+ */
+export type SolanaTransferOptions = {
+    /**
+     * - A UTF-8 memo to attach to the transfer, ignored when empty. It has to be short enough for the transfer to stay within the maximum transaction size. Tokens whose recipient token account enables the memo transfer extension reject transfers that carry none, but that extension is Token-2022 only and this account does not transfer Token-2022 mints yet, so today the memo serves as a payment reference.
+     */
+    memo?: string;
 };
 export type SimpleSolanaTransaction = {
     /**
@@ -268,9 +295,9 @@ export type SimpleSolanaTransaction = {
 export type SolanaTransaction = SimpleSolanaTransaction | TransactionMessage | string;
 export type SolanaWalletConfig = {
     /**
-     * - The Solana RPC url. It's also possible to provide an array of urls instead. In such case, connection errors will cause the wallet to automatically fallback on the next provider in the list.
+     * - The Solana RPC url or an already-built Solana RPC client. It's also possible to provide an array of these instead. In such case, connection errors will cause the wallet to automatically fallback on the next provider in the list. An already-built client is reused as-is, which lets a manager share a single client across all the accounts it creates.
      */
-    provider?: string | string[];
+    provider?: string | SolanaRpc | Array<string | SolanaRpc>;
     /**
      * - Deprecated alias for `provider`. If both are set, `provider` takes precedence.
      */

@@ -14,7 +14,8 @@ export default class WalletManagerSolana extends WalletManager {
      */
     protected _commitment: Commitment;
     /**
-     * A Solana RPC client for HTTP requests.
+     * A Solana RPC client for HTTP requests. Shared with every account this manager creates,
+     * so two accounts never open two clients for the same endpoint.
      *
      * @protected
      * @type {SolanaRpc | undefined}
@@ -40,6 +41,14 @@ export default class WalletManagerSolana extends WalletManager {
      * @returns {Promise<WalletAccountSolana>} The account.
      */
     getAccountByPath(path: string): Promise<WalletAccountSolana>;
+    /**
+     * Builds the account config, injecting the manager's shared rpc client so accounts reuse
+     * it instead of opening their own.
+     *
+     * @private
+     * @returns {SolanaWalletConfig} The account configuration.
+     */
+    private _accountConfig;
 }
 export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
 export type Commitment = import("@solana/rpc-types").Commitment;
