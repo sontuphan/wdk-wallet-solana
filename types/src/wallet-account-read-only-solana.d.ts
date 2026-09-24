@@ -49,6 +49,22 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _mintAccountCache: Map<string, MintAccount>;
     /**
+     * Returns the account's native SOL balance.
+     *
+     * @returns {Promise<bigint>} The sol balance (in lamports).
+     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     */
+    getBalance(): Promise<bigint>;
+    /**
+     * Returns the account balance for a specific token, held under either the SPL Token
+     * Program or the Token Extensions Program (Token-2022).
+     *
+     * @param {string} tokenAddress - The smart contract address of the token.
+     * @returns {Promise<bigint>} The token balance (in base unit).
+     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     */
+    getTokenBalance(tokenAddress: string): Promise<bigint>;
+    /**
      * Returns the account balances for a list of tokens, held under either the SPL Token
      * Program or the Token Extensions Program (Token-2022). The two may be mixed freely
      * within one call.
@@ -110,6 +126,14 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @throws {TimeoutError} If the target is not reached before the timeout.
      */
     waitForTransaction(hash: string, options?: WaitForTransactionOptions): Promise<TransactionReceipt & SolanaTransactionDetails>;
+    /**
+     * Verifies a message's signature.
+     *
+     * @param {string} message - The original message.
+     * @param {string} signature - The signature to verify.
+     * @returns {Promise<boolean>} True if the signature is valid.
+     */
+    verify(message: string, signature: string): Promise<boolean>;
     /**
      * Resolves the token program owning a mint: either the classic SPL Token Program or
      * the Token Extensions Program (Token-2022).

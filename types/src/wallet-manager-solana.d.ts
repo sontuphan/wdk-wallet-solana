@@ -49,6 +49,13 @@ export default class WalletManagerSolana extends WalletManager {
      * @returns {SolanaWalletConfig} The account configuration.
      */
     private _accountConfig;
+    /**
+     * Returns the current fee rates.
+     *
+     * @returns {Promise<FeeRates>} The fee rates (in lamports).
+     * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
+     */
+    getFeeRates(): Promise<FeeRates>;
 }
 export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
 export type Commitment = import("@solana/rpc-types").Commitment;
