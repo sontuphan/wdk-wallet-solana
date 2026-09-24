@@ -262,28 +262,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @throws {ValueError} If the transaction fee payer does not match this wallet address.
      */
     protected _assertFeePayer(tx: SolanaTransaction): Promise<void>;
-    /**
-     * Tells whether the data of an account owned by a token program is a mint.
-     *
-     * A classic SPL mint is exactly the base mint size. A Token-2022 mint is either the
-     * same bare layout or, once it carries extensions, a longer account tagged with the mint
-     * discriminator at {@link TOKEN_2022_ACCOUNT_TYPE_OFFSET}. That tag is what tells a mint
-     * apart from a token account, which is otherwise indistinguishable by owner alone.
-     *
-     * @private
-     * @param {Address} tokenProgram - The address of the token program owning the account.
-     * @param {ReadonlyUint8Array} data - The raw account data.
-     * @returns {boolean} Whether the account is a mint.
-     */
-    private _isMintAccountData;
-    /**
-     * Decodes the extensions of a Token-2022 mint.
-     *
-     * @private
-     * @param {ReadonlyUint8Array} data - The raw mint account data.
-     * @returns {Extension[]} The mint's extensions, or an empty list for a bare mint.
-     */
-    private _getMintExtensions;
 }
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
@@ -291,7 +269,6 @@ export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
 export type TransactionReceipt = import("@tetherto/wdk-wallet").TransactionReceipt;
 export type WaitForTransactionOptions = import("@tetherto/wdk-wallet").WaitForTransactionOptions;
 export type Address = import("@solana/addresses").Address;
-export type ReadonlyUint8Array = import("@solana/codecs").ReadonlyUint8Array;
 export type Extension = import("@solana-program/token-2022").Extension;
 export type TransactionMessage = import("@solana/transaction-messages").TransactionMessage;
 export type Transaction = import("@solana/transactions").Transaction;
@@ -384,8 +361,12 @@ export type MintAccount = {
      */
     tokenProgram: Address;
     /**
-     * - The raw account data.
+     * - The number of decimals of the token.
      */
-    data: ReadonlyUint8Array;
+    decimals: number;
+    /**
+     * - The mint's Token-2022 extensions, or an empty list for a classic or bare mint.
+     */
+    extensions: Extension[];
 };
 import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';

@@ -40,7 +40,6 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   findAssociatedTokenPda,
   getCreateAssociatedTokenIdempotentInstruction,
-  getMintSize,
   getTokenSize,
   getTransferCheckedInstruction,
   TOKEN_PROGRAM_ADDRESS
@@ -70,7 +69,6 @@ import { isSignature, verifySignature } from '@solana/keys'
 /** @typedef {import('@tetherto/wdk-wallet').WaitForTransactionOptions} WaitForTransactionOptions */
 
 /** @typedef {import('@solana/addresses').Address} Address */
-/** @typedef {import('@solana/codecs').ReadonlyUint8Array} ReadonlyUint8Array */
 /** @typedef {import('@solana-program/token-2022').Extension} Extension */
 /** @typedef {import('@solana/transaction-messages').TransactionMessage} TransactionMessage */
 /** @typedef {import('@solana/transactions').Transaction} Transaction */
@@ -130,19 +128,11 @@ import { isSignature, verifySignature } from '@solana/keys'
  *
  * @typedef {Object} MintAccount
  * @property {Address} tokenProgram - The address of the token program owning the mint.
- * @property {ReadonlyUint8Array} data - The raw account data.
+ * @property {number} decimals - The number of decimals of the token.
+ * @property {Extension[]} extensions - The mint's Token-2022 extensions, or an empty list for a classic or bare mint.
  */
 
 const MAX_U64 = 0xffffffffffffffffn
-
-/**
- * The offset, in bytes, of the account type discriminator in a Token-2022 account: right
- * after the base token account layout, which a Token-2022 mint is padded to.
- */
-const TOKEN_2022_ACCOUNT_TYPE_OFFSET = getTokenSize()
-
-/** The account type discriminator of a Token-2022 mint. */
-const TOKEN_2022_ACCOUNT_TYPE_MINT = 1
 
 /** The maximum number of addresses the `getMultipleAccounts` RPC accepts per call. */
 const MAX_ACCOUNTS_PER_REQUEST = 100
@@ -426,9 +416,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     const fee = await this._getTransactionFee(transactionMessage)
 
-    // Both reads hit the cache the builder has just filled, so they issue no further call.
-    const { tokenProgram, data: mintData } = await this._fetchMintAccount(token)
-    const mintExtensions = tokenProgram === TOKEN_2022_PROGRAM_ADDRESS ? this._getMintExtensions(mintData) : []
+    // The read hits the cache the builder has just filled, so it issues no further call.
+    const { tokenProgram, extensions: mintExtensions } = await this._fetchMintAccount(token)
 
     // The builder creates the recipient's account exactly when it does not exist yet.
     const createsRecipientAccount = transactionMessage.instructions
@@ -656,8 +645,6 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const uniqueMintAddresses = [...new Set(mintAddresses)]
     const missingMintAddresses = uniqueMintAddresses.filter(mintAddress => !this._mintAccountCache.has(mintAddress))
 
-    const base64Encoder = getBase64Encoder()
-
     for (let offset = 0; offset < missingMintAddresses.length; offset += MAX_ACCOUNTS_PER_REQUEST) {
       const batchMintAddresses = missingMintAddresses.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
 
@@ -682,13 +669,23 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
           throw new ValueError(`'${mintAddress}' is not owned by a supported token program.`)
         }
 
-        const data = base64Encoder.encode(account.data[0])
+        // Token-2022 keeps the classic base mint layout, so its decoder reads a mint of either
+        // program, and it refuses any other account, such as a token account.
+        let mint
 
-        if (!this._isMintAccountData(tokenProgram, data)) {
+        try {
+          mint = getMint2022Decoder().decode(getBase64Encoder().encode(account.data[0]))
+        } catch {
           throw new ValueError(`'${mintAddress}' is not a mint account.`)
         }
 
-        this._mintAccountCache.set(mintAddress, { tokenProgram, data })
+        const { decimals, extensions } = mint
+
+        this._mintAccountCache.set(mintAddress, {
+          tokenProgram,
+          decimals,
+          extensions: extensions.__option === 'Some' ? extensions.value : []
+        })
       }
     }
 
@@ -788,21 +785,17 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const tokenMint = address(token)
     const recipientPublicKey = address(recipient)
 
-    const { tokenProgram, data: mintData } = await this._fetchMintAccount(token)
-    // Token-2022 keeps the classic base mint layout, so its decoder reads a mint of either program.
-    const { decimals } = getMint2022Decoder().decode(mintData)
+    const { tokenProgram, decimals, extensions: mintExtensions } = await this._fetchMintAccount(token)
     const instructionsFor = TOKEN_PROGRAM_INSTRUCTIONS[tokenProgram]
     const isToken2022 = tokenProgram === TOKEN_2022_PROGRAM_ADDRESS
 
     // Refuse the Token-2022 extensions whose transfers this wallet cannot construct correctly.
-    if (isToken2022) {
-      for (const extension of this._getMintExtensions(mintData)) {
-        const rejection = REJECTED_MINT_EXTENSIONS[extension.__kind]
-        const error = rejection && rejection(token, extension)
+    for (const extension of mintExtensions) {
+      const rejection = REJECTED_MINT_EXTENSIONS[extension.__kind]
+      const error = rejection && rejection(token, extension)
 
-        if (error) {
-          throw error
-        }
+      if (error) {
+        throw error
       }
     }
 
@@ -1006,44 +999,5 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
         throw new ValueError(`Transaction fee payer (${feePayerAddress}) does not match wallet address (${ownerAddress})`)
       }
     }
-  }
-
-  /**
-   * Tells whether the data of an account owned by a token program is a mint.
-   *
-   * A classic SPL mint is exactly the base mint size. A Token-2022 mint is either the
-   * same bare layout or, once it carries extensions, a longer account tagged with the mint
-   * discriminator at {@link TOKEN_2022_ACCOUNT_TYPE_OFFSET}. That tag is what tells a mint
-   * apart from a token account, which is otherwise indistinguishable by owner alone.
-   *
-   * @private
-   * @param {Address} tokenProgram - The address of the token program owning the account.
-   * @param {ReadonlyUint8Array} data - The raw account data.
-   * @returns {boolean} Whether the account is a mint.
-   */
-  _isMintAccountData (tokenProgram, data) {
-    if (data.length === getMintSize()) {
-      return true
-    }
-
-    if (tokenProgram !== TOKEN_2022_PROGRAM_ADDRESS) {
-      return false
-    }
-
-    return data.length > TOKEN_2022_ACCOUNT_TYPE_OFFSET &&
-      data[TOKEN_2022_ACCOUNT_TYPE_OFFSET] === TOKEN_2022_ACCOUNT_TYPE_MINT
-  }
-
-  /**
-   * Decodes the extensions of a Token-2022 mint.
-   *
-   * @private
-   * @param {ReadonlyUint8Array} data - The raw mint account data.
-   * @returns {Extension[]} The mint's extensions, or an empty list for a bare mint.
-   */
-  _getMintExtensions (data) {
-    const { extensions } = getMint2022Decoder().decode(data)
-
-    return extensions.__option === 'Some' ? extensions.value : []
   }
 }
