@@ -205,9 +205,9 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @returns {Promise<TransactionMessage>} The constructed transaction message.
      * @throws {ValueError} If the amount exceeds the representable range, if the memo is not a string, or if the memo makes the transaction exceed the maximum transaction size.
      * @throws {NonTransferableTokenError} If the mint is non-transferable.
-     * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook.
+     * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook with a hook program set.
      * @throws {ConfidentialTransferNotSupportedError} If the mint is configured for confidential transfers.
-     * @throws {FrozenTokenAccountError} If the mint freezes by default the accounts it creates, or if the recipient's Token-2022 account is frozen.
+     * @throws {FrozenTokenAccountError} If the recipient has no token account yet and the mint freezes by default the accounts it creates, or if the recipient's Token-2022 account is frozen.
      */
     protected _buildSPLTransferTransactionMessage(token: string, recipient: string, amount: number | bigint, solanaOptions?: SolanaTransferOptions): Promise<TransactionMessage>;
     /**

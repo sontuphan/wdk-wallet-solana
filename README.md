@@ -67,9 +67,9 @@ apply the following rules.
 | Default account state: initialized | Supported. |
 | Pausable | Supported. Transfers fail on chain while the mint is paused. |
 | Non-transferable | Rejected with `NonTransferableTokenError`: the token cannot move at all. |
-| Transfer hook | Rejected with `TransferHookNotSupportedError`: the wallet does not resolve the accounts a hook program needs. |
+| Transfer hook | Supported when no hook program is set, since no hook runs. Rejected with `TransferHookNotSupportedError` when one is set: the wallet does not resolve the accounts a hook program needs. |
 | Confidential transfer | Rejected with `ConfidentialTransferNotSupportedError`: the wallet does not perform confidential transfers. |
-| Default account state: frozen | Rejected with `FrozenTokenAccountError`: a newly created recipient account would be frozen and unable to receive. |
+| Default account state: frozen | Supported between existing, thawed accounts. A transfer that would have to create the recipient's account is rejected with `FrozenTokenAccountError`, since the new account would be frozen and unable to receive. |
 
 A transfer to a recipient whose token account is frozen is also rejected with
 `FrozenTokenAccountError`. Other extensions need no special handling and are transferred

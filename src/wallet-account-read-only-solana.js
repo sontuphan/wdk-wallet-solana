@@ -34,7 +34,7 @@ import {
 } from '@solana/transaction-messages'
 import { getTransactionDecoder, getTransactionMessageSize, TRANSACTION_SIZE_LIMIT } from '@solana/transactions'
 import { getBase64Decoder, getBase64Encoder } from '@solana/codecs'
-import { getTransferSolInstruction } from '@solana-program/system'
+import { getTransferSolInstruction, SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
 import { getAddMemoInstruction } from '@solana-program/memo'
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -146,25 +146,24 @@ const BASIS_POINTS_PER_WHOLE = 10000n
  */
 const REQUIRED_ACCOUNT_EXTENSIONS = {
   TransferFeeConfig: { __kind: 'TransferFeeAmount', withheldAmount: 0n },
+  TransferHook: { __kind: 'TransferHookAccount', transferring: false },
   PausableConfig: { __kind: 'PausableAccount' }
 }
 
 /**
  * The mint extensions a transfer is refused for, each mapped to the error it raises.
  * An entry returns `null` when the extension is present but harmless in its current
- * configuration. Every other extension, including the transfer fee and interest-bearing
- * ones, is transferred through unchanged.
+ * configuration, such as a transfer hook with no hook program set. Every other extension,
+ * including the transfer fee and interest-bearing ones, is transferred through unchanged.
  */
 const REJECTED_MINT_EXTENSIONS = {
   NonTransferable: token =>
     new NonTransferableTokenError(`Token '${token}' is non-transferable.`),
-  TransferHook: token =>
-    new TransferHookNotSupportedError(`Token '${token}' carries a transfer hook, which is not supported.`),
+  TransferHook: (token, extension) => extension.programId !== SYSTEM_PROGRAM_ADDRESS
+    ? new TransferHookNotSupportedError(`Token '${token}' carries a transfer hook, which is not supported.`)
+    : null,
   ConfidentialTransferMint: token =>
-    new ConfidentialTransferNotSupportedError(`Token '${token}' is configured for confidential transfers, which are not supported.`),
-  DefaultAccountState: (token, extension) => extension.state === AccountState.Frozen
-    ? new FrozenTokenAccountError(`Token '${token}' freezes by default the accounts it creates.`)
-    : null
+    new ConfidentialTransferNotSupportedError(`Token '${token}' is configured for confidential transfers, which are not supported.`)
 }
 
 /**
@@ -247,15 +246,12 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       throw new ProviderRequiredError('The wallet must be connected to a provider to retrieve token balances.')
     }
 
-    const addr = await this.getAddress()
-    const ownerAddress = address(addr)
-    const mint = address(tokenAddress)
-
+    const ownerAddress = await this.getAddress()
     const tokenProgram = await this._resolveTokenProgram(tokenAddress)
 
     const [ata] = await findAssociatedTokenPda({
-      mint,
-      owner: ownerAddress,
+      mint: address(tokenAddress),
+      owner: address(ownerAddress),
       tokenProgram
     })
     const tokenAccount = await fetchMaybeToken(this._rpc, ata, { commitment: this._commitment })
@@ -283,8 +279,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       return {}
     }
 
-    const addr = await this.getAddress()
-    const ownerAddress = address(addr)
+    const ownerAddress = await this.getAddress()
 
     const uniqueTokenAddresses = [...new Set(tokenAddresses)]
     const tokenPrograms = await this._resolveTokenPrograms(uniqueTokenAddresses)
@@ -293,7 +288,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       uniqueTokenAddresses.map(tokenAddress =>
         findAssociatedTokenPda({
           mint: address(tokenAddress),
-          owner: ownerAddress,
+          owner: address(ownerAddress),
           tokenProgram: tokenPrograms[tokenAddress]
         }).then(([ata]) => ata)
       )
@@ -353,7 +348,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       return { fee }
     }
 
-    const addr = await this.getAddress()
+    const ownerAddress = await this.getAddress()
 
     let transactionMessage = tx
 
@@ -364,7 +359,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     if (Array.isArray(transactionMessage.instructions)) {
       transactionMessage = await this._ensureLifetime(transactionMessage)
       await this._assertFeePayer(transactionMessage)
-      transactionMessage = setTransactionMessageFeePayer(address(addr), transactionMessage)
+      transactionMessage = setTransactionMessageFeePayer(address(ownerAddress), transactionMessage)
     }
     const fee = await this._getTransactionFee(transactionMessage)
     return { fee }
@@ -729,9 +724,9 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @returns {Promise<TransactionMessage>} The constructed transaction message.
    * @throws {ValueError} If the amount exceeds the representable range, if the memo is not a string, or if the memo makes the transaction exceed the maximum transaction size.
    * @throws {NonTransferableTokenError} If the mint is non-transferable.
-   * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook.
+   * @throws {TransferHookNotSupportedError} If the mint carries a transfer hook with a hook program set.
    * @throws {ConfidentialTransferNotSupportedError} If the mint is configured for confidential transfers.
-   * @throws {FrozenTokenAccountError} If the mint freezes by default the accounts it creates, or if the recipient's Token-2022 account is frozen.
+   * @throws {FrozenTokenAccountError} If the recipient has no token account yet and the mint freezes by default the accounts it creates, or if the recipient's Token-2022 account is frozen.
    */
   async _buildSPLTransferTransactionMessage (token, recipient, amount, solanaOptions = {}) {
     const { memo } = solanaOptions ?? {}
@@ -786,6 +781,12 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     }
 
     if (!recipientTokenAccount.exists) {
+      const defaultAccountState = mintExtensions.find(extension => extension.__kind === 'DefaultAccountState')
+
+      if (defaultAccountState?.state === AccountState.Frozen) {
+        throw new FrozenTokenAccountError(`Token '${token}' freezes by default the accounts it creates, so '${recipient}' could not receive it.`)
+      }
+
       const createATAInstruction = getCreateAssociatedTokenIdempotentInstruction({
         ata: toATA,
         mint: tokenMint,

@@ -1118,12 +1118,25 @@ describe('WalletAccountReadOnlySolana', () => {
       await expect(quote()).rejects.toThrow(NonTransferableTokenError)
     })
 
-    it('should reject a mint carrying a transfer hook', async () => {
+    it('should reject a mint carrying a transfer hook with a hook program set', async () => {
+      mockMintWithExtensions([
+        { __kind: 'TransferHook', authority: address(SYSTEM_PROGRAM), programId: MEMO_PROGRAM_ADDRESS }
+      ])
+
+      await expect(quote()).rejects.toThrow(new TransferHookNotSupportedError(
+        `Token '${TOKEN_2022_MINT}' carries a transfer hook, which is not supported.`
+      ))
+      expect(mockRpc.getFeeForMessage).not.toHaveBeenCalled()
+    })
+
+    it('should accept a mint carrying a transfer hook with no hook program set', async () => {
       mockMintWithExtensions([
         { __kind: 'TransferHook', authority: address(SYSTEM_PROGRAM), programId: address(SYSTEM_PROGRAM) }
       ])
 
-      await expect(quote()).rejects.toThrow(TransferHookNotSupportedError)
+      await quote()
+
+      expect(quotedPrograms()).toEqual([TOKEN_2022_PROGRAM_ADDRESS])
     })
 
     it('should reject a mint configured for confidential transfers', async () => {
@@ -1139,10 +1152,22 @@ describe('WalletAccountReadOnlySolana', () => {
       await expect(quote()).rejects.toThrow(ConfidentialTransferNotSupportedError)
     })
 
-    it('should reject a mint that freezes the accounts it creates', async () => {
+    it('should reject a mint that freezes the accounts it creates when the recipient account must be created', async () => {
+      mockMintWithExtensions([{ __kind: 'DefaultAccountState', state: AccountState2022.Frozen }])
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(null))
+
+      await expect(quote()).rejects.toThrow(new FrozenTokenAccountError(
+        `Token '${TOKEN_2022_MINT}' freezes by default the accounts it creates, so '${RECIPIENT}' could not receive it.`
+      ))
+      expect(mockRpc.getFeeForMessage).not.toHaveBeenCalled()
+    })
+
+    it('should accept a mint that freezes the accounts it creates when the recipient account exists unfrozen', async () => {
       mockMintWithExtensions([{ __kind: 'DefaultAccountState', state: AccountState2022.Frozen }])
 
-      await expect(quote()).rejects.toThrow(FrozenTokenAccountError)
+      await quote()
+
+      expect(quotedPrograms()).toEqual([TOKEN_2022_PROGRAM_ADDRESS])
     })
 
     it('should accept a mint whose default account state is initialized', async () => {
@@ -1725,6 +1750,16 @@ describe('WalletAccountReadOnlySolana', () => {
 
       expect(result.rent).toBe(rentFor(182))
       expect(result.rent > rentFor(165)).toBe(true)
+    })
+
+    it('should quote the rent of the transfer hook account extension when creating the recipient account of a mint with an unset transfer hook', async () => {
+      mockMint([{ __kind: 'TransferHook', authority: address(TEST_ADDRESS), programId: address('11111111111111111111111111111111') }])
+      mockRecipientAccount(false)
+
+      const result = await quote()
+
+      expect(result).toEqual({ fee: 5000n, rent: rentFor(175), transferFee: 0n })
+      expect(mockRpc.getMinimumBalanceForRentExemption).toHaveBeenCalledWith(175n, { commitment: 'confirmed' })
     })
 
     it('should quote the rent of the pausable account extension when creating the recipient account of a pausable mint', async () => {

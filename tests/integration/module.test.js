@@ -43,6 +43,7 @@ import {
   getPostInitializeInstructionsForMintExtensions,
   getPreInitializeInstructionsForMintExtensions,
   getReallocateInstruction,
+  getThawAccountInstruction,
   TOKEN_2022_PROGRAM_ADDRESS
 } from '@solana-program/token-2022'
 import { getCreateAccountInstruction } from '@solana-program/system'
@@ -780,6 +781,56 @@ describe('@tetherto/wdk-wallet-solana', () => {
       await expect(account.transfer(TRANSFER)).rejects.toThrow(ErrorClass)
 
       expect(await account.getBalance()).toBe(balanceBefore)
+    })
+
+    test('should quote the rent and transfer a Token-2022 token carrying a transfer hook with no hook program set', async () => {
+      const authority = await generateKeyPairSigner()
+      const token = await deployTestToken2022(rpc, sendAndConfirmTransaction, [{
+        __kind: 'TransferHook',
+        authority: authority.address,
+        programId: address('11111111111111111111111111111111')
+      }])
+      await sendToken2022To(token, ACCOUNT_0.address, INITIAL_TOKEN_BALANCE)
+
+      const account = await wallet.getAccount(0)
+
+      const TRANSFER = { token: token.mint, recipient: TEST_RECIPIENT_ADDRESS, amount: 100 }
+
+      const quote = await account.quoteTransfer(TRANSFER)
+
+      const { hash } = await account.transfer(TRANSFER)
+      await confirmTransaction(rpc, hash)
+      const receipt = await account.getTransaction(hash)
+
+      const recipientAta = await getToken2022AccountAddress(token, TEST_RECIPIENT_ADDRESS)
+      const { value: recipientAtaInfo } = await rpc.getAccountInfo(recipientAta, { commitment: 'confirmed', encoding: 'base64' }).send()
+
+      expect(receipt.success).toBe(true)
+      expect(quote.rent).toBe(recipientAtaInfo.lamports)
+      expect(await account.getTokenBalance(token.mint)).toBe(INITIAL_TOKEN_BALANCE - 100n)
+    })
+
+    test('should transfer a Token-2022 token freezing new accounts by default between thawed token accounts', async () => {
+      const token = await deployTestToken2022(rpc, sendAndConfirmTransaction, [{ __kind: 'DefaultAccountState', state: AccountState.Frozen }])
+      const senderAta = await createToken2022Account(token, ACCOUNT_0.address)
+      const recipientAta = await createToken2022Account(token, ACCOUNT_1.address)
+
+      await sendInstructions(sendAndConfirmTransaction, rpc, token.mintAuthority, [
+        getThawAccountInstruction({ account: senderAta, mint: token.mint, owner: token.mintAuthority }),
+        getThawAccountInstruction({ account: recipientAta, mint: token.mint, owner: token.mintAuthority }),
+        getMintTo2022Instruction({ mint: token.mint, token: senderAta, mintAuthority: token.mintAuthority, amount: INITIAL_TOKEN_BALANCE })
+      ])
+
+      const account0 = await wallet.getAccount(0)
+      const account1 = await wallet.getAccount(1)
+
+      const { hash } = await account0.transfer({ token: token.mint, recipient: ACCOUNT_1.address, amount: 100 })
+      await confirmTransaction(rpc, hash)
+      const receipt = await account0.getTransaction(hash)
+
+      expect(receipt.success).toBe(true)
+      expect(await account0.getTokenBalance(token.mint)).toBe(INITIAL_TOKEN_BALANCE - 100n)
+      expect(await account1.getTokenBalance(token.mint)).toBe(100n)
     })
 
     test('should reject the transfer of a Token-2022 token to a frozen token account without sending a transaction', async () => {
