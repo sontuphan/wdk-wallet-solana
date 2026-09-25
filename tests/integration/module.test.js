@@ -300,7 +300,7 @@ describe('@tetherto/wdk-wallet-solana', () => {
       (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx),
       (tx) => appendTransactionMessageInstructions([
         getCreateAssociatedTokenIdempotentInstruction({
-          payer: testToken.mintAuthority.address,
+          payer: testToken.mintAuthority,
           ata,
           owner,
           mint: testToken.mint

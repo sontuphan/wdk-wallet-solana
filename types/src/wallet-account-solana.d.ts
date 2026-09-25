@@ -138,6 +138,14 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      * @returns {Promise<bigint>} The calculated transaction fee in lamports.
      */
     protected _getSignedTransactionFee(signedTransaction: FullySignedTransaction): Promise<bigint>;
+    /**
+     * Returns the signer the instructions requiring this account's signature are built with:
+     * the account's own key pair signer.
+     *
+     * @protected
+     * @returns {Promise<KeyPairSigner>} The signer.
+     */
+    protected _getTransactionSigner(): Promise<KeyPairSigner>;
     /** @private */
     private _prepareTransactionMessage;
     /**

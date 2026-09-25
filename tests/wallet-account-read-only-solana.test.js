@@ -29,7 +29,7 @@ import {
   TOKEN_PROGRAM_ADDRESS
 } from '@solana-program/token'
 import { AccountState as AccountState2022, getExtensionEncoder, TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022'
-import { MEMO_PROGRAM_ADDRESS } from '@solana-program/memo'
+import { LEGACY_MEMO_PROGRAM_ADDRESS_V3 } from '@solana-program/memo'
 
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
 import {
@@ -1120,7 +1120,7 @@ describe('WalletAccountReadOnlySolana', () => {
 
     it('should reject a mint carrying a transfer hook with a hook program set', async () => {
       mockMintWithExtensions([
-        { __kind: 'TransferHook', authority: address(SYSTEM_PROGRAM), programId: MEMO_PROGRAM_ADDRESS }
+        { __kind: 'TransferHook', authority: address(SYSTEM_PROGRAM), programId: LEGACY_MEMO_PROGRAM_ADDRESS_V3 }
       ])
 
       await expect(quote()).rejects.toThrow(new TransferHookNotSupportedError(
@@ -1150,6 +1150,28 @@ describe('WalletAccountReadOnlySolana', () => {
       ])
 
       await expect(quote()).rejects.toThrow(ConfidentialTransferNotSupportedError)
+    })
+
+    it('should reject a mint configured for confidential minting and burning', async () => {
+      mockMintWithExtensions([
+        {
+          __kind: 'ConfidentialTransferMint',
+          authority: { __option: 'None' },
+          autoApproveNewAccounts: false,
+          auditorElgamalPubkey: { __option: 'None' }
+        },
+        {
+          __kind: 'ConfidentialMintBurn',
+          confidentialSupply: new Uint8Array(64),
+          decryptableSupply: new Uint8Array(36),
+          supplyElgamalPubkey: address(SYSTEM_PROGRAM),
+          pendingBurn: new Uint8Array(64)
+        }
+      ])
+
+      await expect(quote()).rejects.toThrow(new ConfidentialTransferNotSupportedError(
+        `Token '${TOKEN_2022_MINT}' is configured for confidential transfers, which are not supported.`
+      ))
     })
 
     it('should reject a mint that freezes the accounts it creates when the recipient account must be created', async () => {
@@ -1232,7 +1254,7 @@ describe('WalletAccountReadOnlySolana', () => {
 
       await quote(TOKEN_2022_MINT, { memo: 'wdk memo' })
 
-      expect(quotedPrograms()).toEqual([MEMO_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS])
+      expect(quotedPrograms()).toEqual([LEGACY_MEMO_PROGRAM_ADDRESS_V3, TOKEN_2022_PROGRAM_ADDRESS])
     })
 
     it('should quote a transfer without a memo to a recipient account requiring a memo', async () => {
@@ -1354,7 +1376,7 @@ describe('WalletAccountReadOnlySolana', () => {
         (instruction) => compiledMessage.staticAccounts[instruction.programAddressIndex]
       )
 
-      expect(programs).toEqual([MEMO_PROGRAM_ADDRESS, TOKEN_PROGRAM_ADDRESS])
+      expect(programs).toEqual([LEGACY_MEMO_PROGRAM_ADDRESS_V3, TOKEN_PROGRAM_ADDRESS])
       expect(compiledMessage.instructions[0].data).toEqual(EXPECTED_MEMO_DATA)
       expect(result).toEqual({ fee: 5000n, rent: 0n, transferFee: 0n })
     })
@@ -1389,7 +1411,7 @@ describe('WalletAccountReadOnlySolana', () => {
 
       expect(programs).toEqual([
         ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-        MEMO_PROGRAM_ADDRESS,
+        LEGACY_MEMO_PROGRAM_ADDRESS_V3,
         TOKEN_PROGRAM_ADDRESS
       ])
       expect(compiledMessage.instructions[1].data).toEqual(EXPECTED_MEMO_DATA)
@@ -1768,7 +1790,7 @@ describe('WalletAccountReadOnlySolana', () => {
 
       const result = await quote()
 
-      expect(result.rent).toBe(rentFor(172))
+      expect(result.rent).toBe(rentFor(174))
     })
 
     it('should quote the transfer fee at the newer rate once its epoch is reached', async () => {
@@ -1856,7 +1878,7 @@ describe('WalletAccountReadOnlySolana', () => {
 
       await quote()
 
-      mockMint([{ ...unsetHook, programId: MEMO_PROGRAM_ADDRESS }])
+      mockMint([{ ...unsetHook, programId: LEGACY_MEMO_PROGRAM_ADDRESS_V3 }])
 
       await expect(quote()).rejects.toThrow(TransferHookNotSupportedError)
     })

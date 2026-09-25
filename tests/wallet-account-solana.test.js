@@ -27,7 +27,7 @@ import { getCompiledTransactionMessageDecoder } from '@solana/transaction-messag
 import { signTransactionMessageWithSigners } from '@solana/signers'
 import { getBase64EncodedWireTransaction, getTransactionDecoder } from '@solana/transactions'
 import { getBase64Decoder, getBase64Encoder } from '@solana/codecs'
-import { MEMO_PROGRAM_ADDRESS } from '@solana-program/memo'
+import { LEGACY_MEMO_PROGRAM_ADDRESS_V3 } from '@solana-program/memo'
 import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token'
 import { getExtensionEncoder, TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022'
 import { NonTransferableTokenError } from '../src/errors.js'
@@ -1255,7 +1255,7 @@ describe('WalletAccountSolana', () => {
           (instruction) => compiledMessage.staticAccounts[instruction.programAddressIndex]
         )
 
-        expect(programs).toEqual([MEMO_PROGRAM_ADDRESS, TOKEN_PROGRAM_ADDRESS])
+        expect(programs).toEqual([LEGACY_MEMO_PROGRAM_ADDRESS_V3, TOKEN_PROGRAM_ADDRESS])
         expect(compiledMessage.instructions[0].data).toEqual(EXPECTED_MEMO_DATA)
         expect(result.hash).toBe('memo-transfer-sig')
         expect(result.fee).toBe(5000n)

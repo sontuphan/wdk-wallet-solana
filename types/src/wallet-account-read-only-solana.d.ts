@@ -261,6 +261,15 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @throws {ValueError} If the transaction fee payer does not match this wallet address.
      */
     protected _assertFeePayer(tx: SolanaTransaction): Promise<void>;
+    /**
+     * Returns the signer the instructions requiring this account's signature are built with.
+     * A read-only account cannot sign, so it returns a no-op signer, which is enough to build
+     * and quote a transaction.
+     *
+     * @protected
+     * @returns {Promise<TransactionSigner>} The signer.
+     */
+    protected _getTransactionSigner(): Promise<TransactionSigner>;
 }
 export type TransactionResult = import("@tetherto/wdk-wallet").TransactionResult;
 export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
@@ -271,6 +280,7 @@ export type Address = import("@solana/addresses").Address;
 export type Extension = import("@solana-program/token-2022").Extension;
 export type TransactionMessage = import("@solana/transaction-messages").TransactionMessage;
 export type Transaction = import("@solana/transactions").Transaction;
+export type TransactionSigner = import("@solana/signers").TransactionSigner;
 export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
 export type SolanaTransactionReceipt = ReturnType<import("@solana/rpc-api").SolanaRpcApi["getTransaction"]>;
 export type Commitment = import("@solana/rpc-types").Commitment;

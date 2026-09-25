@@ -414,6 +414,17 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     return await this._getFeeForBase64Message(base64EncodedMessage)
   }
 
+  /**
+   * Returns the signer the instructions requiring this account's signature are built with:
+   * the account's own key pair signer.
+   *
+   * @protected
+   * @returns {Promise<KeyPairSigner>} The signer.
+   */
+  async _getTransactionSigner () {
+    return await this._getSigner()
+  }
+
   /** @private */
   async _prepareTransactionMessage (tx) {
     let transactionMessage = tx

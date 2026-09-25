@@ -32,10 +32,10 @@ import {
   isTransactionMessageWithBlockhashLifetime,
   isTransactionMessageWithDurableNonceLifetime
 } from '@solana/transaction-messages'
-import { getTransactionDecoder, getTransactionMessageSize, TRANSACTION_SIZE_LIMIT } from '@solana/transactions'
+import { getTransactionDecoder, getTransactionMessageSize, getTransactionMessageSizeLimit } from '@solana/transactions'
 import { getBase64Decoder, getBase64Encoder } from '@solana/codecs'
 import { getTransferSolInstruction, SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
-import { getAddMemoInstruction } from '@solana-program/memo'
+import { getAddMemoInstruction, LEGACY_MEMO_PROGRAM_ADDRESS_V3 } from '@solana-program/memo'
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   findAssociatedTokenPda,
@@ -60,6 +60,7 @@ import {
   TransferHookNotSupportedError
 } from './errors.js'
 import { isSignature, verifySignature } from '@solana/keys'
+import { createNoopSigner } from '@solana/signers'
 
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
 /** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
@@ -71,6 +72,7 @@ import { isSignature, verifySignature } from '@solana/keys'
 /** @typedef {import('@solana-program/token-2022').Extension} Extension */
 /** @typedef {import('@solana/transaction-messages').TransactionMessage} TransactionMessage */
 /** @typedef {import('@solana/transactions').Transaction} Transaction */
+/** @typedef {import('@solana/signers').TransactionSigner} TransactionSigner */
 /** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
 /** @typedef {ReturnType<import('@solana/rpc-api').SolanaRpcApi['getTransaction']>} SolanaTransactionReceipt */
 /** @typedef {import('@solana/rpc-types').Commitment} Commitment */
@@ -792,7 +794,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
         ata: toATA,
         mint: tokenMint,
         owner: recipientPublicKey,
-        payer: ownerPublicKey,
+        payer: await this._getTransactionSigner(),
         tokenProgram
       })
       instructions.push(createATAInstruction)
@@ -801,7 +803,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     // The memo has to be logged before the transfer it refers to, since the memo
     // transfer extension only looks at the instructions preceding the transfer.
     if (memo) {
-      instructions.push(getAddMemoInstruction({ memo }))
+      instructions.push(getAddMemoInstruction({ memo }, { programAddress: LEGACY_MEMO_PROGRAM_ADDRESS_V3 }))
     }
 
     const transferInstruction = getTransferCheckedInstruction({
@@ -827,9 +829,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     // The memo is the only caller-sized part of the message, so an oversized one is caught here
     // rather than by the provider, which would reject the transaction with an opaque error.
     const size = getTransactionMessageSize(transactionMessage)
+    const sizeLimit = getTransactionMessageSizeLimit(transactionMessage)
 
-    if (size > TRANSACTION_SIZE_LIMIT) {
-      throw new ValueError(`The transfer transaction is ${size} bytes, over the ${TRANSACTION_SIZE_LIMIT} bytes limit. Shorten the memo.`)
+    if (size > sizeLimit) {
+      throw new ValueError(`The transfer transaction is ${size} bytes, over the ${sizeLimit} bytes limit. Shorten the memo.`)
     }
 
     return transactionMessage
@@ -850,7 +853,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const toPublicKey = address(to)
 
     const transferInstruction = getTransferSolInstruction({
-      source: { address: fromPublicKey },
+      source: await this._getTransactionSigner(),
       destination: toPublicKey,
       amount: BigInt(value)
     })
@@ -956,5 +959,19 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
         throw new ValueError(`Transaction fee payer (${feePayerAddress}) does not match wallet address (${ownerAddress})`)
       }
     }
+  }
+
+  /**
+   * Returns the signer the instructions requiring this account's signature are built with.
+   * A read-only account cannot sign, so it returns a no-op signer, which is enough to build
+   * and quote a transaction.
+   *
+   * @protected
+   * @returns {Promise<TransactionSigner>} The signer.
+   */
+  async _getTransactionSigner () {
+    const addr = await this.getAddress()
+
+    return createNoopSigner(address(addr))
   }
 }
