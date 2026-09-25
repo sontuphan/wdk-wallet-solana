@@ -41,13 +41,13 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _rpc: SolanaRpc | undefined;
     /**
-     * The cache of mint accounts already fetched by this instance, keyed by mint address.
-     * A mint never changes owner, so an entry is kept for the lifetime of the account.
+     * The token program owning each mint already fetched by this instance, keyed by mint
+     * address. A mint never changes owner, so an entry is kept for the lifetime of the account.
      *
      * @protected
-     * @type {Map<string, MintAccount>}
+     * @type {Map<string, Address>}
      */
-    protected _mintAccountCache: Map<string, MintAccount>;
+    protected _tokenProgramCache: Map<string, Address>;
     /**
      * Returns the account's native SOL balance.
      *
@@ -144,8 +144,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _resolveTokenProgram(mintAddress: string): Promise<Address>;
     /**
-     * Resolves the token program owning each of the given mints, fetching in as few RPC
-     * calls as the `getMultipleAccounts` limit allows.
+     * Resolves the token program owning each of the given mints, from the cache when known,
+     * fetching the other mints in as few RPC calls as the `getMultipleAccounts` limit allows.
      *
      * @protected
      * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
@@ -153,8 +153,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _resolveTokenPrograms(mintAddresses: string[]): Promise<Record<string, Address>>;
     /**
-     * Returns the mint account for the given address, from the cache when it has already
-     * been fetched by this instance.
+     * Fetches the mint account at the given address from the chain.
      *
      * @protected
      * @param {string} mintAddress - The mint's address (base58-encoded public key).
@@ -162,8 +161,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      */
     protected _fetchMintAccount(mintAddress: string): Promise<MintAccount>;
     /**
-     * Returns the mint accounts for the given addresses, fetching only those missing from
-     * the cache and batching them within the `getMultipleAccounts` limit.
+     * Fetches the mint accounts at the given addresses from the chain, batching them within
+     * the `getMultipleAccounts` limit, and caches their token program.
      *
      * @protected
      * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
@@ -353,7 +352,7 @@ export type SolanaWalletConfig = {
     transactionMaxFee?: number | bigint;
 };
 /**
- * A mint account, as fetched from the chain and cached by mint address.
+ * A mint account, as fetched from the chain.
  */
 export type MintAccount = {
     /**

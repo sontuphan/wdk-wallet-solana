@@ -1823,13 +1823,42 @@ describe('WalletAccountReadOnlySolana', () => {
       expect(result.transferFee).toBe(5000n)
     })
 
-    it('should fetch the mint once for building and quoting the transfer', async () => {
+    it('should resolve the token program of a quoted mint from the cache on a later balance read', async () => {
       mockMint([transferFeeConfig({ newer: { epoch: 0n, maximumFee: 1000000n, transferFeeBasisPoints: 50 } })])
-      mockRecipientAccount(false)
+      mockRecipientAccount(true)
+
+      await quote()
+      const mintRequestsAfterQuote = mockRpc.getMultipleAccounts.mock.calls.length
+
+      await readOnlyAccount.getTokenBalance(TOKEN_2022_MINT)
+
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(mintRequestsAfterQuote)
+    })
+
+    it('should quote the transfer fee in force after the mint authority changes it between two quotes', async () => {
+      mockMint([transferFeeConfig({ newer: { epoch: 0n, maximumFee: 1000000n, transferFeeBasisPoints: 50 } })])
+      mockRecipientAccount(true)
+
+      const before = await quote(1000000n)
+
+      mockMint([transferFeeConfig({ newer: { epoch: 0n, maximumFee: 1000000n, transferFeeBasisPoints: 500 } })])
+
+      const after = await quote(1000000n)
+
+      expect(before.transferFee).toBe(5000n)
+      expect(after.transferFee).toBe(50000n)
+    })
+
+    it('should reject a transfer once the mint authority sets a hook program after an earlier quote', async () => {
+      const unsetHook = { __kind: 'TransferHook', authority: address(TEST_ADDRESS), programId: address('11111111111111111111111111111111') }
+      mockMint([unsetHook])
+      mockRecipientAccount(true)
 
       await quote()
 
-      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
+      mockMint([{ ...unsetHook, programId: MEMO_PROGRAM_ADDRESS }])
+
+      await expect(quote()).rejects.toThrow(TransferHookNotSupportedError)
     })
   })
 

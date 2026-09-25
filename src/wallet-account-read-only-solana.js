@@ -123,7 +123,7 @@ import { isSignature, verifySignature } from '@solana/keys'
  */
 
 /**
- * A mint account, as fetched from the chain and cached by mint address.
+ * A mint account, as fetched from the chain.
  *
  * @typedef {Object} MintAccount
  * @property {Address} tokenProgram - The address of the token program owning the mint.
@@ -207,13 +207,13 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     this._rpc = WalletAccountReadOnlySolana._buildRpc(config)
 
     /**
-     * The cache of mint accounts already fetched by this instance, keyed by mint address.
-     * A mint never changes owner, so an entry is kept for the lifetime of the account.
+     * The token program owning each mint already fetched by this instance, keyed by mint
+     * address. A mint never changes owner, so an entry is kept for the lifetime of the account.
      *
      * @protected
-     * @type {Map<string, MintAccount>}
+     * @type {Map<string, Address>}
      */
-    this._mintAccountCache = new Map()
+    this._tokenProgramCache = new Map()
   }
 
   /**
@@ -553,33 +553,37 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @returns {Promise<Address>} The address of the owning token program.
    */
   async _resolveTokenProgram (mintAddress) {
-    const { tokenProgram } = await this._fetchMintAccount(mintAddress)
+    const tokenPrograms = await this._resolveTokenPrograms([mintAddress])
 
-    return tokenProgram
+    return tokenPrograms[mintAddress]
   }
 
   /**
-   * Resolves the token program owning each of the given mints, fetching in as few RPC
-   * calls as the `getMultipleAccounts` limit allows.
+   * Resolves the token program owning each of the given mints, from the cache when known,
+   * fetching the other mints in as few RPC calls as the `getMultipleAccounts` limit allows.
    *
    * @protected
    * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
    * @returns {Promise<Record<string, Address>>} A mapping of mint addresses to the addresses of their owning token programs.
    */
   async _resolveTokenPrograms (mintAddresses) {
-    const mintAccounts = await this._fetchMintAccounts(mintAddresses)
+    const uniqueMintAddresses = [...new Set(mintAddresses)]
+    const missingMintAddresses = uniqueMintAddresses.filter(mintAddress => !this._tokenProgramCache.has(mintAddress))
+
+    if (missingMintAddresses.length > 0) {
+      await this._fetchMintAccounts(missingMintAddresses)
+    }
 
     const tokenPrograms = {}
-    for (const [mintAddress, { tokenProgram }] of Object.entries(mintAccounts)) {
-      tokenPrograms[mintAddress] = tokenProgram
+    for (const mintAddress of uniqueMintAddresses) {
+      tokenPrograms[mintAddress] = this._tokenProgramCache.get(mintAddress)
     }
 
     return tokenPrograms
   }
 
   /**
-   * Returns the mint account for the given address, from the cache when it has already
-   * been fetched by this instance.
+   * Fetches the mint account at the given address from the chain.
    *
    * @protected
    * @param {string} mintAddress - The mint's address (base58-encoded public key).
@@ -592,8 +596,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   }
 
   /**
-   * Returns the mint accounts for the given addresses, fetching only those missing from
-   * the cache and batching them within the `getMultipleAccounts` limit.
+   * Fetches the mint accounts at the given addresses from the chain, batching them within
+   * the `getMultipleAccounts` limit, and caches their token program.
    *
    * @protected
    * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
@@ -608,10 +612,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     }
 
     const uniqueMintAddresses = [...new Set(mintAddresses)]
-    const missingMintAddresses = uniqueMintAddresses.filter(mintAddress => !this._mintAccountCache.has(mintAddress))
+    const mintAccounts = {}
 
-    for (let offset = 0; offset < missingMintAddresses.length; offset += MAX_ACCOUNTS_PER_REQUEST) {
-      const batchMintAddresses = missingMintAddresses.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
+    for (let offset = 0; offset < uniqueMintAddresses.length; offset += MAX_ACCOUNTS_PER_REQUEST) {
+      const batchMintAddresses = uniqueMintAddresses.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
 
       const { value: accounts } = await this._rpc
         .getMultipleAccounts(batchMintAddresses.map(mintAddress => address(mintAddress)), {
@@ -644,17 +648,14 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
         const { decimals, extensions } = mint
 
-        this._mintAccountCache.set(mintAddress, {
+        this._tokenProgramCache.set(mintAddress, tokenProgram)
+
+        mintAccounts[mintAddress] = {
           tokenProgram,
           decimals,
           extensions: extensions.__option === 'Some' ? extensions.value : []
-        })
+        }
       }
-    }
-
-    const mintAccounts = {}
-    for (const mintAddress of uniqueMintAddresses) {
-      mintAccounts[mintAddress] = this._mintAccountCache.get(mintAddress)
     }
 
     return mintAccounts
