@@ -65,7 +65,8 @@ import WalletManagerSolana, {
   ConfidentialTransferNotSupportedError,
   FrozenTokenAccountError,
   NonTransferableTokenError,
-  TransferHookNotSupportedError
+  TransferHookNotSupportedError,
+  WalletAccountReadOnlySolana
 } from '@tetherto/wdk-wallet-solana'
 
 jest.setTimeout(30_000)
@@ -397,13 +398,16 @@ describe('@tetherto/wdk-wallet-solana', () => {
       })
     ], createTransactionMessage({ version: 0 }))
 
+    const balanceAccount0Before = await account0.getBalance()
     const balanceAccount1Before = await account1.getBalance()
 
-    const { hash } = await account0.sendTransaction(TRANSACTION_MESSAGE)
+    const { hash, fee } = await account0.sendTransaction(TRANSACTION_MESSAGE)
     await confirmTransaction(rpc, hash)
     const receipt = await account0.getTransaction(hash)
 
     expect(receipt.success).toBe(true)
+    expect(fee).toBe(5000n)
+    expect(await account0.getBalance()).toBe(balanceAccount0Before - fee - 1_000n)
     expect(await account1.getBalance()).toBe(balanceAccount1Before + 1_000n)
   })
 
@@ -680,16 +684,20 @@ describe('@tetherto/wdk-wallet-solana', () => {
       const quote = await account.quoteTransfer(TRANSFER)
       const balanceBefore = await account.getBalance()
 
-      const { hash } = await account.transfer(TRANSFER)
+      const { hash, fee } = await account.transfer(TRANSFER)
       await confirmTransaction(rpc, hash)
       const receipt = await account.getTransaction(hash)
 
       const recipientAta = await getToken2022AccountAddress(token, TEST_RECIPIENT_ADDRESS)
       const { value: recipientAtaInfo } = await rpc.getAccountInfo(recipientAta, { commitment: 'confirmed', encoding: 'base64' }).send()
+      const recipient = new WalletAccountReadOnlySolana(TEST_RECIPIENT_ADDRESS, { provider: TEST_RPC_URL })
 
       expect(receipt.success).toBe(true)
+      expect(fee).toBe(quote.fee)
       expect(quote.rent).toBe(recipientAtaInfo.lamports)
       expect(await account.getBalance()).toBe(balanceBefore - receipt.fee - quote.rent)
+      expect(await account.getTokenBalance(token.mint)).toBe(INITIAL_TOKEN_BALANCE - 100n)
+      expect(await recipient.getTokenBalance(token.mint)).toBe(100n)
     })
 
     test('should transfer a fee-bearing Token-2022 token gross and quote the withheld fee and the larger rent', async () => {
@@ -712,12 +720,12 @@ describe('@tetherto/wdk-wallet-solana', () => {
 
       const recipientAta = await getToken2022AccountAddress(token, ACCOUNT_1.address)
       const { value: recipientAtaInfo } = await rpc.getAccountInfo(recipientAta, { commitment: 'confirmed', encoding: 'base64' }).send()
-      const classicAccountRent = await rpc.getMinimumBalanceForRentExemption(165n, { commitment: 'confirmed' }).send()
+      const transferFeeAccountRent = await rpc.getMinimumBalanceForRentExemption(182n, { commitment: 'confirmed' }).send()
 
       expect(receipt.success).toBe(true)
       expect(quote.transferFee).toBe(EXPECTED_TRANSFER_FEE)
       expect(quote.rent).toBe(recipientAtaInfo.lamports)
-      expect(quote.rent > classicAccountRent).toBe(true)
+      expect(quote.rent).toBe(transferFeeAccountRent)
       expect(await account.getTokenBalance(token.mint)).toBe(INITIAL_TOKEN_BALANCE - 10_000n)
       expect(await recipientAccount.getTokenBalance(token.mint)).toBe(10_000n - EXPECTED_TRANSFER_FEE)
     })
@@ -825,16 +833,19 @@ describe('@tetherto/wdk-wallet-solana', () => {
 
       const quote = await account.quoteTransfer(TRANSFER)
 
-      const { hash } = await account.transfer(TRANSFER)
+      const { hash, fee } = await account.transfer(TRANSFER)
       await confirmTransaction(rpc, hash)
       const receipt = await account.getTransaction(hash)
 
       const recipientAta = await getToken2022AccountAddress(token, TEST_RECIPIENT_ADDRESS)
       const { value: recipientAtaInfo } = await rpc.getAccountInfo(recipientAta, { commitment: 'confirmed', encoding: 'base64' }).send()
+      const recipient = new WalletAccountReadOnlySolana(TEST_RECIPIENT_ADDRESS, { provider: TEST_RPC_URL })
 
       expect(receipt.success).toBe(true)
+      expect(fee).toBe(quote.fee)
       expect(quote.rent).toBe(recipientAtaInfo.lamports)
       expect(await account.getTokenBalance(token.mint)).toBe(INITIAL_TOKEN_BALANCE - 100n)
+      expect(await recipient.getTokenBalance(token.mint)).toBe(100n)
     })
 
     test('should transfer a Token-2022 token freezing new accounts by default between thawed token accounts', async () => {
@@ -851,11 +862,17 @@ describe('@tetherto/wdk-wallet-solana', () => {
       const account0 = await wallet.getAccount(0)
       const account1 = await wallet.getAccount(1)
 
-      const { hash } = await account0.transfer({ token: token.mint, recipient: ACCOUNT_1.address, amount: 100 })
+      const TRANSFER = { token: token.mint, recipient: ACCOUNT_1.address, amount: 100 }
+
+      const quote = await account0.quoteTransfer(TRANSFER)
+
+      const { hash, fee } = await account0.transfer(TRANSFER)
       await confirmTransaction(rpc, hash)
       const receipt = await account0.getTransaction(hash)
 
       expect(receipt.success).toBe(true)
+      expect(quote).toEqual({ fee: 5000n, rent: 0n, transferFee: 0n })
+      expect(fee).toBe(quote.fee)
       expect(await account0.getTokenBalance(token.mint)).toBe(INITIAL_TOKEN_BALANCE - 100n)
       expect(await account1.getTokenBalance(token.mint)).toBe(100n)
     })

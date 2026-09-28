@@ -911,6 +911,28 @@ describe('WalletAccountSolana', () => {
       }
     })
 
+    it('should sign a message carrying placeholder signers for the account address in several instructions', async () => {
+      const originalRpc = account._rpc
+      account._rpc = mockBlockhashRpc()
+
+      try {
+        const transactionMessage = appendTransactionMessageInstructions([
+          getTransferSolInstruction({ source: createNoopSigner(address(ACCOUNT_ADDRESS)), destination: address(RECIPIENT), amount: 1000n }),
+          getTransferSolInstruction({ source: createNoopSigner(address(ACCOUNT_ADDRESS)), destination: address(RECIPIENT), amount: 2000n })
+        ], createTransactionMessage({ version: 0 }))
+
+        const signedTx = await account.signTransaction(transactionMessage)
+
+        const publicKey = await getPublicKeyFromAddress(address(ACCOUNT_ADDRESS))
+        const isValid = await verifySignature(publicKey, signedTx.signatures[ACCOUNT_ADDRESS], signedTx.messageBytes)
+
+        expect(Object.keys(signedTx.signatures)).toEqual([ACCOUNT_ADDRESS])
+        expect(isValid).toBe(true)
+      } finally {
+        account._rpc = originalRpc
+      }
+    })
+
     it('should reject a message carrying two distinct signers for another address', async () => {
       const otherSigner = await generateKeyPairSigner()
 
