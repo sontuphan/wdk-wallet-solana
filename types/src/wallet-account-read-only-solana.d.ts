@@ -367,7 +367,7 @@ export type SolanaWalletConfig = {
     /**
      * - The Solana RPC url or an already-built Solana RPC client. It's also possible to provide an array of these instead. In such case, connection errors will cause the wallet to automatically fallback on the next provider in the list. An already-built client is reused as-is, which lets a manager share a single client across all the accounts it creates.
      */
-    provider?: string | SolanaRpc | Array<string | SolanaRpc>;
+    provider?: string | SolanaRpc | (string | SolanaRpc)[];
     /**
      * - Deprecated alias for `provider`. If both are set, `provider` takes precedence.
      */
