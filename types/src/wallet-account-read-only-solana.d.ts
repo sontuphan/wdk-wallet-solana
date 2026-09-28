@@ -99,7 +99,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      *
      * @deprecated Use {@link getTransaction} instead, which returns a normalized, finality-based receipt. The raw transaction remains available on its `transaction` property.
      * @param {string} hash - The transaction's hash.
-     * @returns {Promise<SolanaTransactionReceipt | null>} — The receipt, or null if the transaction has not been included in a block yet.
+     * @returns {Promise<SolanaTransactionReceipt | null>} The receipt, or null if the transaction has not been included in a block yet.
      * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
      * @throws {ValueError} If the hash is not a valid signature.
      */
