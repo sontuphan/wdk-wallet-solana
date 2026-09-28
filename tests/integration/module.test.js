@@ -776,7 +776,7 @@ describe('@tetherto/wdk-wallet-solana', () => {
 
       const TRANSFER = { token: token.mint, recipient: recipientOwner.address, amount: 100 }
 
-      const EXPECTED_NO_MEMO_LOG = 'Program log: Error: No memo in previous instruction; required for recipient to receive a transfer'
+      const EXPECTED_NO_MEMO_LOG = `Program ${TOKEN_2022_PROGRAM_ADDRESS} failed: custom program error: 0x24`
 
       await expect(account.transfer(TRANSFER)).rejects.toMatchObject({
         context: { logs: expect.arrayContaining([EXPECTED_NO_MEMO_LOG]) }
