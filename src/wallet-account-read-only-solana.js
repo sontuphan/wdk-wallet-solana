@@ -68,7 +68,6 @@ import { createNoopSigner } from '@solana/signers'
 /** @typedef {import('@tetherto/wdk-wallet').TransactionReceipt} TransactionReceipt */
 /** @typedef {import('@tetherto/wdk-wallet').WaitForTransactionOptions} WaitForTransactionOptions */
 
-/** @typedef {import('@solana/addresses').Address} Address */
 /** @typedef {import('@solana-program/token-2022').Extension} Extension */
 /** @typedef {import('@solana/transaction-messages').TransactionMessage} TransactionMessage */
 /** @typedef {import('@solana/transactions').Transaction} Transaction */
@@ -76,6 +75,12 @@ import { createNoopSigner } from '@solana/signers'
 /** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
 /** @typedef {ReturnType<import('@solana/rpc-api').SolanaRpcApi['getTransaction']>} SolanaTransactionReceipt */
 /** @typedef {import('@solana/rpc-types').Commitment} Commitment */
+
+/**
+ * The address of a token program this account transfers under: the SPL Token Program or the Token Extensions Program (Token-2022).
+ *
+ * @typedef {typeof TOKEN_PROGRAM_ADDRESS | typeof TOKEN_2022_PROGRAM_ADDRESS} TokenProgramAddress
+ */
 
 /**
  * The Solana-specific fields added to a normalized transaction receipt.
@@ -128,7 +133,7 @@ import { createNoopSigner } from '@solana/signers'
  * A mint account, as fetched from the chain.
  *
  * @typedef {Object} MintAccount
- * @property {Address} tokenProgram - The address of the token program owning the mint.
+ * @property {TokenProgramAddress} tokenProgram - The address of the token program owning the mint.
  * @property {number} decimals - The number of decimals of the token.
  * @property {Extension[]} extensions - The mint's Token-2022 extensions, or an empty list for a classic or bare mint.
  */
@@ -215,7 +220,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * finds none fetches the mint again.
      *
      * @private
-     * @type {Map<string, Address>}
+     * @type {Map<string, TokenProgramAddress>}
      */
     this._tokenProgramCache = new Map()
   }
@@ -548,7 +553,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    *
    * @protected
    * @param {string} mintAddress - The mint's address (base58-encoded public key).
-   * @returns {Promise<Address>} The address of the owning token program.
+   * @returns {Promise<TokenProgramAddress>} The address of the owning token program.
    */
   async _resolveTokenProgram (mintAddress) {
     const tokenPrograms = await this._resolveTokenPrograms([mintAddress])
@@ -562,7 +567,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    *
    * @protected
    * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
-   * @returns {Promise<Record<string, Address>>} A mapping of mint addresses to the addresses of their owning token programs.
+   * @returns {Promise<Record<string, TokenProgramAddress>>} A mapping of mint addresses to the addresses of their owning token programs.
    */
   async _resolveTokenPrograms (mintAddresses) {
     const uniqueMintAddresses = [...new Set(mintAddresses)]
@@ -663,7 +668,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * Returns the rent-exempt deposit for a new associated token account of a mint.
    *
    * @protected
-   * @param {Address} tokenProgram - The address of the token program owning the mint.
+   * @param {TokenProgramAddress} tokenProgram - The address of the token program owning the mint.
    * @param {Extension[]} mintExtensions - The mint's extensions.
    * @returns {Promise<bigint>} The rent-exempt deposit (in lamports).
    */
@@ -978,7 +983,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @private
    * @param {string} ownerAddress - The owner's address (base58-encoded public key).
    * @param {string} tokenAddress - The mint's address (base58-encoded public key).
-   * @param {Address} tokenProgram - The token program to derive the account under.
+   * @param {TokenProgramAddress} tokenProgram - The token program to derive the account under.
    * @returns {Promise<bigint | null>} The amount held, or null if the token account does not exist.
    */
   async _fetchTokenAmount (ownerAddress, tokenAddress, tokenProgram) {
@@ -1001,7 +1006,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
    * @private
    * @param {string} ownerAddress - The owner's address (base58-encoded public key).
    * @param {string[]} tokenAddresses - The mints' addresses (base58-encoded public keys), without duplicates.
-   * @param {Record<string, Address>} tokenPrograms - A mapping of mint addresses to the token programs to derive the accounts under.
+   * @param {Record<string, TokenProgramAddress>} tokenPrograms - A mapping of mint addresses to the token programs to derive the accounts under.
    * @returns {Promise<Record<string, bigint | null>>} A mapping of mint addresses to the amounts held, or null where the token account does not exist.
    */
   async _fetchTokenAmounts (ownerAddress, tokenAddresses, tokenPrograms) {

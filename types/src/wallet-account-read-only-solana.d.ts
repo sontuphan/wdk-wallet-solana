@@ -47,7 +47,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * finds none fetches the mint again.
      *
      * @private
-     * @type {Map<string, Address>}
+     * @type {Map<string, TokenProgramAddress>}
      */
     private _tokenProgramCache;
     /**
@@ -142,18 +142,18 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      *
      * @protected
      * @param {string} mintAddress - The mint's address (base58-encoded public key).
-     * @returns {Promise<Address>} The address of the owning token program.
+     * @returns {Promise<TokenProgramAddress>} The address of the owning token program.
      */
-    protected _resolveTokenProgram(mintAddress: string): Promise<Address>;
+    protected _resolveTokenProgram(mintAddress: string): Promise<TokenProgramAddress>;
     /**
      * Resolves the token program owning each of the given mints, from the cache when known,
      * fetching the other mints in as few RPC calls as the `getMultipleAccounts` limit allows.
      *
      * @protected
      * @param {string[]} mintAddresses - The mints' addresses (base58-encoded public keys).
-     * @returns {Promise<Record<string, Address>>} A mapping of mint addresses to the addresses of their owning token programs.
+     * @returns {Promise<Record<string, TokenProgramAddress>>} A mapping of mint addresses to the addresses of their owning token programs.
      */
-    protected _resolveTokenPrograms(mintAddresses: string[]): Promise<Record<string, Address>>;
+    protected _resolveTokenPrograms(mintAddresses: string[]): Promise<Record<string, TokenProgramAddress>>;
     /**
      * Fetches the mint account at the given address from the chain.
      *
@@ -178,11 +178,11 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * Returns the rent-exempt deposit for a new associated token account of a mint.
      *
      * @protected
-     * @param {Address} tokenProgram - The address of the token program owning the mint.
+     * @param {TokenProgramAddress} tokenProgram - The address of the token program owning the mint.
      * @param {Extension[]} mintExtensions - The mint's extensions.
      * @returns {Promise<bigint>} The rent-exempt deposit (in lamports).
      */
-    protected _getTokenAccountRent(tokenProgram: Address, mintExtensions: Extension[]): Promise<bigint>;
+    protected _getTokenAccountRent(tokenProgram: TokenProgramAddress, mintExtensions: Extension[]): Promise<bigint>;
     /**
      * Returns the fee the Token Extensions Program withholds from a transfer of the given
      * amount, at the rate in force in the current epoch.
@@ -279,7 +279,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @private
      * @param {string} ownerAddress - The owner's address (base58-encoded public key).
      * @param {string} tokenAddress - The mint's address (base58-encoded public key).
-     * @param {Address} tokenProgram - The token program to derive the account under.
+     * @param {TokenProgramAddress} tokenProgram - The token program to derive the account under.
      * @returns {Promise<bigint | null>} The amount held, or null if the token account does not exist.
      */
     private _fetchTokenAmount;
@@ -291,7 +291,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * @private
      * @param {string} ownerAddress - The owner's address (base58-encoded public key).
      * @param {string[]} tokenAddresses - The mints' addresses (base58-encoded public keys), without duplicates.
-     * @param {Record<string, Address>} tokenPrograms - A mapping of mint addresses to the token programs to derive the accounts under.
+     * @param {Record<string, TokenProgramAddress>} tokenPrograms - A mapping of mint addresses to the token programs to derive the accounts under.
      * @returns {Promise<Record<string, bigint | null>>} A mapping of mint addresses to the amounts held, or null where the token account does not exist.
      */
     private _fetchTokenAmounts;
@@ -301,7 +301,6 @@ export type TransferOptions = import("@tetherto/wdk-wallet").TransferOptions;
 export type TransferResult = import("@tetherto/wdk-wallet").TransferResult;
 export type TransactionReceipt = import("@tetherto/wdk-wallet").TransactionReceipt;
 export type WaitForTransactionOptions = import("@tetherto/wdk-wallet").WaitForTransactionOptions;
-export type Address = import("@solana/addresses").Address;
 export type Extension = import("@solana-program/token-2022").Extension;
 export type TransactionMessage = import("@solana/transaction-messages").TransactionMessage;
 export type Transaction = import("@solana/transactions").Transaction;
@@ -309,6 +308,10 @@ export type TransactionSigner = import("@solana/signers").TransactionSigner;
 export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
 export type SolanaTransactionReceipt = ReturnType<import("@solana/rpc-api").SolanaRpcApi["getTransaction"]>;
 export type Commitment = import("@solana/rpc-types").Commitment;
+/**
+ * The address of a token program this account transfers under: the SPL Token Program or the Token Extensions Program (Token-2022).
+ */
+export type TokenProgramAddress = typeof TOKEN_PROGRAM_ADDRESS | typeof TOKEN_2022_PROGRAM_ADDRESS;
 /**
  * The Solana-specific fields added to a normalized transaction receipt.
  */
@@ -393,7 +396,7 @@ export type MintAccount = {
     /**
      * - The address of the token program owning the mint.
      */
-    tokenProgram: Address;
+    tokenProgram: TokenProgramAddress;
     /**
      * - The number of decimals of the token.
      */
@@ -404,3 +407,5 @@ export type MintAccount = {
     extensions: Extension[];
 };
 import { WalletAccountReadOnly } from '@tetherto/wdk-wallet';
+import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token';
+import { TOKEN_2022_PROGRAM_ADDRESS } from '@solana-program/token-2022';
