@@ -7,6 +7,13 @@ export default class WalletManagerSolana extends WalletManager {
      */
     constructor(seed: string | Uint8Array, config?: SolanaWalletConfig);
     /**
+     * The solana wallet configuration.
+     *
+     * @protected
+     * @type {SolanaWalletConfig}
+     */
+    protected _config: SolanaWalletConfig;
+    /**
      * The commitment level for transactions.
      *
      * @protected

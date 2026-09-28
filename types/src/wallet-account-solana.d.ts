@@ -20,6 +20,13 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      */
     constructor(seed: string | Uint8Array, path: string, config?: SolanaWalletConfig);
     /**
+     * The wallet account configuration.
+     *
+     * @protected
+     * @type {SolanaWalletConfig}
+     */
+    protected _config: SolanaWalletConfig;
+    /**
      * @private
      */
     private _seed;
