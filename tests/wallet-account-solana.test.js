@@ -23,8 +23,15 @@ import {
   beforeEach,
   afterEach
 } from '@jest/globals'
-import { getCompiledTransactionMessageDecoder } from '@solana/transaction-messages'
-import { signTransactionMessageWithSigners } from '@solana/signers'
+import {
+  appendTransactionMessageInstructions,
+  createTransactionMessage,
+  getCompiledTransactionMessageDecoder
+} from '@solana/transaction-messages'
+import { createNoopSigner, generateKeyPairSigner, signTransactionMessageWithSigners } from '@solana/signers'
+import { address, getPublicKeyFromAddress } from '@solana/addresses'
+import { verifySignature } from '@solana/keys'
+import { getTransferSolInstruction } from '@solana-program/system'
 import { getBase64EncodedWireTransaction, getTransactionDecoder } from '@solana/transactions'
 import { getBase64Decoder, getBase64Encoder } from '@solana/codecs'
 import { LEGACY_MEMO_PROGRAM_ADDRESS_V3 } from '@solana-program/memo'
@@ -862,6 +869,67 @@ describe('WalletAccountSolana', () => {
   })
 
   describe('signTransaction', () => {
+    const ACCOUNT_ADDRESS = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
+    const RECIPIENT = '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2'
+
+    function mockBlockhashRpc () {
+      return {
+        getFeeForMessage: jest.fn(),
+        getLatestBlockhash: jest.fn().mockReturnValue({
+          send: jest.fn().mockResolvedValue({
+            value: {
+              blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
+              lastValidBlockHeight: 1000000
+            }
+          })
+        })
+      }
+    }
+
+    it('should sign a message carrying a placeholder signer for the account address with the account key', async () => {
+      const originalRpc = account._rpc
+      account._rpc = mockBlockhashRpc()
+
+      try {
+        const transactionMessage = appendTransactionMessageInstructions([
+          getTransferSolInstruction({
+            source: createNoopSigner(address(ACCOUNT_ADDRESS)),
+            destination: address(RECIPIENT),
+            amount: 1000n
+          })
+        ], createTransactionMessage({ version: 0 }))
+
+        const signedTx = await account.signTransaction(transactionMessage)
+
+        const publicKey = await getPublicKeyFromAddress(address(ACCOUNT_ADDRESS))
+        const isValid = await verifySignature(publicKey, signedTx.signatures[ACCOUNT_ADDRESS], signedTx.messageBytes)
+
+        expect(Object.keys(signedTx.signatures)).toEqual([ACCOUNT_ADDRESS])
+        expect(isValid).toBe(true)
+      } finally {
+        account._rpc = originalRpc
+      }
+    })
+
+    it('should reject a message carrying two distinct signers for another address', async () => {
+      const otherSigner = await generateKeyPairSigner()
+
+      const originalRpc = account._rpc
+      account._rpc = mockBlockhashRpc()
+
+      try {
+        const transactionMessage = appendTransactionMessageInstructions([
+          getTransferSolInstruction({ source: otherSigner, destination: address(RECIPIENT), amount: 1n }),
+          getTransferSolInstruction({ source: createNoopSigner(otherSigner.address), destination: address(RECIPIENT), amount: 2n })
+        ], createTransactionMessage({ version: 0 }))
+
+        await expect(account.signTransaction(transactionMessage))
+          .rejects.toThrow(`Multiple distinct signers were identified for address \`${otherSigner.address}\``)
+      } finally {
+        account._rpc = originalRpc
+      }
+    })
+
     it('should sign a transaction and return the signed transaction', async () => {
       const mockRpc = {
         getFeeForMessage: jest.fn(),

@@ -46,9 +46,10 @@ import {
   getThawAccountInstruction,
   TOKEN_2022_PROGRAM_ADDRESS
 } from '@solana-program/token-2022'
-import { getCreateAccountInstruction } from '@solana-program/system'
+import { getCreateAccountInstruction, getTransferSolInstruction } from '@solana-program/system'
 import { createSolanaRpc } from '@solana/rpc'
 import {
+  createNoopSigner,
   generateKeyPairSigner,
   setTransactionMessageFeePayerSigner,
   signTransactionMessageWithSigners
@@ -382,6 +383,28 @@ describe('@tetherto/wdk-wallet-solana', () => {
     const { fee } = await account.quoteSendTransaction(signedTx)
 
     expect(fee).toBe(5000n)
+  })
+
+  test('should send a transaction message carrying a placeholder signer for the account address', async () => {
+    const account0 = await wallet.getAccount(0)
+    const account1 = await wallet.getAccount(1)
+
+    const TRANSACTION_MESSAGE = appendTransactionMessageInstructions([
+      getTransferSolInstruction({
+        source: createNoopSigner(address(ACCOUNT_0.address)),
+        destination: address(ACCOUNT_1.address),
+        amount: 1_000n
+      })
+    ], createTransactionMessage({ version: 0 }))
+
+    const balanceAccount1Before = await account1.getBalance()
+
+    const { hash } = await account0.sendTransaction(TRANSACTION_MESSAGE)
+    await confirmTransaction(rpc, hash)
+    const receipt = await account0.getTransaction(hash)
+
+    expect(receipt.success).toBe(true)
+    expect(await account1.getBalance()).toBe(balanceAccount1Before + 1_000n)
   })
 
   test('should derive two accounts, send a tx from account 1 to 2 and get the correct balances', async () => {
