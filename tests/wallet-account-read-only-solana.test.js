@@ -275,14 +275,61 @@ describe('WalletAccountReadOnlySolana', () => {
       expect(balance).toBe(0n)
     })
 
-    it('should resolve the mint only once across calls', async () => {
+    it('should resolve the mint only once across calls while its token account exists', async () => {
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(createTokenAccount(1000000)))
+
+      await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
+      const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
+
+      expect(balance).toBe(1000000n)
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
+      expect(mockRpc.getAccountInfo).toHaveBeenCalledTimes(2)
+    })
+
+    it('should fetch a cached mint again when its token account is missing', async () => {
       mockRpc.getAccountInfo.mockReturnValue(mockSend(null))
 
       await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
-      await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
+      const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_MINT)
 
-      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(1)
+      expect(balance).toBe(0n)
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(2)
       expect(mockRpc.getAccountInfo).toHaveBeenCalledTimes(2)
+    })
+
+    it('should read the classic ATA once a cached Token-2022 mint is re-created under the classic program', async () => {
+      mockRpc.getMultipleAccounts
+        .mockReturnValueOnce(mockSend([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)]))
+        .mockReturnValueOnce(mockSend([createMintAccount(TOKEN_PROGRAM_ADDRESS)]))
+      mockRpc.getAccountInfo
+        .mockReturnValueOnce(mockSend(null))
+        .mockReturnValueOnce(mockSend(null))
+        .mockReturnValueOnce(mockSend(createTokenAccount(500)))
+
+      await readOnlyAccount.getTokenBalance(MOCK_TOKEN_2022_MINT)
+      const balance = await readOnlyAccount.getTokenBalance(MOCK_TOKEN_2022_MINT)
+
+      const [classicAta] = await findAssociatedTokenPda({
+        mint: address(MOCK_TOKEN_2022_MINT),
+        owner: address(TEST_ADDRESS),
+        tokenProgram: TOKEN_PROGRAM_ADDRESS
+      })
+
+      expect(balance).toBe(500n)
+      expect(mockRpc.getAccountInfo).toHaveBeenLastCalledWith(classicAta, { commitment: 'confirmed', encoding: 'base64' })
+    })
+
+    it('should throw NoSuchElementError once a cached mint is closed', async () => {
+      mockRpc.getMultipleAccounts
+        .mockReturnValueOnce(mockSend([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)]))
+        .mockReturnValueOnce(mockSend([null]))
+      mockRpc.getAccountInfo.mockReturnValue(mockSend(null))
+
+      await readOnlyAccount.getTokenBalance(MOCK_TOKEN_2022_MINT)
+
+      await expect(readOnlyAccount.getTokenBalance(MOCK_TOKEN_2022_MINT)).rejects.toThrow(new NoSuchElementError(
+        `No mint account found for '${MOCK_TOKEN_2022_MINT}'.`
+      ))
     })
 
     it('should throw NoSuchElementError when the mint does not exist', async () => {
@@ -535,6 +582,53 @@ describe('WalletAccountReadOnlySolana', () => {
 
       expect(balances[MOCK_TOKEN_MINT_1]).toBe(2000000n)
       expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(3)
+    })
+
+    it('should read the classic ATA of a cached Token-2022 mint re-created under the classic program', async () => {
+      mockMintsThenAtas([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)], [null])
+      mockRpc.getMultipleAccounts
+        .mockReturnValueOnce(mockSend([null]))
+        .mockReturnValueOnce(mockSend([createMintAccount(TOKEN_PROGRAM_ADDRESS)]))
+        .mockReturnValueOnce(mockSend([createTokenAccount(500)]))
+
+      await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_2])
+      const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_2])
+
+      const [classicAta] = await findAssociatedTokenPda({
+        mint: address(MOCK_TOKEN_MINT_2),
+        owner: address(TEST_ADDRESS),
+        tokenProgram: TOKEN_PROGRAM_ADDRESS
+      })
+
+      expect(balances).toEqual({ [MOCK_TOKEN_MINT_2]: 500n })
+      expect(mockRpc.getMultipleAccounts.mock.calls[4][0]).toEqual([classicAta])
+    })
+
+    it('should fetch only the cached mints whose token account is missing again', async () => {
+      mockMintsThenAtas([createMintAccount(), createMintAccount()], [createTokenAccount(1000000), null])
+      mockRpc.getMultipleAccounts
+        .mockReturnValueOnce(mockSend([createTokenAccount(1000000), null]))
+        .mockReturnValueOnce(mockSend([createMintAccount()]))
+
+      await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_2])
+      const balances = await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_1, MOCK_TOKEN_MINT_2])
+
+      expect(balances).toEqual({ [MOCK_TOKEN_MINT_1]: 1000000n, [MOCK_TOKEN_MINT_2]: 0n })
+      expect(mockRpc.getMultipleAccounts.mock.calls[3][0]).toEqual([address(MOCK_TOKEN_MINT_2)])
+      expect(mockRpc.getMultipleAccounts).toHaveBeenCalledTimes(4)
+    })
+
+    it('should throw NoSuchElementError once a cached mint is closed', async () => {
+      mockMintsThenAtas([createMintAccount(TOKEN_2022_PROGRAM_ADDRESS)], [null])
+      mockRpc.getMultipleAccounts
+        .mockReturnValueOnce(mockSend([null]))
+        .mockReturnValueOnce(mockSend([null]))
+
+      await readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_2])
+
+      await expect(readOnlyAccount.getTokenBalances([MOCK_TOKEN_MINT_2])).rejects.toThrow(new NoSuchElementError(
+        `No mint account found for '${MOCK_TOKEN_MINT_2}'.`
+      ))
     })
 
     it('should handle empty token addresses array', async () => {

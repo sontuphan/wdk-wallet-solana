@@ -210,7 +210,9 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     /**
      * The token program owning each mint already fetched by this instance, keyed by mint
-     * address. A mint never changes owner, so an entry is kept for the lifetime of the account.
+     * address. A Token-2022 mint can be closed and its address initialized again, so an entry
+     * is only trusted while the account's token account exists under it; a balance read that
+     * finds none fetches the mint again.
      *
      * @protected
      * @type {Map<string, Address>}
@@ -249,16 +251,24 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     }
 
     const ownerAddress = await this.getAddress()
+    const isCached = this._tokenProgramCache.has(tokenAddress)
     const tokenProgram = await this._resolveTokenProgram(tokenAddress)
 
-    const [ata] = await findAssociatedTokenPda({
-      mint: address(tokenAddress),
-      owner: address(ownerAddress),
-      tokenProgram
-    })
-    const tokenAccount = await fetchMaybeToken(this._rpc, ata, { commitment: this._commitment })
+    const amount = await this._fetchTokenAmount(ownerAddress, tokenAddress, tokenProgram)
 
-    return tokenAccount.exists ? tokenAccount.data.amount : 0n
+    if (amount !== null || !isCached) {
+      return amount ?? 0n
+    }
+
+    const { tokenProgram: currentTokenProgram } = await this._fetchMintAccount(tokenAddress)
+
+    if (currentTokenProgram === tokenProgram) {
+      return 0n
+    }
+
+    const currentAmount = await this._fetchTokenAmount(ownerAddress, tokenAddress, currentTokenProgram)
+
+    return currentAmount ?? 0n
   }
 
   /**
@@ -284,45 +294,31 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const ownerAddress = await this.getAddress()
 
     const uniqueTokenAddresses = [...new Set(tokenAddresses)]
+    const cachedTokenAddresses = uniqueTokenAddresses.filter(tokenAddress => this._tokenProgramCache.has(tokenAddress))
     const tokenPrograms = await this._resolveTokenPrograms(uniqueTokenAddresses)
 
-    const atas = await Promise.all(
-      uniqueTokenAddresses.map(tokenAddress =>
-        findAssociatedTokenPda({
-          mint: address(tokenAddress),
-          owner: address(ownerAddress),
-          tokenProgram: tokenPrograms[tokenAddress]
-        }).then(([ata]) => ata)
-      )
-    )
+    const amounts = await this._fetchTokenAmounts(ownerAddress, uniqueTokenAddresses, tokenPrograms)
+
+    const unheldCachedTokenAddresses = cachedTokenAddresses.filter(tokenAddress => amounts[tokenAddress] === null)
+
+    if (unheldCachedTokenAddresses.length > 0) {
+      const mintAccounts = await this._fetchMintAccounts(unheldCachedTokenAddresses)
+
+      const movedTokenAddresses = unheldCachedTokenAddresses
+        .filter(tokenAddress => mintAccounts[tokenAddress].tokenProgram !== tokenPrograms[tokenAddress])
+
+      if (movedTokenAddresses.length > 0) {
+        const currentTokenPrograms = Object.fromEntries(
+          movedTokenAddresses.map(tokenAddress => [tokenAddress, mintAccounts[tokenAddress].tokenProgram])
+        )
+
+        Object.assign(amounts, await this._fetchTokenAmounts(ownerAddress, movedTokenAddresses, currentTokenPrograms))
+      }
+    }
 
     const balances = {}
-
-    for (let offset = 0; offset < atas.length; offset += MAX_ACCOUNTS_PER_REQUEST) {
-      const batchAtas = atas.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
-      const batchTokenAddresses = uniqueTokenAddresses.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
-
-      const { value: accounts } = await this._rpc
-        .getMultipleAccounts(batchAtas, {
-          commitment: this._commitment,
-          encoding: 'base64'
-        })
-        .send()
-
-      for (let i = 0; i < batchTokenAddresses.length; i++) {
-        const tokenAddress = batchTokenAddresses[i]
-        const account = accounts[i]
-
-        if (!account) {
-          balances[tokenAddress] = 0n
-          continue
-        }
-
-        const data = getBase64Encoder().encode(account.data[0])
-        const { amount } = getToken2022Decoder().decode(data)
-
-        balances[tokenAddress] = amount
-      }
+    for (const tokenAddress of uniqueTokenAddresses) {
+      balances[tokenAddress] = amounts[tokenAddress] ?? 0n
     }
 
     return balances
@@ -973,5 +969,80 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const addr = await this.getAddress()
 
     return createNoopSigner(address(addr))
+  }
+
+  /**
+   * Reads the amount held by an owner in its associated token account of a mint, derived
+   * under the given token program.
+   *
+   * @private
+   * @param {string} ownerAddress - The owner's address (base58-encoded public key).
+   * @param {string} tokenAddress - The mint's address (base58-encoded public key).
+   * @param {Address} tokenProgram - The token program to derive the account under.
+   * @returns {Promise<bigint | null>} The amount held, or null if the token account does not exist.
+   */
+  async _fetchTokenAmount (ownerAddress, tokenAddress, tokenProgram) {
+    const [ata] = await findAssociatedTokenPda({
+      mint: address(tokenAddress),
+      owner: address(ownerAddress),
+      tokenProgram
+    })
+
+    const tokenAccount = await fetchMaybeToken(this._rpc, ata, { commitment: this._commitment })
+
+    return tokenAccount.exists ? tokenAccount.data.amount : null
+  }
+
+  /**
+   * Reads the amounts held by an owner in its associated token accounts of the given mints,
+   * each derived under the given token program, batching them within the
+   * `getMultipleAccounts` limit.
+   *
+   * @private
+   * @param {string} ownerAddress - The owner's address (base58-encoded public key).
+   * @param {string[]} tokenAddresses - The mints' addresses (base58-encoded public keys), without duplicates.
+   * @param {Record<string, Address>} tokenPrograms - A mapping of mint addresses to the token programs to derive the accounts under.
+   * @returns {Promise<Record<string, bigint | null>>} A mapping of mint addresses to the amounts held, or null where the token account does not exist.
+   */
+  async _fetchTokenAmounts (ownerAddress, tokenAddresses, tokenPrograms) {
+    const atas = await Promise.all(
+      tokenAddresses.map(tokenAddress =>
+        findAssociatedTokenPda({
+          mint: address(tokenAddress),
+          owner: address(ownerAddress),
+          tokenProgram: tokenPrograms[tokenAddress]
+        }).then(([ata]) => ata)
+      )
+    )
+
+    const amounts = {}
+
+    for (let offset = 0; offset < atas.length; offset += MAX_ACCOUNTS_PER_REQUEST) {
+      const batchAtas = atas.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
+      const batchTokenAddresses = tokenAddresses.slice(offset, offset + MAX_ACCOUNTS_PER_REQUEST)
+
+      const { value: accounts } = await this._rpc
+        .getMultipleAccounts(batchAtas, {
+          commitment: this._commitment,
+          encoding: 'base64'
+        })
+        .send()
+
+      for (let i = 0; i < batchTokenAddresses.length; i++) {
+        const account = accounts[i]
+
+        if (!account) {
+          amounts[batchTokenAddresses[i]] = null
+          continue
+        }
+
+        const data = getBase64Encoder().encode(account.data[0])
+        const { amount } = getToken2022Decoder().decode(data)
+
+        amounts[batchTokenAddresses[i]] = amount
+      }
+    }
+
+    return amounts
   }
 }
