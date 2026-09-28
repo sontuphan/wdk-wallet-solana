@@ -214,7 +214,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
      * is only trusted while the account's token account exists under it; a balance read that
      * finds none fetches the mint again.
      *
-     * @protected
+     * @private
      * @type {Map<string, Address>}
      */
     this._tokenProgramCache = new Map()
