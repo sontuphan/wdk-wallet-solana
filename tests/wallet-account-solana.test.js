@@ -1258,6 +1258,12 @@ describe('WalletAccountSolana', () => {
     })
 
     describe('SPL Token Transfer', () => {
+      let transferAccount
+
+      beforeEach(() => {
+        transferAccount = new WalletAccountSolana(TEST_SEED_PHRASE, "0'/0'", { provider: mockRpc, commitment: 'processed' })
+      })
+
       it('should build and send SPL token transfer', async () => {
         mockRpc.getAccountInfo.mockReturnValue({
           send: jest.fn().mockResolvedValue({
@@ -1271,9 +1277,7 @@ describe('WalletAccountSolana', () => {
           send: jest.fn().mockResolvedValue('transfer-sig')
         })
 
-        account._rpc = mockRpc
-
-        const result = await account.transfer(
+        const result = await transferAccount.transfer(
           {
             token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
             recipient: '11111111111111111111111111111111',
@@ -1303,9 +1307,7 @@ describe('WalletAccountSolana', () => {
           send: jest.fn().mockResolvedValue('memo-transfer-sig')
         })
 
-        account._rpc = mockRpc
-
-        const result = await account.transfer(
+        const result = await transferAccount.transfer(
           {
             token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
             recipient: '11111111111111111111111111111111',
@@ -1332,17 +1334,13 @@ describe('WalletAccountSolana', () => {
   })
 
   describe('transfer of a Token-2022 token', () => {
-    // Mints no other suite uses, since the shared account caches every mint it has resolved.
-    const TOKEN_2022_MINT = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
-    const NON_TRANSFERABLE_MINT = 'Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr'
+    const TOKEN_2022_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
     const RECIPIENT = '11111111111111111111111111111111'
 
     let mockRpc
-    let originalRpc
+    let transferAccount
 
     beforeEach(() => {
-      originalRpc = account._rpc
-
       mockRpc = {
         getAccountInfo: jest.fn(),
         getFeeForMessage: jest.fn(),
@@ -1358,11 +1356,7 @@ describe('WalletAccountSolana', () => {
         })
       }
 
-      account._rpc = mockRpc
-    })
-
-    afterEach(() => {
-      account._rpc = originalRpc
+      transferAccount = new WalletAccountSolana(TEST_SEED_PHRASE, "0'/0'", { provider: mockRpc, commitment: 'processed' })
     })
 
     it('should send a transfer against the token extensions program', async () => {
@@ -1381,7 +1375,7 @@ describe('WalletAccountSolana', () => {
         send: jest.fn().mockResolvedValue('token-2022-transfer-sig')
       })
 
-      const result = await account.transfer({ token: TOKEN_2022_MINT, recipient: RECIPIENT, amount: 1000000n })
+      const result = await transferAccount.transfer({ token: TOKEN_2022_MINT, recipient: RECIPIENT, amount: 1000000n })
 
       const [wireTransaction] = mockRpc.sendTransaction.mock.calls[0]
       const transaction = getTransactionDecoder()
@@ -1401,8 +1395,8 @@ describe('WalletAccountSolana', () => {
         send: jest.fn().mockResolvedValue({ value: [createMint2022Account(6, [{ __kind: 'NonTransferable' }])] })
       })
 
-      await expect(account.transfer({ token: NON_TRANSFERABLE_MINT, recipient: RECIPIENT, amount: 1000000n }))
-        .rejects.toThrow(NonTransferableTokenError)
+      await expect(transferAccount.transfer({ token: TOKEN_2022_MINT, recipient: RECIPIENT, amount: 1000000n }))
+        .rejects.toThrow(new NonTransferableTokenError(`Token '${TOKEN_2022_MINT}' is non-transferable.`))
 
       expect(mockRpc.sendTransaction).not.toHaveBeenCalled()
     })

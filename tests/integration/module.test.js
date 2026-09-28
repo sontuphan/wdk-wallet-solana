@@ -785,11 +785,15 @@ describe('@tetherto/wdk-wallet-solana', () => {
     })
 
     test.each([
-      ['non-transferable', () => [{ __kind: 'NonTransferable' }], NonTransferableTokenError],
-      ['carrying a transfer hook', (authority, hookProgram) => [{ __kind: 'TransferHook', authority, programId: hookProgram }], TransferHookNotSupportedError],
-      ['configured for confidential transfers', (authority) => [{ __kind: 'ConfidentialTransferMint', authority, autoApproveNewAccounts: true, auditorElgamalPubkey: null }], ConfidentialTransferNotSupportedError],
-      ['freezing new accounts by default', () => [{ __kind: 'DefaultAccountState', state: AccountState.Frozen }], FrozenTokenAccountError]
-    ])('should reject the transfer of a Token-2022 token %s without sending a transaction', async (_, extensionsFor, ErrorClass) => {
+      ['non-transferable', () => [{ __kind: 'NonTransferable' }],
+        mint => new NonTransferableTokenError(`Token '${mint}' is non-transferable.`)],
+      ['carrying a transfer hook', (authority, hookProgram) => [{ __kind: 'TransferHook', authority, programId: hookProgram }],
+        mint => new TransferHookNotSupportedError(`Token '${mint}' carries a transfer hook, which is not supported.`)],
+      ['configured for confidential transfers', (authority) => [{ __kind: 'ConfidentialTransferMint', authority, autoApproveNewAccounts: true, auditorElgamalPubkey: null }],
+        mint => new ConfidentialTransferNotSupportedError(`Token '${mint}' is configured for confidential transfers, which are not supported.`)],
+      ['freezing new accounts by default', () => [{ __kind: 'DefaultAccountState', state: AccountState.Frozen }],
+        mint => new FrozenTokenAccountError(`Token '${mint}' freezes by default the accounts it creates, so '${ACCOUNT_1.address}' could not receive it.`)]
+    ])('should reject the transfer of a Token-2022 token %s without sending a transaction', async (_, extensionsFor, errorFor) => {
       const authority = await generateKeyPairSigner()
       const hookProgram = await generateKeyPairSigner()
       const token = await deployTestToken2022(rpc, sendAndConfirmTransaction, extensionsFor(authority.address, hookProgram.address))
@@ -800,8 +804,8 @@ describe('@tetherto/wdk-wallet-solana', () => {
 
       const TRANSFER = { token: token.mint, recipient: ACCOUNT_1.address, amount: 100 }
 
-      await expect(account.quoteTransfer(TRANSFER)).rejects.toThrow(ErrorClass)
-      await expect(account.transfer(TRANSFER)).rejects.toThrow(ErrorClass)
+      await expect(account.quoteTransfer(TRANSFER)).rejects.toThrow(errorFor(token.mint))
+      await expect(account.transfer(TRANSFER)).rejects.toThrow(errorFor(token.mint))
 
       expect(await account.getBalance()).toBe(balanceBefore)
     })
@@ -871,7 +875,7 @@ describe('@tetherto/wdk-wallet-solana', () => {
 
       const TRANSFER = { token: token.mint, recipient: ACCOUNT_1.address, amount: 100 }
 
-      await expect(account.transfer(TRANSFER)).rejects.toThrow(FrozenTokenAccountError)
+      await expect(account.transfer(TRANSFER)).rejects.toThrow(new FrozenTokenAccountError(`The token account of '${ACCOUNT_1.address}' is frozen.`))
 
       expect(await account.getBalance()).toBe(balanceBefore)
       expect(await account.getTokenBalance(token.mint)).toBe(INITIAL_TOKEN_BALANCE)
