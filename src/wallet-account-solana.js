@@ -53,6 +53,8 @@ import SeedSignerSolana from './signers/seed-signer-solana.js'
 
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
+const DEFAULT_ACCOUNT_PATH = "0'/0'"
+
 /** @implements {IWalletAccount<FullySignedTransaction>} */
 export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
   /**
@@ -73,11 +75,27 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @param {SolanaWalletConfig} [config] - The configuration object.
    * @throws {ValueError} If the seed phrase is not a valid BIP-39 seed phrase.
    */
+
+  /**
+   * Creates the first solana wallet account (m/44'/501'/0'/0') from a seed.
+   *
+   * @overload
+   * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
+   * @param {SolanaWalletConfig} [config] - The configuration object.
+   * @throws {ValueError} If the seed phrase is not a valid BIP-39 seed phrase.
+   */
   constructor (seedOrSigner, pathOrConfig, config = {}) {
     let signer = seedOrSigner
 
     if (typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array) {
-      signer = new SeedSignerSolana(seedOrSigner, `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${pathOrConfig}`)
+      let path = pathOrConfig
+
+      if (typeof pathOrConfig !== 'string') {
+        path = DEFAULT_ACCOUNT_PATH
+        config = pathOrConfig ?? {}
+      }
+
+      signer = new SeedSignerSolana(seedOrSigner, `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${path}`)
     } else {
       config = pathOrConfig ?? {}
     }

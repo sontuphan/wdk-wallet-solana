@@ -29,7 +29,7 @@ import { sha512 } from '@noble/hashes/sha2.js'
 
 import { ValueError } from '@tetherto/wdk-wallet'
 
-import { assertFullHardenedPath } from './signer-solana.js'
+import { assertAbsoluteHardenedPath, assertFullHardenedPath } from './signer-solana.js'
 
 // To enable @noble's synchronous methods
 curve.hashes.sha512 = sha512
@@ -65,13 +65,7 @@ export default class SeedSignerSolana {
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
-    if (path !== 'm') {
-      if (!path.startsWith('m/')) {
-        throw new ValueError('The derivation path must be absolute (e.g. "m/44\'/501\'").')
-      }
-
-      assertFullHardenedPath(path.slice(2))
-    }
+    assertAbsoluteHardenedPath(path)
 
     this._init(HDKey.fromMasterSeed(seed).derive(path, true), path)
   }

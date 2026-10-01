@@ -20,13 +20,12 @@ import { SignerSolanaBuilder } from '@ledgerhq/device-signer-kit-solana'
 import { filter, firstValueFrom, map } from 'rxjs'
 import { getBase58Encoder } from '@solana/codecs'
 import { getOffchainMessageEnvelopeDecoder } from '@solana/offchain-messages'
-import { signatureBytes } from '@solana/keys'
 import { address } from '@solana/addresses'
 import { getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
 
-import { assertFullHardenedPath } from './signer-solana.js'
+import { assertAbsoluteHardenedPath, assertFullHardenedPath } from './signer-solana.js'
 
-const BIP_44_SOL_DERIVATION_PATH_PREFIX = "44'/501'"
+const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
 /** @typedef {import("./signer-solana.js").ISignerSolana} ISignerSolana */
 
@@ -52,16 +51,14 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "44'/501'"
  */
 export default class LedgerSignerSolana {
   /**
-   * @constructor
-   * @param {string} path The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
+   * Creates a new Ledger signer.
+   *
+   * @param {string} [path] - An absolute SLIP-0010 path; every segment must be hardened (default: "m/44'/501'").
    * @param {LedgerSignerSolOpts} [opts] - Optional constructor dependencies.
+   * @throws {ValueError} If the path is not absolute or not fully hardened.
    */
-  constructor (path, opts = {}) {
-    if (!path) {
-      throw new Error('Path is required.')
-    }
-
-    assertFullHardenedPath(path)
+  constructor (path = BIP_44_SOL_DERIVATION_PATH_PREFIX, opts = {}) {
+    assertAbsoluteHardenedPath(path)
 
     /**
      * The ledger signer.
@@ -78,7 +75,7 @@ export default class LedgerSignerSolana {
     this._sessionId = ''
 
     /** @private */
-    this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${path}`
+    this._path = path
 
     /**
      * @private
@@ -126,7 +123,7 @@ export default class LedgerSignerSolana {
     }).build()
 
     // Get the pubkey
-    const { observable } = this._account.getAddress(this._path)
+    const { observable } = this._account.getAddress(this._devicePath)
     const address = await this._consumeDeviceAction(observable)
 
     // Active
@@ -134,11 +131,26 @@ export default class LedgerSignerSolana {
   }
 
   /**
-   * Derive child signer
-   * @param {string} relPath The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
+   * The signer's path in the form the device expects, without the leading "m/".
+   *
+   * @private
+   * @type {string}
+   */
+  get _devicePath () {
+    return this._path.slice(2)
+  }
+
+  /**
+   * Derives a child signer relative to this signer's own path (e.g. calling derive("0'/0'") on
+   * a signer at "m/44'/501'" yields a child at "m/44'/501'/0'/0'"). The child shares the device connection kit.
+   *
+   * @param {string} relPath - The path segment to derive, relative to this signer's own path.
    * @returns {Promise<LedgerSignerSolana>} The derived child signer.
+   * @throws {ValueError} If the path is not fully hardened.
    */
   async derive (relPath) {
+    assertFullHardenedPath(relPath)
+
     return new LedgerSignerSolana(`${this._path}/${relPath}`, { dmk: this._dmk })
   }
 
@@ -151,7 +163,7 @@ export default class LedgerSignerSolana {
   async sign (message) {
     await this._ensureDeviceReady()
 
-    const { observable } = this._account.signMessage(this._path, message)
+    const { observable } = this._account.signMessage(this._devicePath, message)
     const { signature: envelopedSignature } = await this._consumeDeviceAction(observable)
 
     const { signatures } = getOffchainMessageEnvelopeDecoder().decode(
@@ -168,7 +180,7 @@ export default class LedgerSignerSolana {
     const tx = getTransactionDecoder().decode(unsignedTx)
 
     const { observable } = this._account.signTransaction(
-      this._path,
+      this._devicePath,
       Uint8Array.from(tx.messageBytes)
     )
     const signature = await this._consumeDeviceAction(observable)
@@ -177,7 +189,7 @@ export default class LedgerSignerSolana {
       messageBytes: tx.messageBytes,
       signatures: {
         ...tx.signatures,
-        [address(this._address)]: signatureBytes(signature)
+        [address(this._address)]: Uint8Array.from(signature)
       }
     }
 

@@ -5,6 +5,12 @@
  */
 export function assertFullHardenedPath(path: string): void;
 /**
+ * Assert the path is absolute ("m" or "m/...") and every segment below "m" is hardened.
+ * @param {string} path The derivation path.
+ * @throws {ValueError} If the path is not absolute or any child path is not hardened.
+ */
+export function assertAbsoluteHardenedPath(path: string): void;
+/**
  * Interface for Solana signers, extending the base `ISigner` from `@tetherto/wdk-wallet`.
  *
  * @interface

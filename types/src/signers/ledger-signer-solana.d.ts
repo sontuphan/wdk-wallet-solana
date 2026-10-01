@@ -3,11 +3,13 @@
  */
 export default class LedgerSignerSolana implements ISignerSolana {
     /**
-     * @constructor
-     * @param {string} path The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
+     * Creates a new Ledger signer.
+     *
+     * @param {string} [path] - An absolute SLIP-0010 path; every segment must be hardened (default: "m/44'/501'").
      * @param {LedgerSignerSolOpts} [opts] - Optional constructor dependencies.
+     * @throws {ValueError} If the path is not absolute or not fully hardened.
      */
-    constructor(path: string, opts?: LedgerSignerSolOpts);
+    constructor(path?: string, opts?: LedgerSignerSolOpts);
     /**
      * The ledger signer.
      * 
@@ -41,9 +43,19 @@ export default class LedgerSignerSolana implements ISignerSolana {
      */
     private _connect;
     /**
-     * Derive child signer
-     * @param {string} relPath The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
+     * The signer's path in the form the device expects, without the leading "m/".
+     *
+     * @private
+     * @type {string}
+     */
+    private get _devicePath();
+    /**
+     * Derives a child signer relative to this signer's own path (e.g. calling derive("0'/0'") on
+     * a signer at "m/44'/501'" yields a child at "m/44'/501'/0'/0'"). The child shares the device connection kit.
+     *
+     * @param {string} relPath - The path segment to derive, relative to this signer's own path.
      * @returns {Promise<LedgerSignerSolana>} The derived child signer.
+     * @throws {ValueError} If the path is not fully hardened.
      */
     derive(relPath: string): Promise<LedgerSignerSolana>;
     getAddress(): Promise<string>;

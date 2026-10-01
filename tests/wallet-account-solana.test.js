@@ -104,6 +104,20 @@ describe('WalletAccountSolana', () => {
         expect(await fromSigner.sign('Hello, Solana!')).toBe(await fromSeed.sign('Hello, Solana!'))
       })
 
+      it('should derive the first account when no path is given', async () => {
+        const account = new WalletAccountSolana(TEST_SEED_PHRASE, { provider: TEST_RPC_URL })
+
+        expect(account.path).toBe("m/44'/501'/0'/0'")
+        expect(await account.getAddress()).toBe('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+      })
+
+      it('should derive the first account when neither a path nor a config is given', async () => {
+        const account = new WalletAccountSolana(TEST_SEED_PHRASE)
+
+        expect(account.path).toBe("m/44'/501'/0'/0'")
+        expect(await account.getAddress()).toBe('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+      })
+
       it('should throw if the signer is missing', () => {
         expect(() => new WalletAccountSolana(undefined, {})).toThrow('A signer is required.')
       })
