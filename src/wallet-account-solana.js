@@ -21,7 +21,8 @@ import {
   getTransactionDecoder,
   getTransactionEncoder
 } from '@solana/transactions'
-import { getCompiledTransactionMessageDecoder } from '@solana/transaction-messages'
+import { getCompiledTransactionMessageDecoder, setTransactionMessageFeePayer } from '@solana/transaction-messages'
+import { address } from '@solana/addresses'
 import { getBase64Decoder } from '@solana/codecs'
 
 import { AssertionError, MaximumFeeExceededError, ProviderRequiredError, ValueError } from '@tetherto/wdk-wallet'
@@ -68,6 +69,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {string} path - The SLIP-0010 derivation path (e.g. "0'/0'/0'").
    * @param {SolanaWalletConfig} [config] - The configuration object.
+   * @throws {ValueError} If the seed phrase is not a valid BIP-39 seed phrase.
    */
   constructor (seedOrSigner, pathOrConfig, config = {}) {
     let signer = seedOrSigner
@@ -399,7 +401,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
 
     if (Array.isArray(transactionMessage.instructions)) {
       transactionMessage = await this._ensureLifetime(transactionMessage)
-      transactionMessage = await this._ensureFeePayer(transactionMessage)
+      await this._assertFeePayer(transactionMessage)
+      transactionMessage = setTransactionMessageFeePayer(address(await this.getAddress()), transactionMessage)
     }
 
     return transactionMessage

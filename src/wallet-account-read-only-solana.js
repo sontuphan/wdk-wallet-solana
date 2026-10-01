@@ -220,9 +220,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       return 0n
     }
 
-    const tokenAccountBalance = await this._rpc
-      .getTokenAccountBalance(ata, { commitment: this._commitment })
-      .send()
+    const tokenAccountBalance = await this._rpc.getTokenAccountBalance(ata, { commitment: this._commitment }).send()
 
     return BigInt(tokenAccountBalance.value.amount)
   }
@@ -324,6 +322,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
       return { fee }
     }
 
+    const addr = await this.getAddress()
+
     let transactionMessage = tx
 
     // Handle native token transfer { to, value } transaction
@@ -333,7 +333,8 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
 
     if (Array.isArray(transactionMessage.instructions)) {
       transactionMessage = await this._ensureLifetime(transactionMessage)
-      transactionMessage = await this._ensureFeePayer(transactionMessage)
+      await this._assertFeePayer(transactionMessage)
+      transactionMessage = setTransactionMessageFeePayer(address(addr), transactionMessage)
     }
     // Check if it's a native transfer object {to, value}
     const fee = await this._getTransactionFee(transactionMessage)
@@ -506,7 +507,10 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const instructions = []
 
     const recipientATAInfo = await this._rpc
-      .getAccountInfo(toATA, { commitment: this._commitment, encoding: 'base64' })
+      .getAccountInfo(toATA, {
+        commitment: this._commitment,
+        encoding: 'base64'
+      })
       .send()
 
     // If recipient's ATA doesn't exist, add creation instruction (idempotent)
@@ -538,9 +542,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     instructions.push(transferInstruction)
 
     // Get latest blockhash
-    const { value: latestBlockhash } = await this._rpc
-      .getLatestBlockhash({ commitment: this._commitment })
-      .send()
+    const { value: latestBlockhash } = await this._rpc.getLatestBlockhash({ commitment: this._commitment }).send()
 
     // Build transaction message using pipe
     const transactionMessage = pipe(
@@ -583,9 +585,7 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     })
 
     // Get latest blockhash
-    const { value: latestBlockhash } = await this._rpc
-      .getLatestBlockhash({ commitment: this._commitment })
-      .send()
+    const { value: latestBlockhash } = await this._rpc.getLatestBlockhash({ commitment: this._commitment }).send()
 
     // Build transaction message using pipe
     const transactionMessage = pipe(
@@ -691,26 +691,20 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   }
 
   /**
-   * Ensures the transaction fee payer is this wallet address.
-   *
-   * If a fee payer is already present, it must match this wallet address.
-   * Otherwise, the wallet address is set as the fee payer.
+   * Asserts that any explicit transaction fee payer matches this wallet address.
    *
    * @protected
    * @param {SolanaTransaction} tx - The transaction.
-   * @returns {Promise<SolanaTransaction>} The transaction with this wallet address as fee payer.
+   * @returns {Promise<void>} Resolves when the transaction has no explicit fee payer or it matches this wallet address.
    * @throws {ValueError} If the transaction fee payer does not match this wallet address.
    */
-  async _ensureFeePayer (tx) {
-    const ownerAddress = await this.getAddress()
-
+  async _assertFeePayer (tx) {
     if (tx.feePayer) {
+      const ownerAddress = await this.getAddress()
       const feePayerAddress = typeof tx.feePayer === 'string' ? tx.feePayer : tx.feePayer.address
       if (feePayerAddress !== ownerAddress) {
         throw new ValueError(`Transaction fee payer (${feePayerAddress}) does not match wallet address (${ownerAddress})`)
       }
     }
-
-    return setTransactionMessageFeePayer(address(ownerAddress), tx)
   }
 }
