@@ -65,14 +65,6 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      */
     sign(message: string): Promise<string>;
     /**
-     * Verifies a message's signature.
-     *
-     * @param {string} message - The original message.
-     * @param {string} signature - The signature to verify.
-     * @returns {Promise<boolean>} True if the signature is valid.
-     */
-    verify(message: string, signature: string): Promise<boolean>;
-    /**
      * Signs a transaction.
      *
      * @param {SolanaTransaction} tx - The transaction to sign: an unsigned transaction or a base64-encoded serialized transaction.

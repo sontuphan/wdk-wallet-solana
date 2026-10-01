@@ -16,7 +16,7 @@
 
 import * as bip39 from 'bip39'
 import HDKey from 'micro-key-producer/slip10.js'
-import { verifySignature, signBytes } from '@solana/keys'
+import { signBytes } from '@solana/keys'
 import { getAddressDecoder } from '@solana/addresses'
 import { createKeyPairSignerFromPrivateKeyBytes } from '@solana/signers'
 import { getTransactionDecoder, getTransactionEncoder, partiallySignTransaction } from '@solana/transactions'
@@ -195,15 +195,6 @@ export default class SeedSignerSolana {
     const signatureBytes = await signBytes(account.keyPair.privateKey, messageBytes)
 
     return Buffer.from(signatureBytes).toString('hex')
-  }
-
-  async verify (message, signature) {
-    const account = await this._getAccount()
-
-    const messageBytes = Buffer.from(message, 'utf8')
-    const signatureBytes = Buffer.from(signature, 'hex')
-
-    return await verifySignature(account.keyPair.publicKey, signatureBytes, messageBytes)
   }
 
   async signTransaction (unsignedTx) {

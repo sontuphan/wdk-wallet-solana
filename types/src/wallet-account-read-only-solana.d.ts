@@ -167,6 +167,9 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     /**
      * Verifies a message's signature.
      *
+     * Accepts both an Ed25519 signature over the raw UTF-8 message (seed signers) and one over its
+     * off-chain message v0 encoding (hardware signers such as Ledger).
+     *
      * @param {string} message - The original message.
      * @param {string} signature - The signature to verify.
      * @returns {Promise<boolean>} True if the signature is valid.

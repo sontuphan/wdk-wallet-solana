@@ -36,17 +36,6 @@ export function assertFullHardenedPath (path) {
  */
 export class ISignerSolana extends ISigner {
   /**
-   * Verifies a message's signature.
-   *
-   * @param {string} message - The original message.
-   * @param {string} signature - The signature to verify.
-   * @returns {Promise<boolean>} True if the signature is valid.
-   */
-  async verify (message, signature) {
-    throw new NotImplementedError('verify(message, signature)')
-  }
-
-  /**
    * Signs a transaction, keeping any signatures it already carries.
    *
    * @param {Uint8Array} unsignedTx - The wire-encoded transaction.

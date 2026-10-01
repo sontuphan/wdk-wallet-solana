@@ -88,7 +88,6 @@ export default class SeedSignerSolana implements ISignerSolana {
     derive(relPath: string): Promise<SeedSignerSolana>;
     getAddress(): Promise<string>;
     sign(message: string): Promise<string>;
-    verify(message: string, signature: string): Promise<boolean>;
     signTransaction(unsignedTx: Uint8Array): Promise<Uint8Array>;
     dispose(): void;
 }

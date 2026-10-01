@@ -17,6 +17,8 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals'
 
 import { address } from '@solana/addresses'
+import { signBytes } from '@solana/keys'
+import { createKeyPairSignerFromPrivateKeyBytes } from '@solana/signers'
 import {
   compileTransaction,
   getBase64EncodedWireTransaction
@@ -33,6 +35,7 @@ import { MEMO_PROGRAM_ADDRESS } from '@solana-program/memo'
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
 import { NoSuchElementError, ValueError } from '@tetherto/wdk-wallet'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
+import { constructOffchainMessageV0Content } from '../src/signers/utils.js'
 
 const TEST_ADDRESS = 'HmWPZeFgxZAJQYgwh5ipYwjbVTHtjEHB3dnJ5xcQBHX9'
 const TEST_ACCOUNT_ADDRESS = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
@@ -1566,6 +1569,41 @@ describe('WalletAccountReadOnlySolana', () => {
       expect(await readOnlyAccount.verify(message, invalidSignature)).toBe(
         false
       )
+    })
+
+    describe('off-chain message v0 signatures', () => {
+      let account
+      let readOnlyAccount
+
+      async function signOffchainMessage (message) {
+        const signer = await createKeyPairSignerFromPrivateKeyBytes(account.keyPair.privateKey)
+        const content = constructOffchainMessageV0Content(await account.getAddress(), message)
+
+        return Buffer.from(await signBytes(signer.keyPair.privateKey, content)).toString('hex')
+      }
+
+      beforeEach(async () => {
+        account = new WalletAccountSolana(TEST_SEED_PHRASE, "0'/0'/0'", {})
+        readOnlyAccount = new WalletAccountReadOnlySolana(await account.getAddress(), {})
+      })
+
+      it('should accept a signature over the off-chain message v0 encoding', async () => {
+        const signature = await signOffchainMessage('Hello, Ledger!')
+
+        expect(await readOnlyAccount.verify('Hello, Ledger!', signature)).toBe(true)
+      })
+
+      it('should reject an off-chain message v0 signature for a different message', async () => {
+        const signature = await signOffchainMessage('Hello, Ledger!')
+
+        expect(await readOnlyAccount.verify('Hello, Solana!', signature)).toBe(false)
+      })
+
+      it('should return false for a message that has no off-chain message v0 encoding', async () => {
+        const signature = await signOffchainMessage('Hello, Ledger!')
+
+        expect(await readOnlyAccount.verify('Héllo, Ledger!', signature)).toBe(false)
+      })
     })
   })
 })

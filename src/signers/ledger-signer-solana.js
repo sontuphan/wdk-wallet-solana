@@ -19,16 +19,10 @@ import { webHidTransportFactory } from '@ledgerhq/device-transport-kit-web-hid'
 import { SignerSolanaBuilder } from '@ledgerhq/device-signer-kit-solana'
 import { filter, firstValueFrom, map } from 'rxjs'
 import { getBase58Encoder } from '@solana/codecs'
-import {
-  getOffchainMessageEncoder,
-  getOffchainMessageEnvelopeDecoder,
-  offchainMessageApplicationDomain,
-  offchainMessageContentRestrictedAsciiOf1232BytesMax
-} from '@solana/offchain-messages'
-import { signatureBytes, verifySignature } from '@solana/keys'
-import { address, getPublicKeyFromAddress } from '@solana/addresses'
+import { getOffchainMessageEnvelopeDecoder } from '@solana/offchain-messages'
+import { signatureBytes } from '@solana/keys'
+import { address } from '@solana/addresses'
 import { getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
-import { SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
 
 import { assertFullHardenedPath } from './signer-solana.js'
 
@@ -43,8 +37,6 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "44'/501'"
  * @typedef {import('@ledgerhq/device-management-kit').DeviceActionState<TOutput, unknown, unknown>} DeviceActionState
  */
 
-/** @typedef {import("@solana/offchain-messages").OffchainMessage} OffchainMessage */
-
 /**
  * @template T
  * @typedef {import('rxjs').Observable<T>} Observable
@@ -54,28 +46,6 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "44'/501'"
  * @typedef {Object} LedgerSignerSolOpts
  * @property {DeviceManagementKit} [dmk] Shared [DMK](https://developers.ledger.com/docs/device-interaction/integration/how_to/dmk).
  */
-
-/**
- *
- * @param {string} addr - The signer address
- * @param {string} message - The message
- * @returns {Uint8Array} The signing content
- */
-export const constructOffchainMessageV0Content = (addr, message) => {
-  /**
-   * @type {OffchainMessage} Offchain message
-   */
-  const offchainMessage = {
-    version: 0,
-    requiredSignatories: [{ address: address(addr) }],
-    applicationDomain: offchainMessageApplicationDomain(SYSTEM_PROGRAM_ADDRESS),
-    content: offchainMessageContentRestrictedAsciiOf1232BytesMax(message)
-  }
-
-  const signingContent = getOffchainMessageEncoder().encode(offchainMessage)
-
-  return Uint8Array.from(signingContent)
-}
 
 /**
  * @implements {ISignerSolana}
@@ -190,19 +160,6 @@ export default class LedgerSignerSolana {
     const [signature] = Object.values(signatures)
 
     return Buffer.from(signature).toString('hex')
-  }
-
-  async verify (message, signature) {
-    if (!this._address) return false
-
-    const pubkey = await getPublicKeyFromAddress(address(this._address))
-
-    const messageBytes = constructOffchainMessageV0Content(this._address, message)
-    const signatureBytes = Buffer.from(signature, 'hex')
-
-    const isValid = await verifySignature(pubkey, signatureBytes, messageBytes)
-
-    return isValid
   }
 
   async signTransaction (unsignedTx) {

@@ -1,4 +1,3 @@
-export function constructOffchainMessageV0Content(addr: string, message: string): Uint8Array;
 /**
  * @implements {ISignerSolana}
  */
@@ -49,7 +48,6 @@ export default class LedgerSignerSolana implements ISignerSolana {
     derive(relPath: string): Promise<LedgerSignerSolana>;
     getAddress(): Promise<string>;
     sign(message: string): Promise<string>;
-    verify(message: string, signature: string): Promise<boolean>;
     signTransaction(unsignedTx: Uint8Array): Promise<Uint8Array>;
     dispose(): void;
     /**
@@ -76,7 +74,6 @@ export default class LedgerSignerSolana implements ISignerSolana {
 export type ISignerSolana = import("./signer-solana.js").ISignerSolana;
 export type DeviceManagementKit = import("@ledgerhq/device-management-kit").DeviceManagementKit;
 export type DefaultSignerSolana = import("@ledgerhq/device-signer-kit-solana/internal/DefaultSignerSolana.js").DefaultSignerSolana;
-export type OffchainMessage = import("@solana/offchain-messages").OffchainMessage;
 export type LedgerSignerSolOpts = {
     /**
      * Shared [DMK](https://developers.ledger.com/docs/device-interaction/integration/how_to/dmk).

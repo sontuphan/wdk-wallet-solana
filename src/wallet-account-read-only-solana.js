@@ -43,6 +43,12 @@ import {
   TOKEN_PROGRAM_ADDRESS
 } from '@solana-program/token'
 import { isSignature, verifySignature } from '@solana/keys'
+import {
+  isOffchainMessageContentRestrictedAsciiOf1232BytesMax,
+  OffchainMessageContentFormat
+} from '@solana/offchain-messages'
+
+import { constructOffchainMessageV0Content } from './signers/utils.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
 /** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
@@ -655,6 +661,9 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
   /**
    * Verifies a message's signature.
    *
+   * Accepts both an Ed25519 signature over the raw UTF-8 message (seed signers) and one over its
+   * off-chain message v0 encoding (hardware signers such as Ledger).
+   *
    * @param {string} message - The original message.
    * @param {string} signature - The signature to verify.
    * @returns {Promise<boolean>} True if the signature is valid.
@@ -666,9 +675,16 @@ export default class WalletAccountReadOnlySolana extends WalletAccountReadOnly {
     const addr = await this.getAddress()
     const publicKey = await getPublicKeyFromAddress(address(addr))
 
-    const isValid = await verifySignature(publicKey, signatureBytes, messageBytes)
+    if (await verifySignature(publicKey, signatureBytes, messageBytes)) {
+      return true
+    }
 
-    return isValid
+    const content = { format: OffchainMessageContentFormat.RESTRICTED_ASCII_1232_BYTES_MAX, text: message }
+    if (!isOffchainMessageContentRestrictedAsciiOf1232BytesMax(content)) {
+      return false
+    }
+
+    return await verifySignature(publicKey, signatureBytes, constructOffchainMessageV0Content(addr, message))
   }
 
   /**
