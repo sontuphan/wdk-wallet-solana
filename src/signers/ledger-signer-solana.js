@@ -130,11 +130,6 @@ export default class LedgerSignerSolana {
     return null
   }
 
-  get index () {
-    if (!this._path) return undefined
-    return +this._path.replace(/'/g, '').split('/').at(3)
-  }
-
   get path () {
     return this._path
   }

@@ -228,28 +228,6 @@ describe('WalletAccountSolana', () => {
       })
     })
 
-    describe('index', () => {
-      it('should return correct index for account 0', async () => {
-        const account0 = await wallet.getAccount(0)
-        expect(account0.index).toBe(0)
-      })
-
-      it('should return correct index for account 999', async () => {
-        const account999 = await wallet.getAccount(999)
-        expect(account999.index).toBe(999)
-      })
-
-      it('should extract index correctly from custom paths', async () => {
-        const account1 = await wallet.getAccountByPath("0'/0'/7'")
-        const account2 = await wallet.getAccountByPath("1'/0'/15'")
-        const account3 = await wallet.getAccountByPath("0'/5'/123'")
-
-        expect(account1.index).toBe(0)
-        expect(account2.index).toBe(1)
-        expect(account3.index).toBe(0)
-      })
-    })
-
     describe('dispose', () => {
       it('should clear private key from memory', async () => {
         const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {

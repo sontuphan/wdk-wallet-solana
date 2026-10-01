@@ -128,11 +128,6 @@ export default class SeedSignerSolana {
     return true
   }
 
-  get index () {
-    const segment = this._path.split('/')[3]
-    return segment === undefined ? undefined : +segment.replace("'", '')
-  }
-
   /**
    * The signer's absolute derivation path.
    *

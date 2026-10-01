@@ -54,7 +54,6 @@ export default class SeedSignerSolana implements ISignerSolana {
      * @type {true}
      */
     get isDerivable(): true;
-    get index(): number | undefined;
     /**
      * The signer's absolute derivation path.
      *

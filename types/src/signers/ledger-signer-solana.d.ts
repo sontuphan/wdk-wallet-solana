@@ -34,7 +34,6 @@ export default class LedgerSignerSolana implements ISignerSolana {
      * @type {null}
      */
     get keyPair(): null;
-    get index(): number;
     get path(): string;
     /**
      * Discover and connect the device

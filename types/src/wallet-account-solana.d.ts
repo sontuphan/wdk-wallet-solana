@@ -41,12 +41,6 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      */
     private _disposed;
     /**
-     * The derivation path's index of this account.
-     *
-     * @type {number}
-     */
-    get index(): number;
-    /**
      * The derivation path of this account.
      *
      * @type {string}

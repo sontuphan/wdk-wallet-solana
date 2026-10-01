@@ -11,12 +11,6 @@ export function assertFullHardenedPath(path: string): void;
  */
 export class ISignerSolana extends ISigner {
     /**
-     * The derivation path's index of this account. (i.e. m/purpose'/coin_type'/ **account'** /change/address_index)
-     *
-     * @type {number | undefined}
-     */
-    get index(): number | undefined;
-    /**
      * Verifies a message's signature.
      *
      * @param {string} message - The original message.
