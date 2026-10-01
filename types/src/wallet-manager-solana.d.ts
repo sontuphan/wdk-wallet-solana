@@ -35,6 +35,7 @@ export default class WalletManagerSolana extends WalletManager {
      * @example
      * // Returns the account with derivation path m/44'/501'/index'/0'
      * const account = await wallet.getAccount(1);
+     * @overload
      * @param {number} [index] - The index of the account to get (default: 0).
      * @param {Object} [options] - Account options.
      * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
@@ -43,6 +44,19 @@ export default class WalletManagerSolana extends WalletManager {
     getAccount(index?: number, options?: {
         signerName?: string;
     }): Promise<WalletAccountSolana>;
+    /**
+     * Returns the wallet account backed by a registered signer, without further derivation.
+     * Use it for non-derivable signers, such as {@link PrivateKeySignerSolana}.
+     *
+     * @example
+     * wallet.addSigner('treasury', new PrivateKeySignerSolana(privateKey))
+     * const account = await wallet.getAccount('treasury');
+     * @overload
+     * @param {string} signerName - The signer name registered via {@link addSigner}.
+     * @returns {Promise<WalletAccountSolana>} The account.
+     * @throws {NoSuchElementError} If no signer exists with the given name.
+     */
+    getAccount(signerName: string): Promise<WalletAccountSolana>;
     /**
      * Returns the wallet account at a specific SLIP-0010 derivation path.
      *
@@ -78,5 +92,7 @@ export type Commitment = import("@solana/rpc-types").Commitment;
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type SolanaWalletConfig = import("./wallet-account-solana.js").SolanaWalletConfig;
 export type ISignerSolana = import("./signers/signer-solana.js").ISignerSolana;
+export type PrivateKeySignerSolana = import("./signers/private-key-signer-solana.js").default;
+export type NoSuchElementError = import("@tetherto/wdk-wallet").NoSuchElementError;
 import WalletManager from "@tetherto/wdk-wallet";
 import WalletAccountSolana from "./wallet-account-solana.js";

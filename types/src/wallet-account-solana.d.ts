@@ -50,11 +50,11 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      */
     private _disposed;
     /**
-     * The derivation path of this account.
+     * The derivation path of this account, or null for an account backed by a non-HD signer.
      *
-     * @type {string}
+     * @type {string | null}
      */
-    get path(): string;
+    get path(): string | null;
     /**
      * The account's key pair.
      *

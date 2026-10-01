@@ -23,10 +23,12 @@ import SeedSignerSolana from './signers/seed-signer-solana.js'
 /** @typedef {import('@solana/rpc-types').Commitment} Commitment */
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
+/** @typedef {import('@tetherto/wdk-wallet').NoSuchElementError} NoSuchElementError */
 
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
 /** @typedef {import('./signers/signer-solana.js').ISignerSolana} ISignerSolana */
+/** @typedef {import('./signers/private-key-signer-solana.js').default} PrivateKeySignerSolana */
 
 const FEE_RATE_NORMAL_MULTIPLIER = 110n
 
@@ -91,13 +93,37 @@ export default class WalletManagerSolana extends WalletManager {
    * @example
    * // Returns the account with derivation path m/44'/501'/index'/0'
    * const account = await wallet.getAccount(1);
+   * @overload
    * @param {number} [index] - The index of the account to get (default: 0).
    * @param {Object} [options] - Account options.
    * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
    * @returns {Promise<WalletAccountSolana>} The account.
    */
-  async getAccount (index = 0, options = {}) {
-    return await this.getAccountByPath(`${index}'/0'`, options)
+
+  /**
+   * Returns the wallet account backed by a registered signer, without further derivation.
+   * Use it for non-derivable signers, such as {@link PrivateKeySignerSolana}.
+   *
+   * @example
+   * wallet.addSigner('treasury', new PrivateKeySignerSolana(privateKey))
+   * const account = await wallet.getAccount('treasury');
+   * @overload
+   * @param {string} signerName - The signer name registered via {@link addSigner}.
+   * @returns {Promise<WalletAccountSolana>} The account.
+   * @throws {NoSuchElementError} If no signer exists with the given name.
+   */
+  async getAccount (indexOrSignerName = 0, options = {}) {
+    if (typeof indexOrSignerName === 'string') {
+      const signerName = indexOrSignerName
+
+      if (!this._accounts[signerName]) {
+        this._accounts[signerName] = new WalletAccountSolana(this.getSigner(signerName), this._accountConfig())
+      }
+
+      return this._accounts[signerName]
+    }
+
+    return await this.getAccountByPath(`${indexOrSignerName}'/0'`, options)
   }
 
   /**

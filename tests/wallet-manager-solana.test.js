@@ -25,6 +25,7 @@ import {
 import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 import SeedSignerSolana from '../src/signers/seed-signer-solana.js'
+import PrivateKeySignerSolana from '../src/signers/private-key-signer-solana.js'
 
 const TEST_SEED_PHRASE =
   'test walk nut penalty hip pave soap entry language right filter choice'
@@ -88,8 +89,23 @@ describe('WalletManagerSolana', () => {
       expect(await wallet.getAccount(0, { signerName: 'other' })).toBe(otherAccount)
     })
 
+    it('should return the account of a named private-key signer without deriving', async () => {
+      wallet.addSigner('treasury', new PrivateKeySignerSolana('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'))
+
+      const account = await wallet.getAccount('treasury')
+
+      expect(account.path).toBeNull()
+      expect(await account.getAddress()).toBe('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+      expect(await wallet.getAccount('treasury')).toBe(account)
+    })
+
     it('should throw if no signer is registered with the given name', async () => {
       await expect(wallet.getAccount(0, { signerName: 'missing' }))
+        .rejects.toThrow('No signer found with name "missing".')
+    })
+
+    it('should throw if no signer is registered with the given name (signer-name overload)', async () => {
+      await expect(wallet.getAccount('missing'))
         .rejects.toThrow('No signer found with name "missing".')
     })
   })

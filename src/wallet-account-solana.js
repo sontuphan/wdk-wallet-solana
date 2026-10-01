@@ -142,9 +142,9 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
   }
 
   /**
-   * The derivation path of this account.
+   * The derivation path of this account, or null for an account backed by a non-HD signer.
    *
-   * @type {string}
+   * @type {string | null}
    */
   get path () {
     return this._signer.path

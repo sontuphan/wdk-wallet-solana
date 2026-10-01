@@ -16,10 +16,8 @@
 
 import * as bip39 from 'bip39'
 import HDKey from 'micro-key-producer/slip10.js'
-import { signBytes } from '@solana/keys'
 import { getAddressDecoder } from '@solana/addresses'
 import { createKeyPairSignerFromPrivateKeyBytes } from '@solana/signers'
-import { getTransactionDecoder, getTransactionEncoder, partiallySignTransaction } from '@solana/transactions'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
@@ -30,6 +28,7 @@ import { sha512 } from '@noble/hashes/sha2.js'
 import { ValueError } from '@tetherto/wdk-wallet'
 
 import { assertAbsoluteHardenedPath, assertFullHardenedPath } from './signer-solana.js'
+import { signMessage, signTransactionBytes } from './utils.js'
 
 // To enable @noble's synchronous methods
 curve.hashes.sha512 = sha512
@@ -183,21 +182,11 @@ export default class SeedSignerSolana {
   }
 
   async sign (message) {
-    const account = await this._getAccount()
-
-    const messageBytes = Buffer.from(message, 'utf8')
-    const signatureBytes = await signBytes(account.keyPair.privateKey, messageBytes)
-
-    return Buffer.from(signatureBytes).toString('hex')
+    return await signMessage(await this._getAccount(), message)
   }
 
   async signTransaction (unsignedTx) {
-    const account = await this._getAccount()
-
-    const tx = getTransactionDecoder().decode(unsignedTx)
-    const signedTransaction = await partiallySignTransaction([account.keyPair], tx)
-
-    return Uint8Array.from(getTransactionEncoder().encode(signedTransaction))
+    return await signTransactionBytes(await this._getAccount(), unsignedTx)
   }
 
   dispose () {
