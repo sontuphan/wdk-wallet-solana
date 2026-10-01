@@ -17,21 +17,22 @@
 import * as bip39 from 'bip39'
 import HDKey from 'micro-key-producer/slip10.js'
 import { verifySignature, signBytes } from '@solana/keys'
-import {
-  createKeyPairSignerFromPrivateKeyBytes,
-  setTransactionMessageFeePayerSigner,
-  signTransactionMessageWithSigners
-} from '@solana/signers'
-import { getBase64EncodedWireTransaction, getTransactionDecoder } from '@solana/transactions'
-import {
-  decompileTransactionMessage,
-  getCompiledTransactionMessageDecoder
-} from '@solana/transaction-messages'
+import { getAddressDecoder } from '@solana/addresses'
+import { createKeyPairSignerFromPrivateKeyBytes } from '@solana/signers'
+import { getTransactionDecoder, getTransactionEncoder, partiallySignTransaction } from '@solana/transactions'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
+import * as curve from '@noble/ed25519'
+import { sha512 } from '@noble/hashes/sha2.js'
+
+import { ValueError } from '@tetherto/wdk-wallet'
+
 import { assertFullHardenedPath } from './signer-solana.js'
+
+// To enable @noble's synchronous methods
+curve.hashes.sha512 = sha512
 
 /**
  * @typedef {import("./signer-solana.js").ISignerSolana} ISignerSolana
@@ -59,22 +60,23 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 export default class SeedSignerSolana {
   /**
    * @constructor
-   * @param {string} seed The seed.
-   * @param {SeedSignerSolCfg} config
-   * @param {SeedSignerSolOpts} opts
+   * @param {string | Uint8Array | null} seed A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
+   * @param {SeedSignerSolCfg} [config] The signer configuration.
+   * @param {SeedSignerSolOpts} [opts] Optional constructor dependencies.
+   * @throws {ValueError} If both or neither of a seed and a root are given, if the seed phrase is invalid, or if the path is not fully hardened.
    */
   constructor (seed, config = {}, opts = {}) {
     if (opts.root && seed) {
-      throw new Error('Provide either a seed or a root, not both.')
+      throw new ValueError('Provide either a seed or a root, not both.')
     }
 
     if (!opts.root && !seed) {
-      throw new Error('Seed or root is required.')
+      throw new ValueError('Seed or root is required.')
     }
 
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
-        throw new Error('The seed phrase is invalid.')
+        throw new ValueError('The seed phrase is invalid.')
       }
       seed = bip39.mnemonicToSeedSync(seed)
     }
@@ -91,7 +93,7 @@ export default class SeedSignerSolana {
       (seed ? HDKey.fromMasterSeed(seed).derive(BIP_44_SOL_DERIVATION_PATH_PREFIX) : undefined)
 
     /**
-     * The solana keypair.
+     * The solana keypair, created on first use.
      *
      * @private
      * @type {KeyPairSigner | undefined}
@@ -104,10 +106,20 @@ export default class SeedSignerSolana {
     /** @private */
     this._path = undefined
 
-    /** @private */
+    /**
+     * Raw Ed25519 public key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array | undefined}
+     */
     this._rawPublicKey = undefined
 
-    /** @private */
+    /**
+     * Raw Ed25519 private key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array | undefined}
+     */
     this._rawPrivateKey = undefined
 
     if (opts.path) {
@@ -115,6 +127,12 @@ export default class SeedSignerSolana {
 
       this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${opts.path}`
       this._isRoot = false
+
+      const { privateKey } = this._root.derive(`m/${opts.path}`, true)
+
+      this._rawPrivateKey = privateKey
+      this._rawPublicKey = curve.getPublicKey(privateKey)
+      this._address = getAddressDecoder().decode(this._rawPublicKey)
     }
   }
 
@@ -139,47 +157,34 @@ export default class SeedSignerSolana {
    * The account's key pair.
    *
    * Returns the raw key pair bytes in standard Solana format.
-   * - privateKey: 32-byte Ed25519 secret key (Uint8Array)
+   * - privateKey: 32-byte Ed25519 secret key (Uint8Array), or null once disposed
    * - publicKey: 32-byte Ed25519 public key (Uint8Array)
    *
    * @type {KeyPair}
    */
   get keyPair () {
     return {
-      privateKey: this._rawPrivateKey,
+      privateKey: this._rawPrivateKey ?? null,
       publicKey: this._rawPublicKey
     }
   }
 
   /**
-   * Connect to the account.
-   *
-   * _The function name `connect` follows the hardware signer convention. Here, `connect` means deriving a child HD key from the root node._
+   * Creates the {@link KeyPairSigner} from the raw private key on first use.
    *
    * @private
-   * @returns {Promise<void>} Void.
+   * @returns {Promise<KeyPairSigner>} The key pair signer.
    */
-  async _connect () {
-    const [, relPath] = this._path.split(BIP_44_SOL_DERIVATION_PATH_PREFIX)
-
-    if (!relPath) {
-      throw new Error('Not allowed to interact with the root node.')
+  async _getAccount () {
+    if (!this._rawPrivateKey) {
+      throw new ValueError('Not allowed to interact with the root node.')
     }
-    if (!this._root) throw new Error('The root node is not provided.')
 
-    const { privateKey } = this._root.derive(`m${relPath}`, true)
+    if (!this._account) {
+      this._account = await createKeyPairSignerFromPrivateKeyBytes(this._rawPrivateKey)
+    }
 
-    const account = await createKeyPairSignerFromPrivateKeyBytes(privateKey)
-
-    this._account = account
-    this._address = this._account.address
-
-    const publicKey = await crypto.subtle.exportKey('raw', account.keyPair.publicKey)
-
-    this._rawPublicKey = new Uint8Array(publicKey)
-    this._rawPrivateKey = new Uint8Array(privateKey)
-
-    sodium_memzero(privateKey)
+    return this._account
   }
 
   derive (relPath, config = {}) {
@@ -194,59 +199,43 @@ export default class SeedSignerSolana {
   }
 
   async getAddress () {
-    if (!this._account) await this._connect()
-
     return this._address
   }
 
   async sign (message) {
-    if (!this._account) await this._connect()
+    const account = await this._getAccount()
 
     const messageBytes = Buffer.from(message, 'utf8')
-    const signatureBytes = await signBytes(this._account.keyPair.privateKey, messageBytes)
+    const signatureBytes = await signBytes(account.keyPair.privateKey, messageBytes)
 
-    const signature = Buffer.from(signatureBytes).toString('hex')
-
-    return signature
+    return Buffer.from(signatureBytes).toString('hex')
   }
 
   async verify (message, signature) {
-    if (!this._account) await this._connect()
+    const account = await this._getAccount()
 
     const messageBytes = Buffer.from(message, 'utf8')
     const signatureBytes = Buffer.from(signature, 'hex')
 
-    const isValid = await verifySignature(
-      this._account.keyPair.publicKey,
-      signatureBytes,
-      messageBytes
-    )
-
-    return isValid
+    return await verifySignature(account.keyPair.publicKey, signatureBytes, messageBytes)
   }
 
   async signTransaction (unsignedTx) {
-    if (!this._account) await this._connect()
+    const account = await this._getAccount()
 
     const tx = getTransactionDecoder().decode(unsignedTx)
-    const compiledTransactionMessage = getCompiledTransactionMessageDecoder().decode(
-      tx.messageBytes
-    )
-    const readonlyTransactionMessage = decompileTransactionMessage(compiledTransactionMessage)
-    const transactionMessage = setTransactionMessageFeePayerSigner(
-      this._account,
-      readonlyTransactionMessage
-    )
-    const signedTransaction = await signTransactionMessageWithSigners(transactionMessage)
+    const signedTransaction = await partiallySignTransaction([account.keyPair], tx)
 
-    return Buffer.from(getBase64EncodedWireTransaction(signedTransaction), 'base64')
+    return Uint8Array.from(getTransactionEncoder().encode(signedTransaction))
   }
 
   dispose () {
-    sodium_memzero(this._rawPrivateKey)
+    if (this._rawPrivateKey) {
+      sodium_memzero(this._rawPrivateKey)
+    }
+
+    this._rawPrivateKey = undefined
     this._root = undefined
     this._account = undefined
-    this._address = undefined
-    this._path = undefined
   }
 }

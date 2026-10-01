@@ -27,7 +27,7 @@ import {
 } from '@solana/offchain-messages'
 import { signatureBytes, verifySignature } from '@solana/keys'
 import { address, getPublicKeyFromAddress } from '@solana/addresses'
-import { getBase64EncodedWireTransaction, getTransactionDecoder } from '@solana/transactions'
+import { getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
 import { SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
 
 import { assertFullHardenedPath } from './signer-solana.js'
@@ -239,11 +239,12 @@ export default class LedgerSignerSolana {
     const signedTransaction = {
       messageBytes: tx.messageBytes,
       signatures: {
+        ...tx.signatures,
         [address(this._address)]: signatureBytes(signature)
       }
     }
 
-    return Buffer.from(getBase64EncodedWireTransaction(signedTransaction), 'base64')
+    return Uint8Array.from(getTransactionEncoder().encode(signedTransaction))
   }
 
   dispose () {

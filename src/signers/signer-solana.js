@@ -14,16 +14,19 @@
 
 'use strict'
 
-import { NotImplementedError } from '@tetherto/wdk-wallet'
+import { NotImplementedError, ValueError } from '@tetherto/wdk-wallet'
 
 /**
  * Assert the full path is hardened.
  * @param {string} path The derivation path.
+ * @throws {ValueError} If any child path is not hardened.
  */
 export function assertFullHardenedPath (path) {
   const isValid = path.split('/').reduce((s, e) => s && e.endsWith("'"), true)
 
-  if (!isValid) { throw new Error('In Solana, every child path in a derivation path must be hardened.') }
+  if (!isValid) {
+    throw new ValueError('In Solana, every child path in a derivation path must be hardened.')
+  }
 }
 
 export class ISignerSolana {

@@ -14,22 +14,19 @@
 
 'use strict'
 
-import WalletManager from '@tetherto/wdk-wallet'
-
-import FailoverProvider from '@tetherto/wdk-failover-provider'
-
-import { createSolanaRpc } from '@solana/rpc'
+import WalletManager, { ProviderRequiredError } from '@tetherto/wdk-wallet'
 
 import WalletAccountSolana from './wallet-account-solana.js'
+import SeedSignerSolana from './signers/seed-signer-solana.js'
 
 /** @typedef {ReturnType<typeof import('@solana/rpc').createSolanaRpc>} SolanaRpc */
-/** @typedef {import("@solana/rpc-types").Commitment} Commitment */
+/** @typedef {import('@solana/rpc-types').Commitment} Commitment */
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
-/** @typedef {import('./signers/index.js').ISignerSolana} ISignerSolana */
+/** @typedef {import('./signers/signer-solana.js').ISignerSolana} ISignerSolana */
 
 const FEE_RATE_NORMAL_MULTIPLIER = 110n
 
@@ -39,13 +36,26 @@ const DEFAULT_BASE_FEE = 5_000n
 
 export default class WalletManagerSolana extends WalletManager {
   /**
-   * Creates a new wallet manager for the solana blockchain.
+   * Creates a new wallet manager for the solana blockchain from a seed.
    *
-   * @param {ISignerSolana} signer - The Solana signer.
+   * @overload
+   * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {SolanaWalletConfig} [config] - The configuration object.
    */
-  constructor (signer, config = {}) {
-    super(signer, config)
+
+  /**
+   * Creates a new wallet manager for the solana blockchain from a default signer.
+   *
+   * @overload
+   * @param {ISignerSolana} signer - The default root signer.
+   * @param {SolanaWalletConfig} [config] - The configuration object.
+   */
+  constructor (seedOrSigner, config = {}) {
+    super(seedOrSigner, config)
+
+    if (this.seed) {
+      this._defaultSigner = new SeedSignerSolana(this.seed)
+    }
 
     /**
      * The solana wallet configuration.
@@ -55,7 +65,7 @@ export default class WalletManagerSolana extends WalletManager {
      */
     this._config = config
 
-    const { rpcUrl, commitment = 'confirmed', retries = 3 } = config
+    const { commitment = 'confirmed' } = config
 
     /**
      * The commitment level for transactions.
@@ -66,25 +76,13 @@ export default class WalletManagerSolana extends WalletManager {
     this._commitment = commitment
 
     /**
-     * Solana RPC client for making HTTP requests to the blockchain.
+     * A Solana RPC client for HTTP requests. Shared with every account this manager creates,
+     * so two accounts never open two clients for the same endpoint.
      *
      * @protected
      * @type {SolanaRpc | undefined}
      */
-    this._rpc = undefined
-
-    if (Array.isArray(rpcUrl)) {
-      if (rpcUrl.length > 0) {
-        const failoverProvider = new FailoverProvider({ retries })
-        for (const entry of rpcUrl) {
-          const option = createSolanaRpc(entry)
-          failoverProvider.addProvider(option)
-        }
-        this._rpc = failoverProvider.initialize()
-      }
-    } else if (rpcUrl) {
-      this._rpc = createSolanaRpc(rpcUrl)
-    }
+    this._rpc = WalletAccountSolana._buildRpc(config)
   }
 
   /**
@@ -94,11 +92,12 @@ export default class WalletManagerSolana extends WalletManager {
    * // Returns the account with derivation path m/44'/501'/index'/0'
    * const account = await wallet.getAccount(1);
    * @param {number} [index] - The index of the account to get (default: 0).
-   * @param {string} [signerName] - The signer name to resolve from the wallet manager (default: 'default').
+   * @param {Object} [options] - Account options.
+   * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
    * @returns {Promise<WalletAccountSolana>} The account.
    */
-  async getAccount (index = 0, signerName = 'default') {
-    return await this.getAccountByPath(`${index}'/0'`, signerName)
+  async getAccount (index = 0, options = {}) {
+    return await this.getAccountByPath(`${index}'/0'`, options)
   }
 
   /**
@@ -108,48 +107,51 @@ export default class WalletManagerSolana extends WalletManager {
    * // Returns the account with derivation path m/44'/501'/0'/0'/1'
    * const account = await wallet.getAccountByPath("0'/0'/1'");
    * @param {string} path - The derivation path (e.g. "0'/0'/0'").
-   * @param {string} [signerName] - The signer name to resolve from the wallet manager (default: 'default').
+   * @param {Object} [options] - Account options.
+   * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
    * @returns {Promise<WalletAccountSolana>} The account.
    */
-  async getAccountByPath (path, signerName = 'default') {
-    const key = `${signerName}:${path}`
+  async getAccountByPath (path, options = {}) {
+    const { signerName } = options
+    const key = signerName === undefined ? path : `${signerName}:${path}`
 
     if (!this._accounts[key]) {
-      const signer = this.getSigner(signerName)
+      const signer = await this.getSigner(signerName).derive(path)
 
-      const childSigner = signer.derive(path)
-      await childSigner.getAddress()
-
-      const account = new WalletAccountSolana(childSigner, this._config)
-
-      this._accounts[key] = account
+      this._accounts[key] = new WalletAccountSolana(signer, this._accountConfig())
     }
 
     return this._accounts[key]
   }
 
   /**
+   * Builds the account config, injecting the manager's shared rpc client so accounts reuse
+   * it instead of opening their own.
+   *
+   * @private
+   * @returns {SolanaWalletConfig} The account configuration.
+   */
+  _accountConfig () {
+    return { ...this._config, provider: this._rpc }
+  }
+
+  /**
    * Returns the current fee rates.
    *
    * @returns {Promise<FeeRates>} The fee rates (in lamports).
+   * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
    */
   async getFeeRates () {
     if (!this._rpc) {
-      throw new Error(
-        'The wallet must be connected to a provider to get fee rates.'
-      )
+      throw new ProviderRequiredError('The wallet must be connected to a provider to get fee rates.')
     }
 
     const fees = await this._rpc.getRecentPrioritizationFees().send()
 
-    const nonZeroFees = fees
-      .filter((fee) => fee.prioritizationFee > 0)
-      .map((fee) => BigInt(fee.prioritizationFee))
+    const nonZeroFees = fees.filter((fee) => fee.prioritizationFee > 0).map((fee) => BigInt(fee.prioritizationFee))
 
     const fee =
-      nonZeroFees.length > 0
-        ? nonZeroFees.reduce((max, fee) => (fee > max ? fee : max), 0n)
-        : DEFAULT_BASE_FEE
+      nonZeroFees.length > 0 ? nonZeroFees.reduce((max, fee) => (fee > max ? fee : max), 0n) : DEFAULT_BASE_FEE
 
     return {
       normal: (fee * FEE_RATE_NORMAL_MULTIPLIER) / 100n,

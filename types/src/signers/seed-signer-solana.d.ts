@@ -4,11 +4,12 @@
 export default class SeedSignerSolana implements ISignerSolana {
     /**
      * @constructor
-     * @param {string} seed The seed.
-     * @param {SeedSignerSolCfg} config
-     * @param {SeedSignerSolOpts} opts
+     * @param {string | Uint8Array | null} seed A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
+     * @param {SeedSignerSolCfg} [config] The signer configuration.
+     * @param {SeedSignerSolOpts} [opts] Optional constructor dependencies.
+     * @throws {ValueError} If both or neither of a seed and a root are given, if the seed phrase is invalid, or if the path is not fully hardened.
      */
-    constructor(seed: string, config?: SeedSignerSolCfg, opts?: SeedSignerSolOpts);
+    constructor(seed: string | Uint8Array | null, config?: SeedSignerSolCfg, opts?: SeedSignerSolOpts);
     /** @private */
     _config: SeedSignerSolCfg;
     /** @private */
@@ -16,8 +17,8 @@ export default class SeedSignerSolana implements ISignerSolana {
     /** @private */
     _root: HDKey;
     /**
-     * The solana keypair.
-     * 
+     * The solana keypair, created on first use.
+     *
      * @private
      * @type {KeyPairSigner | undefined}
      */
@@ -26,10 +27,20 @@ export default class SeedSignerSolana implements ISignerSolana {
     private _address;
     /** @private */
     _path: string;
-    /** @private */
-    _rawPublicKey: Uint8Array<ArrayBuffer>;
-    /** @private */
-    _rawPrivateKey: Uint8Array<ArrayBuffer>;
+    /**
+     * Raw Ed25519 public key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array | undefined}
+     */
+    _rawPublicKey: Uint8Array | undefined;
+    /**
+     * Raw Ed25519 private key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array | undefined}
+     */
+    _rawPrivateKey: Uint8Array | undefined;
     get config(): SeedSignerSolCfg;
     get isRoot(): boolean;
     get index(): number;
@@ -38,24 +49,19 @@ export default class SeedSignerSolana implements ISignerSolana {
      * The account's key pair.
      *
      * Returns the raw key pair bytes in standard Solana format.
-     * - privateKey: 32-byte Ed25519 secret key (Uint8Array)
+     * - privateKey: 32-byte Ed25519 secret key (Uint8Array), or null once disposed
      * - publicKey: 32-byte Ed25519 public key (Uint8Array)
      *
      * @type {KeyPair}
      */
-    get keyPair(): {
-        privateKey: Uint8Array<ArrayBuffer>;
-        publicKey: Uint8Array<ArrayBuffer>;
-    };
+    get keyPair(): KeyPair;
     /**
-     * Connect to the account.
-     *
-     * _The function name `connect` follows the hardware signer convention. Here, `connect` means deriving a child HD key from the root node._
+     * Creates the {@link KeyPairSigner} from the raw private key on first use.
      *
      * @private
-     * @returns {Promise<void>} Void.
+     * @returns {Promise<KeyPairSigner>} The key pair signer.
      */
-    private _connect;
+    private _getAccount;
     derive(relPath: string, config?: {}): SeedSignerSolana;
     getAddress(): Promise<string>;
     sign(message: string): Promise<string>;

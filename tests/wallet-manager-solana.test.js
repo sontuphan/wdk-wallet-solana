@@ -31,13 +31,11 @@ const TEST_SEED_PHRASE =
 const TEST_RPC_URL = 'https://mock-url.com'
 
 describe('WalletManagerSolana', () => {
-  let signer
   let wallet
 
-  beforeEach(async () => {
-    signer = new SeedSignerSolana(TEST_SEED_PHRASE)
-    wallet = new WalletManagerSolana(signer, {
-      rpcUrl: TEST_RPC_URL,
+  beforeEach(() => {
+    wallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+      provider: TEST_RPC_URL,
       commitment: 'confirmed'
     })
   })
@@ -49,8 +47,50 @@ describe('WalletManagerSolana', () => {
     })
 
     it('should create wallet manager with string seed phrase', () => {
-      const newWallet = new WalletManagerSolana(TEST_SEED_PHRASE, { rpcUrl: TEST_RPC_URL })
+      const newWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
+        provider: TEST_RPC_URL
+      })
       expect(newWallet).toBeInstanceOf(WalletManagerSolana)
+    })
+
+    it('should derive the same accounts from a default signer as from the seed', async () => {
+      const signerWallet = new WalletManagerSolana(new SeedSignerSolana(TEST_SEED_PHRASE), {
+        provider: TEST_RPC_URL
+      })
+
+      const account = await signerWallet.getAccount(1)
+
+      expect(account.path).toBe("m/44'/501'/1'/0'")
+      expect(await account.getAddress()).toBe('CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK')
+    })
+  })
+
+  describe('signers', () => {
+    const OTHER_SEED_PHRASE =
+      'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+
+    it('should derive the account from the named signer', async () => {
+      wallet.addSigner('other', new SeedSignerSolana(OTHER_SEED_PHRASE))
+
+      const account = await wallet.getAccount(0, { signerName: 'other' })
+      const expected = new WalletAccountSolana(OTHER_SEED_PHRASE, "0'/0'")
+
+      expect(await account.getAddress()).toBe(await expected.getAddress())
+    })
+
+    it('should cache accounts per signer', async () => {
+      wallet.addSigner('other', new SeedSignerSolana(OTHER_SEED_PHRASE))
+
+      const defaultAccount = await wallet.getAccount(0)
+      const otherAccount = await wallet.getAccount(0, { signerName: 'other' })
+
+      expect(otherAccount).not.toBe(defaultAccount)
+      expect(await wallet.getAccount(0, { signerName: 'other' })).toBe(otherAccount)
+    })
+
+    it('should throw if no signer is registered with the given name', async () => {
+      await expect(wallet.getAccount(0, { signerName: 'missing' }))
+        .rejects.toThrow('No signer found with name "missing".')
     })
   })
 
@@ -77,7 +117,7 @@ describe('WalletManagerSolana', () => {
   })
 
   describe('getAccountByPath', () => {
-    it('should return account for path "0\'/0\'/0\'"', async () => {
+    it("should return account for path \"0'/0'/0'\"", async () => {
       const account = await wallet.getAccountByPath("0'/0'/0'")
       expect(account).toBeInstanceOf(WalletAccountSolana)
       expect(account.path).toBe("m/44'/501'/0'/0'/0'")

@@ -13,16 +13,22 @@
 // limitations under the License.
 'use strict'
 
-/** @typedef {ReturnType<import("@solana/rpc-api").SolanaRpcApi['getTransaction']>} SolanaTransactionReceipt */
-
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('@tetherto/wdk-wallet').TransactionResult} TransactionResult */
 /** @typedef {import('@tetherto/wdk-wallet').TransferOptions} TransferOptions */
 /** @typedef {import('@tetherto/wdk-wallet').TransferResult} TransferResult */
+/** @typedef {import('@tetherto/wdk-wallet').Finality} Finality */
+/** @typedef {import('@tetherto/wdk-wallet').TransactionReceipt} TransactionReceipt */
+/** @typedef {import('@tetherto/wdk-wallet').WaitForTransactionTarget} WaitForTransactionTarget */
+/** @typedef {import('@tetherto/wdk-wallet').WaitForTransactionOptions} WaitForTransactionOptions */
 
 /** @typedef {import('./src/wallet-account-read-only-solana.js').SimpleSolanaTransaction} SimpleSolanaTransaction */
+/** @typedef {import('./src/wallet-account-read-only-solana.js').SolanaTransactionReceipt} SolanaTransactionReceipt */
+/** @typedef {import('./src/wallet-account-read-only-solana.js').SolanaTransactionDetails} SolanaTransactionDetails */
+/** @typedef {import('./src/wallet-account-read-only-solana.js').SolanaTransferOptions} SolanaTransferOptions */
+
 /** @typedef {import('./src/wallet-account-solana.js').SolanaTransaction} SolanaTransaction */
 /** @typedef {import('./src/wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
@@ -31,3 +37,13 @@ export { default } from './src/wallet-manager-solana.js'
 export { default as WalletAccountReadOnlySolana } from './src/wallet-account-read-only-solana.js'
 
 export { default as WalletAccountSolana } from './src/wallet-account-solana.js'
+
+export {
+  AssertionError,
+  MaximumFeeExceededError,
+  NoSuchElementError,
+  ProviderRequiredError,
+  TimeoutError,
+  ValueError,
+  WdkError
+} from '@tetherto/wdk-wallet'

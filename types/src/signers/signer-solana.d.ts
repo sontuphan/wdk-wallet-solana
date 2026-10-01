@@ -1,6 +1,7 @@
 /**
  * Assert the full path is hardened.
  * @param {string} path The derivation path.
+ * @throws {ValueError} If any child path is not hardened.
  */
 export function assertFullHardenedPath(path: string): void;
 export class ISignerSolana {
