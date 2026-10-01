@@ -124,6 +124,19 @@ export default class LedgerSignerSolana {
     this._dmk = opts.dmk || new DeviceManagementKitBuilder().addTransport(webHidTransportFactory).build()
   }
 
+  get isDerivable () {
+    return true
+  }
+
+  /**
+   * The ledger does not expose key material.
+   *
+   * @type {null}
+   */
+  get keyPair () {
+    return null
+  }
+
   get index () {
     if (!this._path) return undefined
     return +this._path.replace(/'/g, '').split('/').at(3)

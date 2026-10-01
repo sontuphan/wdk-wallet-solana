@@ -29,6 +29,13 @@ export default class LedgerSignerSolana implements ISignerSolana {
      * @type {DeviceManagementKit}
      */
     _dmk: DeviceManagementKit;
+    get isDerivable(): boolean;
+    /**
+     * The ledger does not expose key material.
+     *
+     * @type {null}
+     */
+    get keyPair(): null;
     get index(): number;
     get path(): string;
     get config(): LedgerSignerSolCfg;

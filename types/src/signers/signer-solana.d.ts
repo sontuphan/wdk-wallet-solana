@@ -6,6 +6,12 @@
 export function assertFullHardenedPath(path: string): void;
 export class ISignerSolana {
     /**
+     * Whether the signer supports account derivation via {@link derive}.
+     *
+     * @type {boolean}
+     */
+    get isDerivable(): boolean;
+    /**
      * The derivation path's index of this account. (i.e. m/purpose'/coin_type'/ **account'** /change/address_index)
      *
      *

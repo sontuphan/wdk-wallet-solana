@@ -43,6 +43,7 @@ export default class SeedSignerSolana implements ISignerSolana {
     _rawPrivateKey: Uint8Array | undefined;
     get config(): SeedSignerSolCfg;
     get isRoot(): boolean;
+    get isDerivable(): boolean;
     get index(): number;
     get path(): string;
     /**

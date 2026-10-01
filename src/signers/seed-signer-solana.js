@@ -144,6 +144,10 @@ export default class SeedSignerSolana {
     return this._isRoot
   }
 
+  get isDerivable () {
+    return true
+  }
+
   get index () {
     if (!this._path) return undefined
     return +this._path.replace(/'/g, '').split('/').at(3)
