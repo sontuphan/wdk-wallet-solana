@@ -51,6 +51,8 @@ import SeedSignerSolana from './signers/seed-signer-solana.js'
 
 /** @typedef {import('./signers/signer-solana.js').ISignerSolana} ISignerSolana */
 
+const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
+
 /** @implements {IWalletAccount<FullySignedTransaction>} */
 export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
   /**
@@ -59,7 +61,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @overload
    * @param {ISignerSolana} signer - The solana signer, derived to an account path.
    * @param {SolanaWalletConfig} [config] - The configuration object.
-   * @throws {ValueError} If the signer is missing or is a root signer.
+   * @throws {ValueError} If the signer is missing.
    */
 
   /**
@@ -75,17 +77,13 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     let signer = seedOrSigner
 
     if (typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array) {
-      signer = new SeedSignerSolana(seedOrSigner).derive(pathOrConfig)
+      signer = new SeedSignerSolana(seedOrSigner, `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${pathOrConfig}`)
     } else {
       config = pathOrConfig ?? {}
     }
 
     if (!signer) {
       throw new ValueError('A signer is required.')
-    }
-
-    if (signer.isRoot) {
-      throw new ValueError('The signer is the root signer. Call derive method to create a child signer.')
     }
 
     super(undefined, config)

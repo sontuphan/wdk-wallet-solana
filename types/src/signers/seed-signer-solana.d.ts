@@ -1,21 +1,29 @@
 /**
+ * Signer implementation that derives keys from a BIP-39 seed using a SLIP-0010 path.
+ *
  * @implements {ISignerSolana}
  */
 export default class SeedSignerSolana implements ISignerSolana {
     /**
-     * @constructor
-     * @param {string | Uint8Array | null} seed A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
-     * @param {SeedSignerSolCfg} [config] The signer configuration.
-     * @param {SeedSignerSolOpts} [opts] Optional constructor dependencies.
-     * @throws {ValueError} If both or neither of a seed and a root are given, if the seed phrase is invalid, or if the path is not fully hardened.
+     * Creates a new seed signer.
+     *
+     * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
+     * @param {string} [path] - An absolute SLIP-0010 path; every segment must be hardened (default: "m/44'/501'").
+     * @throws {ValueError} If the seed phrase is invalid, or if the path is not absolute or not fully hardened.
      */
-    constructor(seed: string | Uint8Array | null, config?: SeedSignerSolCfg, opts?: SeedSignerSolOpts);
+    constructor(seed: string | Uint8Array, path?: string);
+    /**
+     * Binds the signer to an HD node.
+     *
+     * @private
+     * @param {HDKey} node - The HD node at the signer's path.
+     * @param {string} path - The signer's absolute path.
+     */
+    private _init;
     /** @private */
-    _config: SeedSignerSolCfg;
+    private _node;
     /** @private */
-    _isRoot: boolean;
-    /** @private */
-    _root: HDKey;
+    private _path;
     /**
      * The solana keypair, created on first use.
      *
@@ -23,28 +31,35 @@ export default class SeedSignerSolana implements ISignerSolana {
      * @type {KeyPairSigner | undefined}
      */
     private _account;
-    /** @private */
-    private _address;
-    /** @private */
-    _path: string;
-    /**
-     * Raw Ed25519 public key bytes (32 bytes).
-     *
-     * @private
-     * @type {Uint8Array | undefined}
-     */
-    _rawPublicKey: Uint8Array | undefined;
     /**
      * Raw Ed25519 private key bytes (32 bytes).
      *
      * @private
      * @type {Uint8Array | undefined}
      */
-    _rawPrivateKey: Uint8Array | undefined;
-    get config(): SeedSignerSolCfg;
-    get isRoot(): boolean;
-    get isDerivable(): boolean;
-    get index(): number;
+    private _rawPrivateKey;
+    /**
+     * Raw Ed25519 public key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array}
+     */
+    private _rawPublicKey;
+    /** @private */
+    private _address;
+    /**
+     * Whether this signer can derive child signers. Always true: every seed signer holds an
+     * HD node and can derive below its own path.
+     *
+     * @type {true}
+     */
+    get isDerivable(): true;
+    get index(): number | undefined;
+    /**
+     * The signer's absolute derivation path.
+     *
+     * @type {string}
+     */
     get path(): string;
     /**
      * The account's key pair.
@@ -63,7 +78,15 @@ export default class SeedSignerSolana implements ISignerSolana {
      * @returns {Promise<KeyPairSigner>} The key pair signer.
      */
     private _getAccount;
-    derive(relPath: string, config?: {}): SeedSignerSolana;
+    /**
+     * Derives a child signer relative to this signer's own path (e.g. calling derive("0'/0'") on
+     * a signer at "m/44'/501'" yields a child at "m/44'/501'/0'/0'").
+     *
+     * @param {string} relPath - The path segment to derive, relative to this signer's own path.
+     * @returns {Promise<SeedSignerSolana>} The derived child signer.
+     * @throws {ValueError} If the path is not fully hardened.
+     */
+    derive(relPath: string): Promise<SeedSignerSolana>;
     getAddress(): Promise<string>;
     sign(message: string): Promise<string>;
     verify(message: string, signature: string): Promise<boolean>;
@@ -74,14 +97,3 @@ export type ISignerSolana = import("./signer-solana.js").ISignerSolana;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type HDKey = import("micro-key-producer/slip10.js").HDKey;
 export type KeyPairSigner = import("@solana/signers").KeyPairSigner;
-export type SeedSignerSolOpts = {
-    /**
-     * The root node that can be provided alternatively to the seed.
-     */
-    root?: HDKey;
-    /**
-     * The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
-     */
-    path?: string;
-};
-export type SeedSignerSolCfg = any;

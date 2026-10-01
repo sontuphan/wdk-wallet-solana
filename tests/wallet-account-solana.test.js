@@ -95,7 +95,7 @@ describe('WalletAccountSolana', () => {
 
     describe('signer', () => {
       it('should match the seed-constructed account when built from a derived signer', async () => {
-        const signer = new SeedSignerSolana(TEST_SEED_PHRASE).derive("0'/0'/0'")
+        const signer = await new SeedSignerSolana(TEST_SEED_PHRASE).derive("0'/0'/0'")
         const fromSigner = new WalletAccountSolana(signer, { provider: TEST_RPC_URL })
         const fromSeed = new WalletAccountSolana(TEST_SEED_PHRASE, "0'/0'/0'", { provider: TEST_RPC_URL })
 
@@ -108,9 +108,17 @@ describe('WalletAccountSolana', () => {
         expect(() => new WalletAccountSolana(undefined, {})).toThrow('A signer is required.')
       })
 
-      it('should throw if the signer is a root signer', () => {
-        expect(() => new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE), {}))
-          .toThrow('The signer is the root signer. Call derive method to create a child signer.')
+      it('should accept a signer at the coin-type node', async () => {
+        const account = new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE), {})
+        const expected = new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'"), {})
+
+        expect(account.path).toBe("m/44'/501'")
+        expect(await account.getAddress()).toBe(await expected.getAddress())
+      })
+
+      it('should throw if the signer path is not absolute', () => {
+        expect(() => new SeedSignerSolana(TEST_SEED_PHRASE, "44'/501'"))
+          .toThrow('The derivation path must be absolute')
       })
 
       it('should throw if the derivation path is not fully hardened', () => {

@@ -42,38 +42,22 @@ curve.hashes.sha512 = sha512
 /** @typedef {import('micro-key-producer/slip10.js').HDKey} HDKey */
 /** @typedef {import('@solana/signers').KeyPairSigner} KeyPairSigner */
 
-/**
- * @typedef {Object} SeedSignerSolOpts
- * @property {HDKey} [root] The root node that can be provided alternatively to the seed.
- * @property {string} [path] The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
- */
-
-/**
- * @typedef {Object} SeedSignerSolCfg
- */
-
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
 /**
+ * Signer implementation that derives keys from a BIP-39 seed using a SLIP-0010 path.
+ *
  * @implements {ISignerSolana}
  */
 export default class SeedSignerSolana {
   /**
-   * @constructor
-   * @param {string | Uint8Array | null} seed A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
-   * @param {SeedSignerSolCfg} [config] The signer configuration.
-   * @param {SeedSignerSolOpts} [opts] Optional constructor dependencies.
-   * @throws {ValueError} If both or neither of a seed and a root are given, if the seed phrase is invalid, or if the path is not fully hardened.
+   * Creates a new seed signer.
+   *
+   * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
+   * @param {string} [path] - An absolute SLIP-0010 path; every segment must be hardened (default: "m/44'/501'").
+   * @throws {ValueError} If the seed phrase is invalid, or if the path is not absolute or not fully hardened.
    */
-  constructor (seed, config = {}, opts = {}) {
-    if (opts.root && seed) {
-      throw new ValueError('Provide either a seed or a root, not both.')
-    }
-
-    if (!opts.root && !seed) {
-      throw new ValueError('Seed or root is required.')
-    }
-
+  constructor (seed, path = BIP_44_SOL_DERIVATION_PATH_PREFIX) {
     if (typeof seed === 'string') {
       if (!bip39.validateMnemonic(seed)) {
         throw new ValueError('The seed phrase is invalid.')
@@ -81,16 +65,30 @@ export default class SeedSignerSolana {
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
+    if (path !== 'm') {
+      if (!path.startsWith('m/')) {
+        throw new ValueError('The derivation path must be absolute (e.g. "m/44\'/501\'").')
+      }
+
+      assertFullHardenedPath(path.slice(2))
+    }
+
+    this._init(HDKey.fromMasterSeed(seed).derive(path, true), path)
+  }
+
+  /**
+   * Binds the signer to an HD node.
+   *
+   * @private
+   * @param {HDKey} node - The HD node at the signer's path.
+   * @param {string} path - The signer's absolute path.
+   */
+  _init (node, path) {
     /** @private */
-    this._config = config
+    this._node = node
 
     /** @private */
-    this._isRoot = true
-
-    /** @private */
-    this._root =
-      opts.root ||
-      (seed ? HDKey.fromMasterSeed(seed).derive(BIP_44_SOL_DERIVATION_PATH_PREFIX) : undefined)
+    this._path = path
 
     /**
      * The solana keypair, created on first use.
@@ -100,59 +98,46 @@ export default class SeedSignerSolana {
      */
     this._account = undefined
 
-    /** @private */
-    this._address = undefined
-
-    /** @private */
-    this._path = undefined
-
-    /**
-     * Raw Ed25519 public key bytes (32 bytes).
-     *
-     * @private
-     * @type {Uint8Array | undefined}
-     */
-    this._rawPublicKey = undefined
-
     /**
      * Raw Ed25519 private key bytes (32 bytes).
      *
      * @private
      * @type {Uint8Array | undefined}
      */
-    this._rawPrivateKey = undefined
+    this._rawPrivateKey = node.privateKey
 
-    if (opts.path) {
-      assertFullHardenedPath(opts.path)
+    /**
+     * Raw Ed25519 public key bytes (32 bytes).
+     *
+     * @private
+     * @type {Uint8Array}
+     */
+    this._rawPublicKey = curve.getPublicKey(node.privateKey)
 
-      this._path = `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${opts.path}`
-      this._isRoot = false
-
-      const { privateKey } = this._root.derive(`m/${opts.path}`, true)
-
-      this._rawPrivateKey = privateKey
-      this._rawPublicKey = curve.getPublicKey(privateKey)
-      this._address = getAddressDecoder().decode(this._rawPublicKey)
-    }
+    /** @private */
+    this._address = getAddressDecoder().decode(this._rawPublicKey)
   }
 
-  get config () {
-    return this._config
-  }
-
-  get isRoot () {
-    return this._isRoot
-  }
-
+  /**
+   * Whether this signer can derive child signers. Always true: every seed signer holds an
+   * HD node and can derive below its own path.
+   *
+   * @type {true}
+   */
   get isDerivable () {
     return true
   }
 
   get index () {
-    if (!this._path) return undefined
-    return +this._path.replace(/'/g, '').split('/').at(3)
+    const segment = this._path.split('/')[3]
+    return segment === undefined ? undefined : +segment.replace("'", '')
   }
 
+  /**
+   * The signer's absolute derivation path.
+   *
+   * @type {string}
+   */
   get path () {
     return this._path
   }
@@ -180,10 +165,6 @@ export default class SeedSignerSolana {
    * @returns {Promise<KeyPairSigner>} The key pair signer.
    */
   async _getAccount () {
-    if (!this._rawPrivateKey) {
-      throw new ValueError('Not allowed to interact with the root node.')
-    }
-
     if (!this._account) {
       this._account = await createKeyPairSignerFromPrivateKeyBytes(this._rawPrivateKey)
     }
@@ -191,15 +172,21 @@ export default class SeedSignerSolana {
     return this._account
   }
 
-  derive (relPath, config = {}) {
-    const merged = {
-      ...this._config,
-      ...Object.fromEntries(Object.entries(config || {}).filter(([, v]) => v !== undefined))
-    }
-    return new SeedSignerSolana(null, merged, {
-      root: this._root,
-      path: relPath
-    })
+  /**
+   * Derives a child signer relative to this signer's own path (e.g. calling derive("0'/0'") on
+   * a signer at "m/44'/501'" yields a child at "m/44'/501'/0'/0'").
+   *
+   * @param {string} relPath - The path segment to derive, relative to this signer's own path.
+   * @returns {Promise<SeedSignerSolana>} The derived child signer.
+   * @throws {ValueError} If the path is not fully hardened.
+   */
+  async derive (relPath) {
+    assertFullHardenedPath(relPath)
+
+    const signer = Object.create(SeedSignerSolana.prototype)
+    signer._init(this._node.derive(`m/${relPath}`, true), `${this._path}/${relPath}`)
+
+    return signer
   }
 
   async getAddress () {
@@ -239,7 +226,7 @@ export default class SeedSignerSolana {
     }
 
     this._rawPrivateKey = undefined
-    this._root = undefined
+    this._node = undefined
     this._account = undefined
   }
 }

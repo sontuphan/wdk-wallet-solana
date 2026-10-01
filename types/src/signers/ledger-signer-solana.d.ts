@@ -6,11 +6,9 @@ export default class LedgerSignerSolana implements ISignerSolana {
     /**
      * @constructor
      * @param {string} path The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
-     * @param {LedgerSignerSolCfg} config - The signer configuration. Currently unused.
-     * @param {LedgerSignerSolOpts} opts - Optional constructor dependencies.
+     * @param {LedgerSignerSolOpts} [opts] - Optional constructor dependencies.
      */
-    constructor(path: string, config?: LedgerSignerSolCfg, opts?: LedgerSignerSolOpts);
-    _config: LedgerSignerSolCfg;
+    constructor(path: string, opts?: LedgerSignerSolOpts);
     /**
      * The ledger signer.
      * 
@@ -38,7 +36,6 @@ export default class LedgerSignerSolana implements ISignerSolana {
     get keyPair(): null;
     get index(): number;
     get path(): string;
-    get config(): LedgerSignerSolCfg;
     /**
      * Discover and connect the device
      *
@@ -48,10 +45,9 @@ export default class LedgerSignerSolana implements ISignerSolana {
     /**
      * Derive child signer
      * @param {string} relPath The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
-     * @param {LedgerSignerSolCfg} cfg
-     * @returns
+     * @returns {Promise<LedgerSignerSolana>} The derived child signer.
      */
-    derive(relPath: string, cfg?: LedgerSignerSolCfg): LedgerSignerSolana;
+    derive(relPath: string): Promise<LedgerSignerSolana>;
     getAddress(): Promise<string>;
     sign(message: string): Promise<string>;
     verify(message: string, signature: string): Promise<boolean>;
@@ -88,6 +84,5 @@ export type LedgerSignerSolOpts = {
      */
     dmk?: DeviceManagementKit;
 };
-export type LedgerSignerSolCfg = {};
 export type Observable<T> = import("rxjs").Observable<T>;
 export type DeviceActionState<TOutput> = import("@ledgerhq/device-management-kit").DeviceActionState<TOutput, unknown, unknown>;

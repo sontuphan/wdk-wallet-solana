@@ -4,53 +4,18 @@
  * @throws {ValueError} If any child path is not hardened.
  */
 export function assertFullHardenedPath(path: string): void;
-export class ISignerSolana {
-    /**
-     * Whether the signer supports account derivation via {@link derive}.
-     *
-     * @type {boolean}
-     */
-    get isDerivable(): boolean;
+/**
+ * Interface for Solana signers, extending the base `ISigner` from `@tetherto/wdk-wallet`.
+ *
+ * @interface
+ */
+export class ISignerSolana extends ISigner {
     /**
      * The derivation path's index of this account. (i.e. m/purpose'/coin_type'/ **account'** /change/address_index)
      *
-     *
-     * @type {number}
+     * @type {number | undefined}
      */
-    get index(): number;
-    /**
-     * The derivation path of this account.
-     *
-     * @type {string}
-     */
-    get path(): string;
-    /**
-     * The signer config.
-     *
-     * @type {object}
-     */
-    get config(): object;
-    /**
-     * Derive a child account.
-     *
-     * @param {string} relPath - The relative path.
-     * @param {object} config - The config.
-     * @returns {ISignerSolana} The child implementation of ISignerSolana.
-     */
-    derive(relPath: string, config?: object): ISignerSolana;
-    /**
-     * Get address.
-     *
-     * @returns {Promise<string>} The address.
-     */
-    getAddress(): Promise<string>;
-    /**
-     * Signs a message.
-     *
-     * @param {string} message - The message to sign.
-     * @returns {Promise<string>} The message's signature.
-     */
-    sign(message: string): Promise<string>;
+    get index(): number | undefined;
     /**
      * Verifies a message's signature.
      *
@@ -60,14 +25,11 @@ export class ISignerSolana {
      */
     verify(message: string, signature: string): Promise<boolean>;
     /**
-     * Sign a transaction
+     * Signs a transaction, keeping any signatures it already carries.
      *
-     * @param {Uint8Array} unsignedTx - The unsigned transaction.
-     * @returns {Promise<Uint8Array>} The signed transaction.
+     * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
+     * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
      */
     signTransaction(unsignedTx: Uint8Array): Promise<Uint8Array>;
-    /**
-     * Disposes the wallet account, erasing the private key from the memory.
-     */
-    dispose(): void;
 }
+import { ISigner } from "@tetherto/wdk-wallet";

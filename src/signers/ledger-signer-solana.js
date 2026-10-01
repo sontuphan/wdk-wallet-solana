@@ -56,10 +56,6 @@ const BIP_44_SOL_DERIVATION_PATH_PREFIX = "44'/501'"
  */
 
 /**
- * @typedef {{}} LedgerSignerSolCfg
- */
-
-/**
  *
  * @param {string} addr - The signer address
  * @param {string} message - The message
@@ -88,17 +84,14 @@ export default class LedgerSignerSolana {
   /**
    * @constructor
    * @param {string} path The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
-   * @param {LedgerSignerSolCfg} config - The signer configuration. Currently unused.
-   * @param {LedgerSignerSolOpts} opts - Optional constructor dependencies.
+   * @param {LedgerSignerSolOpts} [opts] - Optional constructor dependencies.
    */
-  constructor (path, config = {}, opts = {}) {
+  constructor (path, opts = {}) {
     if (!path) {
       throw new Error('Path is required.')
     }
 
     assertFullHardenedPath(path)
-
-    this._config = config
 
     /**
      * The ledger signer.
@@ -146,10 +139,6 @@ export default class LedgerSignerSolana {
     return this._path
   }
 
-  get config () {
-    return this._config
-  }
-
   /**
    * Discover and connect the device
    *
@@ -182,27 +171,10 @@ export default class LedgerSignerSolana {
   /**
    * Derive child signer
    * @param {string} relPath The BIP-44 derivation path (e.g. "0'/0'"). Note that, All child paths must be hardened in Solana.
-   * @param {LedgerSignerSolCfg} cfg
-   * @returns
+   * @returns {Promise<LedgerSignerSolana>} The derived child signer.
    */
-  derive (relPath, cfg = {}) {
-    /**
-     * @type {LedgerSignerSolCfg}
-     */
-    const mergedCfg = {
-      ...this._config,
-      ...Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== undefined))
-    }
-
-    /**
-     * @type {LedgerSignerSolOpts}
-     */
-    const mergedOpts = {
-      ...this.opts,
-      dmk: this._dmk
-    }
-
-    return new LedgerSignerSolana(`${this._path}/${relPath}`, mergedCfg, mergedOpts)
+  async derive (relPath) {
+    return new LedgerSignerSolana(`${this._path}/${relPath}`, { dmk: this._dmk })
   }
 
   async getAddress () {
