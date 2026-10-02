@@ -29,13 +29,6 @@ export default class SeedSignerSolana implements ISignerSolana {
     /** @private */
     private _path;
     /**
-     * The solana keypair, created on first use.
-     *
-     * @private
-     * @type {KeyPairSigner | undefined}
-     */
-    private _account;
-    /**
      * Raw Ed25519 private key bytes (32 bytes).
      *
      * @private
@@ -75,13 +68,6 @@ export default class SeedSignerSolana implements ISignerSolana {
      */
     get keyPair(): KeyPair;
     /**
-     * Creates the {@link KeyPairSigner} from the raw private key on first use.
-     *
-     * @private
-     * @returns {Promise<KeyPairSigner>} The key pair signer.
-     */
-    private _getAccount;
-    /**
      * Derives a child signer relative to this signer's own path (e.g. calling derive("0'/0'") on
      * a signer at "m/44'/501'" yields a child at "m/44'/501'/0'/0'").
      *
@@ -118,4 +104,3 @@ export default class SeedSignerSolana implements ISignerSolana {
 export type ISignerSolana = import("./signer-solana.js").ISignerSolana;
 export type KeyPair = import("@tetherto/wdk-wallet").KeyPair;
 export type HDKey = import("micro-key-producer/slip10.js").HDKey;
-export type KeyPairSigner = import("@solana/signers").KeyPairSigner;

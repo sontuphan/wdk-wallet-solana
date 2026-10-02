@@ -17,21 +17,16 @@
 import * as bip39 from 'bip39'
 import HDKey, { HARDENED_OFFSET } from 'micro-key-producer/slip10.js'
 import { getAddressDecoder } from '@solana/addresses'
-import { createKeyPairSignerFromPrivateKeyBytes } from '@solana/signers'
 
 // eslint-disable-next-line camelcase
 import { sodium_memzero } from 'sodium-universal'
 
 import * as curve from '@noble/ed25519'
-import { sha512 } from '@noble/hashes/sha2.js'
 
 import { ValueError } from '@tetherto/wdk-wallet'
 
 import { assertAbsoluteHardenedPath, assertFullHardenedPath } from './signer-solana.js'
 import { signMessage, signTransactionBytes } from './utils.js'
-
-// To enable @noble's synchronous methods
-curve.hashes.sha512 = sha512
 
 /**
  * @typedef {import("./signer-solana.js").ISignerSolana} ISignerSolana
@@ -39,7 +34,6 @@ curve.hashes.sha512 = sha512
 
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('micro-key-producer/slip10.js').HDKey} HDKey */
-/** @typedef {import('@solana/signers').KeyPairSigner} KeyPairSigner */
 
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
@@ -130,14 +124,6 @@ export default class SeedSignerSolana {
     this._path = path
 
     /**
-     * The solana keypair, created on first use.
-     *
-     * @private
-     * @type {KeyPairSigner | undefined}
-     */
-    this._account = undefined
-
-    /**
      * Raw Ed25519 private key bytes (32 bytes).
      *
      * @private
@@ -193,20 +179,6 @@ export default class SeedSignerSolana {
   }
 
   /**
-   * Creates the {@link KeyPairSigner} from the raw private key on first use.
-   *
-   * @private
-   * @returns {Promise<KeyPairSigner>} The key pair signer.
-   */
-  async _getAccount () {
-    if (!this._account) {
-      this._account = await createKeyPairSignerFromPrivateKeyBytes(this._rawPrivateKey)
-    }
-
-    return this._account
-  }
-
-  /**
    * Derives a child signer relative to this signer's own path (e.g. calling derive("0'/0'") on
    * a signer at "m/44'/501'" yields a child at "m/44'/501'/0'/0'").
    *
@@ -242,7 +214,7 @@ export default class SeedSignerSolana {
    * @returns {Promise<string>} The message's signature.
    */
   async sign (message) {
-    return await signMessage(await this._getAccount(), message)
+    return signMessage(this._rawPrivateKey, message)
   }
 
   /**
@@ -252,7 +224,7 @@ export default class SeedSignerSolana {
    * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
    */
   async signTransaction (unsignedTx) {
-    return await signTransactionBytes(await this._getAccount(), unsignedTx)
+    return signTransactionBytes(this._rawPrivateKey, this._address, unsignedTx)
   }
 
   /**
@@ -265,6 +237,5 @@ export default class SeedSignerSolana {
 
     this._rawPrivateKey = undefined
     this._node = undefined
-    this._account = undefined
   }
 }

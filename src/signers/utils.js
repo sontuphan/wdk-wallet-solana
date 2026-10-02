@@ -14,34 +14,55 @@
 
 'use strict'
 
-import { signBytes } from '@solana/keys'
-import { getTransactionDecoder, getTransactionEncoder, partiallySignTransaction } from '@solana/transactions'
+import { getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
+import { SolanaError, SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION } from '@solana/errors'
 
-/** @typedef {import('@solana/signers').KeyPairSigner} KeyPairSigner */
+import * as curve from '@noble/ed25519'
+import { sha512 } from '@noble/hashes/sha2.js'
+
+// To enable @noble's synchronous methods
+curve.hashes.sha512 = sha512
 
 /**
- * Signs a message with an Ed25519 key pair.
+ * Signs a message with a raw Ed25519 private key.
  *
- * @param {KeyPairSigner} account - The key pair signer.
+ * The key is used in place: no `CryptoKey`, PKCS#8 or JWK copy of it is ever created.
+ *
+ * @param {Uint8Array} privateKey - The raw Ed25519 private key (32 bytes).
  * @param {string} message - The message to sign.
- * @returns {Promise<string>} The message's signature, as a hex string.
+ * @returns {string} The message's signature, as a hex string.
  */
-export async function signMessage (account, message) {
-  const signature = await signBytes(account.keyPair.privateKey, Buffer.from(message, 'utf8'))
-
-  return Buffer.from(signature).toString('hex')
+export function signMessage (privateKey, message) {
+  return Buffer.from(curve.sign(Buffer.from(message, 'utf8'), privateKey)).toString('hex')
 }
 
 /**
- * Adds a key pair's signature to a wire-encoded transaction, keeping the signatures it already carries.
+ * Adds a raw Ed25519 private key's signature to a wire-encoded transaction, keeping the
+ * signatures it already carries.
  *
- * @param {KeyPairSigner} account - The key pair signer.
+ * @param {Uint8Array} privateKey - The raw Ed25519 private key (32 bytes).
+ * @param {string} address - The key's address.
  * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
- * @returns {Promise<Uint8Array>} The wire-encoded transaction with the key pair's signature added.
+ * @returns {Uint8Array} The wire-encoded transaction with the key's signature added.
+ * @throws {SolanaError} With code `SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION` if the address is not one of the transaction's signers.
  */
-export async function signTransactionBytes (account, unsignedTx) {
+export function signTransactionBytes (privateKey, address, unsignedTx) {
   const transaction = getTransactionDecoder().decode(unsignedTx)
-  const signedTransaction = await partiallySignTransaction([account.keyPair], transaction)
+
+  if (transaction.signatures[address] === undefined) {
+    throw new SolanaError(SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION, {
+      expectedAddresses: Object.keys(transaction.signatures),
+      unexpectedAddresses: [address]
+    })
+  }
+
+  const signedTransaction = {
+    ...transaction,
+    signatures: {
+      ...transaction.signatures,
+      [address]: curve.sign(transaction.messageBytes, privateKey)
+    }
+  }
 
   return Uint8Array.from(getTransactionEncoder().encode(signedTransaction))
 }
