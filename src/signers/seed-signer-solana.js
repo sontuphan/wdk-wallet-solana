@@ -15,7 +15,7 @@
 'use strict'
 
 import * as bip39 from 'bip39'
-import HDKey from 'micro-key-producer/slip10.js'
+import HDKey, { HARDENED_OFFSET } from 'micro-key-producer/slip10.js'
 import { getAddressDecoder } from '@solana/addresses'
 import { createKeyPairSignerFromPrivateKeyBytes } from '@solana/signers'
 
@@ -44,7 +44,50 @@ curve.hashes.sha512 = sha512
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
 /**
+ * Securely erases an HD node's private key and chain code from memory.
+ *
+ * @param {HDKey} node - The HD node.
+ */
+function scrub (node) {
+  sodium_memzero(node.privateKey)
+  sodium_memzero(node.chainCode)
+}
+
+/**
+ * Derives the hardened child of an HD node for one path segment (e.g. "44'").
+ *
+ * @param {HDKey} node - The parent HD node.
+ * @param {string} segment - The path segment.
+ * @returns {HDKey} The child HD node.
+ */
+function deriveHardenedChild (node, segment) {
+  return node.deriveChild(HARDENED_OFFSET + parseInt(segment, 10))
+}
+
+/**
+ * Derives an HD node along the given path segments, erasing every node it leaves behind,
+ * including the starting one, so that only the returned node holds key material.
+ *
+ * @param {HDKey} node - The starting HD node.
+ * @param {string[]} segments - The path segments to derive.
+ * @returns {HDKey} The HD node at the end of the path.
+ */
+function deriveAndScrub (node, segments) {
+  for (const segment of segments) {
+    const child = deriveHardenedChild(node, segment)
+    scrub(node)
+    node = child
+  }
+
+  return node
+}
+
+/**
  * Signer implementation that derives keys from a BIP-39 seed using a SLIP-0010 path.
+ *
+ * Every signer holds exactly one HD node and owns an independent copy of its key, so disposing
+ * one never affects its parent, children or siblings. Intermediate nodes built while deriving
+ * (including the master node) are erased as soon as they are no longer needed.
  *
  * @implements {ISignerSolana}
  */
@@ -66,7 +109,10 @@ export default class SeedSignerSolana {
 
     assertAbsoluteHardenedPath(path)
 
-    this._init(HDKey.fromMasterSeed(seed).derive(path, true), path)
+    const master = HDKey.fromMasterSeed(seed)
+    const node = path === 'm' ? master : deriveAndScrub(master, path.slice(2).split('/'))
+
+    this._init(node, path)
   }
 
   /**
@@ -171,27 +217,50 @@ export default class SeedSignerSolana {
   async derive (relPath) {
     assertFullHardenedPath(relPath)
 
+    const [first, ...rest] = relPath.split('/')
+    const node = deriveAndScrub(deriveHardenedChild(this._node, first), rest)
+
     const signer = Object.create(SeedSignerSolana.prototype)
-    signer._init(this._node.derive(`m/${relPath}`, true), `${this._path}/${relPath}`)
+    signer._init(node, `${this._path}/${relPath}`)
 
     return signer
   }
 
+  /**
+   * Returns the account's derived address.
+   *
+   * @returns {Promise<string>} The account's address.
+   */
   async getAddress () {
     return this._address
   }
 
+  /**
+   * Signs a message.
+   *
+   * @param {string} message - The message to sign.
+   * @returns {Promise<string>} The message's signature.
+   */
   async sign (message) {
     return await signMessage(await this._getAccount(), message)
   }
 
+  /**
+   * Signs a transaction, keeping any signatures it already carries.
+   *
+   * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
+   * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
+   */
   async signTransaction (unsignedTx) {
     return await signTransactionBytes(await this._getAccount(), unsignedTx)
   }
 
+  /**
+   * Disposes the signer, securely erasing its private key and chain code from memory.
+   */
   dispose () {
-    if (this._rawPrivateKey) {
-      sodium_memzero(this._rawPrivateKey)
+    if (this._node) {
+      scrub(this._node)
     }
 
     this._rawPrivateKey = undefined

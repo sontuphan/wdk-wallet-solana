@@ -1,6 +1,10 @@
 /**
  * Signer implementation that derives keys from a BIP-39 seed using a SLIP-0010 path.
  *
+ * Every signer holds exactly one HD node and owns an independent copy of its key, so disposing
+ * one never affects its parent, children or siblings. Intermediate nodes built while deriving
+ * (including the master node) are erased as soon as they are no longer needed.
+ *
  * @implements {ISignerSolana}
  */
 export default class SeedSignerSolana implements ISignerSolana {
@@ -86,9 +90,29 @@ export default class SeedSignerSolana implements ISignerSolana {
      * @throws {ValueError} If the path is not fully hardened.
      */
     derive(relPath: string): Promise<SeedSignerSolana>;
+    /**
+     * Returns the account's derived address.
+     *
+     * @returns {Promise<string>} The account's address.
+     */
     getAddress(): Promise<string>;
+    /**
+     * Signs a message.
+     *
+     * @param {string} message - The message to sign.
+     * @returns {Promise<string>} The message's signature.
+     */
     sign(message: string): Promise<string>;
+    /**
+     * Signs a transaction, keeping any signatures it already carries.
+     *
+     * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
+     * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
+     */
     signTransaction(unsignedTx: Uint8Array): Promise<Uint8Array>;
+    /**
+     * Disposes the signer, securely erasing its private key and chain code from memory.
+     */
     dispose(): void;
 }
 export type ISignerSolana = import("./signer-solana.js").ISignerSolana;
