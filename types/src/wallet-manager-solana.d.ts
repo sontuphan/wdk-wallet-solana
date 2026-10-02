@@ -2,6 +2,9 @@ export default class WalletManagerSolana extends WalletManager {
     /**
      * Creates a new wallet manager for the solana blockchain from a seed.
      *
+     * The manager wraps the seed in a {@link SeedSignerSolana} at "m/44'/501'", owns it, and wipes it on
+     * {@link dispose}. The seed itself is not kept.
+     *
      * @overload
      * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
      * @param {SolanaWalletConfig} [config] - The configuration object.
@@ -10,11 +13,24 @@ export default class WalletManagerSolana extends WalletManager {
     /**
      * Creates a new wallet manager for the solana blockchain from a default signer.
      *
+     * The default signer must be derivable (it must be able to derive child accounts);
+     * non-derivable signers (e.g. private-key signers) are not allowed as the default but
+     * may be registered by name via {@link addSigner}.
+     * **Warning:** the signer is kept exactly as given, not cloned. Disposing it directly breaks
+     * further account derivation, and the manager never disposes a signer you supplied.
+     *
      * @overload
      * @param {ISignerSolana} signer - The default root signer.
      * @param {SolanaWalletConfig} [config] - The configuration object.
      */
     constructor(signer: ISignerSolana, config?: SolanaWalletConfig);
+    /**
+     * If true, disposes the default signer on calls to the 'dispose' method.
+     *
+     * @protected
+     * @type {boolean}
+     */
+    protected _shouldWipeDefaultSignerOnDisposal: boolean;
     /**
      * A Solana RPC client for HTTP requests.
      *
@@ -31,6 +47,11 @@ export default class WalletManagerSolana extends WalletManager {
     protected _commitment: Commitment;
     /**
      * Returns the wallet account at a specific index (see [SLIP-0010](https://slips.readthedocs.io/en/latest/slip-0010/)).
+     *
+     * **Warning:** derivation is relative to the signer's own path. If the signer sits at a leaf
+     * (e.g. m/44'/501'/0'/0'), getAccount(1) derives m/44'/501'/0'/0'/1'/0', probably not what
+     * you want; use a signer at the coin-type node (m/44'/501'), which is where
+     * `SeedSignerSolana` sits by default.
      *
      * @example
      * // Returns the account with derivation path m/44'/501'/index'/0'
@@ -54,7 +75,6 @@ export default class WalletManagerSolana extends WalletManager {
      * @overload
      * @param {string} signerName - The signer name registered via {@link addSigner}.
      * @returns {Promise<WalletAccountSolana>} The account.
-     * @throws {NoSuchElementError} If no signer exists with the given name.
      */
     getAccount(signerName: string): Promise<WalletAccountSolana>;
     /**
@@ -86,6 +106,11 @@ export default class WalletManagerSolana extends WalletManager {
      * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
      */
     getFeeRates(): Promise<FeeRates>;
+    /**
+     * Disposes all wallet accounts, and the default signer if the manager built it from a seed.
+     * A signer supplied by the caller, as the default or via {@link addSigner}, is never disposed.
+     */
+    dispose(): void;
 }
 export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
 export type Commitment = import("@solana/rpc-types").Commitment;
@@ -93,6 +118,5 @@ export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type SolanaWalletConfig = import("./wallet-account-solana.js").SolanaWalletConfig;
 export type ISignerSolana = import("./signers/signer-solana.js").ISignerSolana;
 export type PrivateKeySignerSolana = import("./signers/private-key-signer-solana.js").default;
-export type NoSuchElementError = import("@tetherto/wdk-wallet").NoSuchElementError;
 import WalletManager from "@tetherto/wdk-wallet";
 import WalletAccountSolana from "./wallet-account-solana.js";
