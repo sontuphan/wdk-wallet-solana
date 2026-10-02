@@ -99,6 +99,24 @@ describe('WalletManagerSolana', () => {
       expect(await wallet.getAccount('treasury')).toBe(account)
     })
 
+    it('should not wipe a registered signer on dispose', async () => {
+      const signer = new PrivateKeySignerSolana('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+      wallet.addSigner('treasury', signer)
+      await wallet.getAccount('treasury')
+
+      wallet.dispose()
+
+      expect(Buffer.from(signer.keyPair.privateKey).toString('hex')).toBe('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+    })
+
+    it('should wipe the accounts it derived on dispose', async () => {
+      const account = await wallet.getAccount(0)
+
+      wallet.dispose()
+
+      expect(account.keyPair.privateKey).toBeNull()
+    })
+
     it('should throw if no signer is registered with the given name', async () => {
       await expect(wallet.getAccount(0, { signerName: 'missing' }))
         .rejects.toThrow('No signer found with name "missing".')

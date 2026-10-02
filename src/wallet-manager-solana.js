@@ -144,7 +144,7 @@ export default class WalletManagerSolana extends WalletManager {
     if (!this._accounts[key]) {
       const signer = await this.getSigner(signerName).derive(path)
 
-      this._accounts[key] = new WalletAccountSolana(signer, this._accountConfig())
+      this._accounts[key] = new WalletAccountSolana(signer, { ...this._accountConfig(), shouldWipeSignerOnDisposal: true })
     }
 
     return this._accounts[key]

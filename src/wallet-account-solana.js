@@ -29,6 +29,7 @@ import { AssertionError, MaximumFeeExceededError, ProviderRequiredError, ValueEr
 
 import WalletAccountReadOnlySolana from './wallet-account-read-only-solana.js'
 import SeedSignerSolana from './signers/seed-signer-solana.js'
+import PrivateKeySignerSolana from './signers/private-key-signer-solana.js'
 
 /**
  * @template TSignedTransaction
@@ -51,6 +52,11 @@ import SeedSignerSolana from './signers/seed-signer-solana.js'
 
 /** @typedef {import('./signers/signer-solana.js').ISignerSolana} ISignerSolana */
 
+/**
+ * @typedef {Object} SignerOptions
+ * @property {boolean} [shouldWipeSignerOnDisposal] - If true, wipes the signer given at construction on calls to the 'dispose' method.
+ */
+
 const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
 const DEFAULT_ACCOUNT_PATH = "0'/0'"
@@ -62,7 +68,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @overload
    * @param {ISignerSolana} signer - The solana signer, derived to an account path.
-   * @param {SolanaWalletConfig} [config] - The configuration object.
+   * @param {SolanaWalletConfig & SignerOptions} [config] - The configuration object.
    * @throws {ValueError} If the signer is missing.
    */
 
@@ -85,9 +91,11 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @throws {ValueError} If the seed phrase is not a valid BIP-39 seed phrase.
    */
   constructor (seedOrSigner, pathOrConfig, config = {}) {
+    const isSeed = typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array
+
     let signer = seedOrSigner
 
-    if (typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array) {
+    if (isSeed) {
       let path = pathOrConfig
 
       if (typeof pathOrConfig !== 'string') {
@@ -123,9 +131,29 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     this._signer = signer
 
     /**
+     * If true, disposes the signer on calls to the 'dispose' method.
+     *
+     * @protected
+     * @type {boolean}
+     */
+    this._shouldWipeSignerOnDisposal = isSeed || Boolean(config.shouldWipeSignerOnDisposal)
+
+    /**
      * @private
      */
     this._disposed = false
+  }
+
+  /**
+   * Creates a new solana wallet account from a raw private key. The account owns the signer it creates
+   * and wipes it on {@link dispose}.
+   *
+   * @param {string | Uint8Array} privateKey - A 32-byte Ed25519 private key (hex string or bytes), or a 64-byte secret key (base58 string or bytes).
+   * @param {SolanaWalletConfig} [config] - The configuration object.
+   * @returns {WalletAccountSolana} The wallet account.
+   */
+  static fromPrivateKey (privateKey, config = {}) {
+    return new WalletAccountSolana(new PrivateKeySignerSolana(privateKey), { ...config, shouldWipeSignerOnDisposal: true })
   }
 
   /**
@@ -157,7 +185,9 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * it's strongly recommended to treat the key pair as a read-only view of the keys. While it's still technically possible to alter their
    * content, client code should never do so.
    *
-   * @type {KeyPair}
+   * Null if the account's signer does not expose key material.
+   *
+   * @type {KeyPair | null}
    */
   get keyPair () {
     return this._signer.keyPair
@@ -454,9 +484,13 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
 
   /**
    * Disposes the wallet account, erasing the private key from the memory.
+   * The signer given at construction is wiped only if the account owns it (see {@link SignerOptions}).
    */
   dispose () {
-    this._signer.dispose()
+    if (this._shouldWipeSignerOnDisposal) {
+      this._signer.dispose()
+    }
+
     this._disposed = true
   }
 }

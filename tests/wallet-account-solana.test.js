@@ -37,6 +37,7 @@ import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
 import SeedSignerSolana from '../src/signers/seed-signer-solana.js'
+import PrivateKeySignerSolana from '../src/signers/private-key-signer-solana.js'
 
 const TEST_SEED_PHRASE =
   'test walk nut penalty hip pave soap entry language right filter choice'
@@ -239,6 +240,53 @@ describe('WalletAccountSolana', () => {
       it('should have correct path for custom derivation', async () => {
         const customAccount = await wallet.getAccountByPath("1'/2'/3'")
         expect(customAccount.path).toBe("m/44'/501'/1'/2'/3'")
+      })
+    })
+
+    describe('fromPrivateKey', () => {
+      it('should create the account of the private key', async () => {
+        const account = WalletAccountSolana.fromPrivateKey('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f', { provider: TEST_RPC_URL })
+
+        expect(account).toBeInstanceOf(WalletAccountSolana)
+        expect(account.path).toBeNull()
+        expect(await account.getAddress()).toBe('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+      })
+
+      it('should wipe the signer it created on dispose', () => {
+        const account = WalletAccountSolana.fromPrivateKey('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+
+        account.dispose()
+
+        expect(account.keyPair.privateKey).toBeNull()
+      })
+    })
+
+    describe('signer ownership', () => {
+      it('should not wipe a signer supplied by the caller on dispose', async () => {
+        const signer = await new SeedSignerSolana(TEST_SEED_PHRASE).derive("0'/0'")
+        const account = new WalletAccountSolana(signer, {})
+
+        account.dispose()
+
+        expect(Buffer.from(signer.keyPair.privateKey).toString('hex')).toBe('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+        await expect(account.sign('Hello, Solana!')).rejects.toThrow('The wallet account has been disposed.')
+      })
+
+      it('should wipe a caller-supplied signer when asked to', async () => {
+        const signer = await new SeedSignerSolana(TEST_SEED_PHRASE).derive("0'/0'")
+        const account = new WalletAccountSolana(signer, { shouldWipeSignerOnDisposal: true })
+
+        account.dispose()
+
+        expect(signer.keyPair.privateKey).toBeNull()
+      })
+
+      it('should wipe the signer it built from a seed', () => {
+        const account = new WalletAccountSolana(TEST_SEED_PHRASE)
+
+        account.dispose()
+
+        expect(account.keyPair.privateKey).toBeNull()
       })
     })
 

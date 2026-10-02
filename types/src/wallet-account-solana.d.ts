@@ -11,14 +11,23 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      */
     static at(seed: string | Uint8Array, path: string, config?: SolanaWalletConfig): Promise<WalletAccountSolana>;
     /**
+     * Creates a new solana wallet account from a raw private key. The account owns the signer it creates
+     * and wipes it on {@link dispose}.
+     *
+     * @param {string | Uint8Array} privateKey - A 32-byte Ed25519 private key (hex string or bytes), or a 64-byte secret key (base58 string or bytes).
+     * @param {SolanaWalletConfig} [config] - The configuration object.
+     * @returns {WalletAccountSolana} The wallet account.
+     */
+    static fromPrivateKey(privateKey: string | Uint8Array, config?: SolanaWalletConfig): WalletAccountSolana;
+    /**
      * Creates a new solana wallet account from a signer.
      *
      * @overload
      * @param {ISignerSolana} signer - The solana signer, derived to an account path.
-     * @param {SolanaWalletConfig} [config] - The configuration object.
+     * @param {SolanaWalletConfig & SignerOptions} [config] - The configuration object.
      * @throws {ValueError} If the signer is missing.
      */
-    constructor(signer: ISignerSolana, config?: SolanaWalletConfig);
+    constructor(signer: ISignerSolana, config?: SolanaWalletConfig & SignerOptions);
     /**
      * Creates a new solana wallet account from a seed.
      *
@@ -46,6 +55,13 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      */
     private _signer;
     /**
+     * If true, disposes the signer on calls to the 'dispose' method.
+     *
+     * @protected
+     * @type {boolean}
+     */
+    protected _shouldWipeSignerOnDisposal: boolean;
+    /**
      * @private
      */
     private _disposed;
@@ -62,9 +78,11 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      * it's strongly recommended to treat the key pair as a read-only view of the keys. While it's still technically possible to alter their
      * content, client code should never do so.
      *
-     * @type {KeyPair}
+     * Null if the account's signer does not expose key material.
+     *
+     * @type {KeyPair | null}
      */
-    get keyPair(): KeyPair;
+    get keyPair(): KeyPair | null;
     /**
      * Signs a message.
      *
@@ -167,6 +185,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
     _solanaReadOnlyAccount: WalletAccountReadOnlySolana;
     /**
      * Disposes the wallet account, erasing the private key from the memory.
+     * The signer given at construction is wiped only if the account owns it (see {@link SignerOptions}).
      */
     dispose(): void;
 }
@@ -182,4 +201,10 @@ export type SolanaWalletConfig = import("./wallet-account-read-only-solana.js").
 export type Transaction = import("@solana/transactions").Transaction;
 export type FullySignedTransaction = import("@solana/transactions").FullySignedTransaction;
 export type ISignerSolana = import("./signers/signer-solana.js").ISignerSolana;
+export type SignerOptions = {
+    /**
+     * - If true, wipes the signer given at construction on calls to the 'dispose' method.
+     */
+    shouldWipeSignerOnDisposal?: boolean;
+};
 import WalletAccountReadOnlySolana from "./wallet-account-read-only-solana.js";
