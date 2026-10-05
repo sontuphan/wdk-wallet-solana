@@ -141,6 +141,9 @@ export default class PrivateKeySignerSolana {
 
     /** @private */
     this._address = getAddressDecoder().decode(this._rawPublicKey)
+
+    /** @private */
+    this._disposed = false
   }
 
   /**
@@ -159,6 +162,15 @@ export default class PrivateKeySignerSolana {
    */
   get path () {
     return null
+  }
+
+  /**
+   * True if the signer has been disposed.
+   *
+   * @type {boolean}
+   */
+  get disposed () {
+    return this._disposed
   }
 
   /**
@@ -222,5 +234,6 @@ export default class PrivateKeySignerSolana {
     }
 
     this._rawPrivateKey = undefined
+    this._disposed = true
   }
 }

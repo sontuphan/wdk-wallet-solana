@@ -169,6 +169,18 @@ describe('PrivateKeySignerSolana', () => {
     })
   })
 
+  describe('disposed', () => {
+    it('should be false after construction and true after dispose', () => {
+      const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
+
+      expect(signer.disposed).toBe(false)
+
+      signer.dispose()
+
+      expect(signer.disposed).toBe(true)
+    })
+  })
+
   describe('key ownership', () => {
     it('should keep signing after the caller wipes the supplied key', async () => {
       const suppliedKey = Buffer.from(PRIVATE_KEY, 'hex')

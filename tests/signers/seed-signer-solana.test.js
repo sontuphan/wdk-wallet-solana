@@ -184,6 +184,24 @@ describe('SeedSignerSolana', () => {
   })
 
   describe('dispose', () => {
+    it('should not be disposed after construction or derivation', async () => {
+      const signer = new SeedSignerSolana(TEST_SEED_PHRASE)
+      const child = await signer.derive("0'/0'")
+
+      expect(signer.disposed).toBe(false)
+      expect(child.disposed).toBe(false)
+    })
+
+    it('should mark only the disposed signer as disposed', async () => {
+      const parent = new SeedSignerSolana(TEST_SEED_PHRASE)
+      const child = await parent.derive("0'/0'")
+
+      parent.dispose()
+
+      expect(parent.disposed).toBe(true)
+      expect(child.disposed).toBe(false)
+    })
+
     it('should erase the private key and keep the public key', () => {
       const signer = new SeedSignerSolana(TEST_SEED_PHRASE, ACCOUNT_0.path)
 

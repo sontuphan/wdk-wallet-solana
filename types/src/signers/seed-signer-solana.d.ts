@@ -44,6 +44,8 @@ export default class SeedSignerSolana implements ISignerSolana {
     private _rawPublicKey;
     /** @private */
     private _address;
+    /** @private */
+    private _disposed;
     /**
      * Whether this signer can derive child signers. Always true: every seed signer holds an
      * HD node and can derive below its own path.
@@ -57,6 +59,12 @@ export default class SeedSignerSolana implements ISignerSolana {
      * @type {string}
      */
     get path(): string;
+    /**
+     * True if the signer has been disposed.
+     *
+     * @type {boolean}
+     */
+    get disposed(): boolean;
     /**
      * The account's key pair.
      *

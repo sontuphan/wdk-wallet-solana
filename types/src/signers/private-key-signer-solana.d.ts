@@ -36,6 +36,8 @@ export default class PrivateKeySignerSolana implements ISignerSolana {
     private _rawPublicKey;
     /** @private */
     private _address;
+    /** @private */
+    private _disposed;
     /**
      * Whether this signer can derive child signers.
      *
@@ -48,6 +50,12 @@ export default class PrivateKeySignerSolana implements ISignerSolana {
      * @type {null}
      */
     get path(): null;
+    /**
+     * True if the signer has been disposed.
+     *
+     * @type {boolean}
+     */
+    get disposed(): boolean;
     /**
      * The account's key pair.
      *

@@ -141,6 +141,9 @@ export default class SeedSignerSolana {
 
     /** @private */
     this._address = getAddressDecoder().decode(this._rawPublicKey)
+
+    /** @private */
+    this._disposed = false
   }
 
   /**
@@ -160,6 +163,15 @@ export default class SeedSignerSolana {
    */
   get path () {
     return this._path
+  }
+
+  /**
+   * True if the signer has been disposed.
+   *
+   * @type {boolean}
+   */
+  get disposed () {
+    return this._disposed
   }
 
   /**
@@ -237,5 +249,6 @@ export default class SeedSignerSolana {
 
     this._rawPrivateKey = undefined
     this._node = undefined
+    this._disposed = true
   }
 }
