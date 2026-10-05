@@ -25,7 +25,7 @@ import * as curve from '@noble/ed25519'
 
 import { ValueError } from '@tetherto/wdk-wallet'
 
-import { assertAbsoluteHardenedPath, assertFullHardenedPath } from './signer-solana.js'
+import { assertFullHardenedPath } from './signer-solana.js'
 import { signMessage, signTransactionBytes } from './utils.js'
 
 /**
@@ -101,7 +101,7 @@ export default class SeedSignerSolana {
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
-    assertAbsoluteHardenedPath(path)
+    assertFullHardenedPath(path, true)
 
     const master = HDKey.fromMasterSeed(seed)
     const node = path === 'm' ? master : deriveAndScrub(master, path.slice(2).split('/'))

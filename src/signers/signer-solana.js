@@ -17,33 +17,29 @@
 import { ISigner, NotImplementedError, ValueError } from '@tetherto/wdk-wallet'
 
 /**
- * Assert the full path is hardened.
+ * Assert every child path in the derivation path is hardened.
  * @param {string} path The derivation path.
- * @throws {ValueError} If any child path is not hardened.
+ * @param {boolean} [absolute] If true, the path must also be absolute ("m" or "m/...").
+ * @throws {ValueError} If the path is required to be absolute and is not, or if any child path is not hardened.
  */
-export function assertFullHardenedPath (path) {
+export function assertFullHardenedPath (path, absolute = false) {
+  if (absolute) {
+    if (path === 'm') {
+      return
+    }
+
+    if (!path.startsWith('m/')) {
+      throw new ValueError('The derivation path must be absolute (e.g. "m/44\'/501\'").')
+    }
+
+    path = path.slice(2)
+  }
+
   const isValid = path.split('/').reduce((s, e) => s && e.endsWith("'"), true)
 
   if (!isValid) {
     throw new ValueError('In Solana, every child path in a derivation path must be hardened.')
   }
-}
-
-/**
- * Assert the path is absolute ("m" or "m/...") and every segment below "m" is hardened.
- * @param {string} path The derivation path.
- * @throws {ValueError} If the path is not absolute or any child path is not hardened.
- */
-export function assertAbsoluteHardenedPath (path) {
-  if (path === 'm') {
-    return
-  }
-
-  if (!path.startsWith('m/')) {
-    throw new ValueError('The derivation path must be absolute (e.g. "m/44\'/501\'").')
-  }
-
-  assertFullHardenedPath(path.slice(2))
 }
 
 /**
