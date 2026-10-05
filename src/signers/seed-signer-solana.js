@@ -48,17 +48,6 @@ function scrub (node) {
 }
 
 /**
- * Derives the hardened child of an HD node for one path segment (e.g. "44'").
- *
- * @param {HDKey} node - The parent HD node.
- * @param {string} segment - The path segment.
- * @returns {HDKey} The child HD node.
- */
-function deriveHardenedChild (node, segment) {
-  return node.deriveChild(HARDENED_OFFSET + parseInt(segment, 10))
-}
-
-/**
  * Derives an HD node along the given path segments, erasing every node it leaves behind,
  * including the starting one, so that only the returned node holds key material.
  *
@@ -68,7 +57,7 @@ function deriveHardenedChild (node, segment) {
  */
 function deriveAndScrub (node, segments) {
   for (const segment of segments) {
-    const child = deriveHardenedChild(node, segment)
+    const child = node.deriveChild(HARDENED_OFFSET + parseInt(segment, 10))
     scrub(node)
     node = child
   }
@@ -207,7 +196,7 @@ export default class SeedSignerSolana {
     assertFullHardenedPath(relPath)
 
     const [first, ...rest] = relPath.split('/')
-    const node = deriveAndScrub(deriveHardenedChild(this._node, first), rest)
+    const node = deriveAndScrub(this._node.deriveChild(HARDENED_OFFSET + parseInt(first, 10)), rest)
 
     const signer = Object.create(SeedSignerSolana.prototype)
     signer._init(node, `${this._path}/${relPath}`)
