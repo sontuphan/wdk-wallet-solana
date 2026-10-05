@@ -66,6 +66,12 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      */
     private _disposed;
     /**
+     * True if the wallet account has been disposed.
+     *
+     * @type {boolean}
+     */
+    get disposed(): boolean;
+    /**
      * The derivation path of this account, or null for an account backed by a non-HD signer.
      *
      * @type {string | null}
@@ -88,7 +94,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      *
      * @param {string} message - The message to sign.
      * @returns {Promise<string>} The message's signature.
-     * @throws {AssertionError} If the wallet account has been disposed.
+     * @throws {DisposalError} If the wallet account has been disposed.
      */
     sign(message: string): Promise<string>;
     /**
@@ -96,7 +102,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      *
      * @param {SolanaTransaction} tx - The transaction to sign: an unsigned transaction or a base64-encoded serialized transaction.
      * @returns {Promise<FullySignedTransaction>} The signed transaction.
-     * @throws {AssertionError} If the wallet account has been disposed.
+     * @throws {DisposalError} If the wallet account has been disposed.
      * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
      * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
      */
@@ -114,7 +120,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      *
      * @param {SolanaTransaction | FullySignedTransaction} tx - The transaction. Either an unsigned transaction, an already-signed transaction, or a base64-encoded serialized transaction.
      * @returns {Promise<TransactionResult>} The transaction's result.
-     * @throws {AssertionError} If the wallet account has been disposed.
+     * @throws {DisposalError} If the wallet account has been disposed.
      * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
      * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
      */
@@ -170,7 +176,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      * @param {TransferOptions} options - The transfer's options.
      * @param {SolanaTransferOptions} [solanaOptions] - The transfer's Solana-specific options.
      * @returns {Promise<TransferResult>} The transfer's result.
-     * @throws {AssertionError} If the wallet account has been disposed.
+     * @throws {DisposalError} If the wallet account has been disposed.
      * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
      * @throws {MaximumFeeExceededError} If the transfer's cost exceeds the maximum transfer fee option.
      * @note only SPL tokens - won't work for native SOL

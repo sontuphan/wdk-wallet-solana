@@ -25,7 +25,7 @@ import { getCompiledTransactionMessageDecoder, setTransactionMessageFeePayer } f
 import { address } from '@solana/addresses'
 import { getBase64Decoder } from '@solana/codecs'
 
-import { AssertionError, MaximumFeeExceededError, ProviderRequiredError, ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, MaximumFeeExceededError, ProviderRequiredError, ValueError } from '@tetherto/wdk-wallet'
 
 import WalletAccountReadOnlySolana from './wallet-account-read-only-solana.js'
 import SeedSignerSolana from './signers/seed-signer-solana.js'
@@ -170,6 +170,15 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
   }
 
   /**
+   * True if the wallet account has been disposed.
+   *
+   * @type {boolean}
+   */
+  get disposed () {
+    return this._disposed
+  }
+
+  /**
    * The derivation path of this account, or null for an account backed by a non-HD signer.
    *
    * @type {string | null}
@@ -207,11 +216,11 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @param {string} message - The message to sign.
    * @returns {Promise<string>} The message's signature.
-   * @throws {AssertionError} If the wallet account has been disposed.
+   * @throws {DisposalError} If the wallet account has been disposed.
    */
   async sign (message) {
     if (this._disposed) {
-      throw new AssertionError('The wallet account has been disposed.')
+      throw new DisposalError('The wallet account has been disposed.')
     }
 
     return await this._signer.sign(message)
@@ -222,13 +231,13 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @param {SolanaTransaction} tx - The transaction to sign: an unsigned transaction or a base64-encoded serialized transaction.
    * @returns {Promise<FullySignedTransaction>} The signed transaction.
-   * @throws {AssertionError} If the wallet account has been disposed.
+   * @throws {DisposalError} If the wallet account has been disposed.
    * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
    * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
    */
   async signTransaction (tx) {
     if (this._disposed) {
-      throw new AssertionError('The wallet account has been disposed.')
+      throw new DisposalError('The wallet account has been disposed.')
     }
 
     if (!this._rpc) {
@@ -290,13 +299,13 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    *
    * @param {SolanaTransaction | FullySignedTransaction} tx - The transaction. Either an unsigned transaction, an already-signed transaction, or a base64-encoded serialized transaction.
    * @returns {Promise<TransactionResult>} The transaction's result.
-   * @throws {AssertionError} If the wallet account has been disposed.
+   * @throws {DisposalError} If the wallet account has been disposed.
    * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
    * @throws {MaximumFeeExceededError} If the transaction's cost exceeds the maximum transaction fee option.
    */
   async sendTransaction (tx) {
     if (this._disposed) {
-      throw new AssertionError('The wallet account has been disposed.')
+      throw new DisposalError('The wallet account has been disposed.')
     }
 
     if (!this._rpc) {
@@ -440,14 +449,14 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @param {TransferOptions} options - The transfer's options.
    * @param {SolanaTransferOptions} [solanaOptions] - The transfer's Solana-specific options.
    * @returns {Promise<TransferResult>} The transfer's result.
-   * @throws {AssertionError} If the wallet account has been disposed.
+   * @throws {DisposalError} If the wallet account has been disposed.
    * @throws {ProviderRequiredError} If the wallet is not connected to a provider.
    * @throws {MaximumFeeExceededError} If the transfer's cost exceeds the maximum transfer fee option.
    * @note only SPL tokens - won't work for native SOL
    */
   async transfer (options, solanaOptions = {}) {
     if (this._disposed) {
-      throw new AssertionError('The wallet account has been disposed.')
+      throw new DisposalError('The wallet account has been disposed.')
     }
 
     if (!this._rpc) {
