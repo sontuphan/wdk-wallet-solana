@@ -82,6 +82,7 @@ export default class SeedSignerSolana implements ISignerSolana {
      * @param {string} relPath - The path segment to derive, relative to this signer's own path.
      * @returns {Promise<SeedSignerSolana>} The derived child signer.
      * @throws {ValueError} If the path is not fully hardened.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     derive(relPath: string): Promise<SeedSignerSolana>;
     /**
@@ -95,6 +96,7 @@ export default class SeedSignerSolana implements ISignerSolana {
      *
      * @param {string} message - The message to sign.
      * @returns {Promise<string>} The message's signature.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     sign(message: string): Promise<string>;
     /**
@@ -102,6 +104,7 @@ export default class SeedSignerSolana implements ISignerSolana {
      *
      * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
      * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     signTransaction(unsignedTx: Uint8Array): Promise<Uint8Array>;
     /**

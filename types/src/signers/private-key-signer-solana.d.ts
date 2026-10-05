@@ -81,6 +81,7 @@ export default class PrivateKeySignerSolana implements ISignerSolana {
      *
      * @param {string} message - The message to sign.
      * @returns {Promise<string>} The message's signature.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     sign(message: string): Promise<string>;
     /**
@@ -88,6 +89,7 @@ export default class PrivateKeySignerSolana implements ISignerSolana {
      *
      * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
      * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
+     * @throws {DisposalError} If the signer has been disposed.
      */
     signTransaction(unsignedTx: Uint8Array): Promise<Uint8Array>;
     /**

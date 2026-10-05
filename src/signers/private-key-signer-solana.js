@@ -22,7 +22,7 @@ import { sodium_memcmp, sodium_memzero } from 'sodium-universal'
 
 import * as curve from '@noble/ed25519'
 
-import { UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 import { signMessage, signTransactionBytes } from './utils.js'
 
@@ -210,8 +210,13 @@ export default class PrivateKeySignerSolana {
    *
    * @param {string} message - The message to sign.
    * @returns {Promise<string>} The message's signature.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async sign (message) {
+    if (this._disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
+
     return signMessage(this._rawPrivateKey, message)
   }
 
@@ -220,8 +225,13 @@ export default class PrivateKeySignerSolana {
    *
    * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
    * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async signTransaction (unsignedTx) {
+    if (this._disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
+
     return signTransactionBytes(this._rawPrivateKey, this._address, unsignedTx)
   }
 

@@ -28,7 +28,7 @@ import {
 import { compileTransaction, getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
 import { isSolanaError, SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION } from '@solana/errors'
 import { getTransferSolInstruction } from '@solana-program/system'
-import { ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, ValueError } from '@tetherto/wdk-wallet'
 
 import SeedSignerSolana from '../../src/signers/seed-signer-solana.js'
 
@@ -200,6 +200,31 @@ describe('SeedSignerSolana', () => {
 
       expect(parent.disposed).toBe(true)
       expect(child.disposed).toBe(false)
+    })
+
+    it('should throw a disposal error on derive after dispose', async () => {
+      const signer = new SeedSignerSolana(TEST_SEED_PHRASE)
+
+      signer.dispose()
+
+      await expect(signer.derive("0'/0'")).rejects.toThrow(new DisposalError('The signer has been disposed.'))
+    })
+
+    it('should throw a disposal error on sign after dispose', async () => {
+      const signer = new SeedSignerSolana(TEST_SEED_PHRASE, ACCOUNT_0.path)
+
+      signer.dispose()
+
+      await expect(signer.sign('Hello, Solana!')).rejects.toThrow(new DisposalError('The signer has been disposed.'))
+    })
+
+    it('should throw a disposal error on signTransaction after dispose', async () => {
+      const signer = new SeedSignerSolana(TEST_SEED_PHRASE, ACCOUNT_0.path)
+      const unsignedTx = buildUnsignedTransaction(ACCOUNT_0.address)
+
+      signer.dispose()
+
+      await expect(signer.signTransaction(unsignedTx)).rejects.toThrow(new DisposalError('The signer has been disposed.'))
     })
 
     it('should erase the private key and keep the public key', () => {

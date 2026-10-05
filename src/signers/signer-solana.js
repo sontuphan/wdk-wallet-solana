@@ -16,6 +16,8 @@
 
 import { ISigner, NotImplementedError, ValueError } from '@tetherto/wdk-wallet'
 
+/** @typedef {import('@tetherto/wdk-wallet').DisposalError} DisposalError */
+
 /**
  * Assert every child path in the derivation path is hardened.
  * @param {string} path The derivation path.
@@ -53,6 +55,7 @@ export class ISignerSolana extends ISigner {
    *
    * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
    * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async signTransaction (unsignedTx) {
     throw new NotImplementedError('signTransaction(unsignedTx)')

@@ -23,7 +23,7 @@ import { sodium_memzero } from 'sodium-universal'
 
 import * as curve from '@noble/ed25519'
 
-import { ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, ValueError } from '@tetherto/wdk-wallet'
 
 import { assertFullHardenedPath } from './signer-solana.js'
 import { signMessage, signTransactionBytes } from './utils.js'
@@ -197,8 +197,13 @@ export default class SeedSignerSolana {
    * @param {string} relPath - The path segment to derive, relative to this signer's own path.
    * @returns {Promise<SeedSignerSolana>} The derived child signer.
    * @throws {ValueError} If the path is not fully hardened.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async derive (relPath) {
+    if (this._disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
+
     assertFullHardenedPath(relPath)
 
     const [first, ...rest] = relPath.split('/')
@@ -224,8 +229,13 @@ export default class SeedSignerSolana {
    *
    * @param {string} message - The message to sign.
    * @returns {Promise<string>} The message's signature.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async sign (message) {
+    if (this._disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
+
     return signMessage(this._rawPrivateKey, message)
   }
 
@@ -234,8 +244,13 @@ export default class SeedSignerSolana {
    *
    * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
    * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
+   * @throws {DisposalError} If the signer has been disposed.
    */
   async signTransaction (unsignedTx) {
+    if (this._disposed) {
+      throw new DisposalError('The signer has been disposed.')
+    }
+
     return signTransactionBytes(this._rawPrivateKey, this._address, unsignedTx)
   }
 

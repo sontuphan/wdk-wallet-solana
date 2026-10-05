@@ -28,7 +28,7 @@ import { compileTransaction, getTransactionDecoder, getTransactionEncoder } from
 import { getBase58Decoder } from '@solana/codecs'
 import { isSolanaError, SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION } from '@solana/errors'
 import { getTransferSolInstruction } from '@solana-program/system'
-import { UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 import PrivateKeySignerSolana from '../../src/signers/private-key-signer-solana.js'
 import SeedSignerSolana from '../../src/signers/seed-signer-solana.js'
@@ -178,6 +178,23 @@ describe('PrivateKeySignerSolana', () => {
       signer.dispose()
 
       expect(signer.disposed).toBe(true)
+    })
+
+    it('should throw a disposal error on sign after dispose', async () => {
+      const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
+
+      signer.dispose()
+
+      await expect(signer.sign('Hello, Solana!')).rejects.toThrow(new DisposalError('The signer has been disposed.'))
+    })
+
+    it('should throw a disposal error on signTransaction after dispose', async () => {
+      const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
+      const unsignedTx = buildUnsignedTransaction(ADDRESS)
+
+      signer.dispose()
+
+      await expect(signer.signTransaction(unsignedTx)).rejects.toThrow(new DisposalError('The signer has been disposed.'))
     })
   })
 
