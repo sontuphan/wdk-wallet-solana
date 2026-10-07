@@ -52,7 +52,7 @@ function decodePrivateKeyString (privateKey) {
   }
 
   if (BASE58_PATTERN.test(privateKey)) {
-    const bytes = Uint8Array.from(getBase58Encoder().encode(privateKey))
+    const bytes = getBase58Encoder().encode(privateKey)
 
     if (bytes.length === 64) {
       return bytes
