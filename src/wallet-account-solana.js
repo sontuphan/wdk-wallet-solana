@@ -16,12 +16,12 @@
 
 import {
   assertIsFullySignedTransaction,
-  compileTransaction,
   getBase64EncodedWireTransaction,
   getTransactionDecoder,
   getTransactionEncoder
 } from '@solana/transactions'
 import { getCompiledTransactionMessageDecoder, setTransactionMessageFeePayer } from '@solana/transaction-messages'
+import { partiallySignTransactionMessageWithSigners } from '@solana/signers'
 import { address } from '@solana/addresses'
 import { getBase64Decoder } from '@solana/codecs'
 
@@ -344,7 +344,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
 
   /** @private */
   async _signTransactionMessage (transactionMessage) {
-    return await this._signCompiledTransaction(compileTransaction(transactionMessage))
+    const compiledTransaction = await partiallySignTransactionMessageWithSigners(transactionMessage)
+    return await this._signCompiledTransaction(compiledTransaction)
   }
 
   /**

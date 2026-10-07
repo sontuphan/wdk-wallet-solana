@@ -23,15 +23,21 @@ import {
   beforeEach,
   afterEach
 } from '@jest/globals'
-import { getCompiledTransactionMessageDecoder } from '@solana/transaction-messages'
+import {
+  appendTransactionMessageInstruction,
+  createTransactionMessage,
+  getCompiledTransactionMessageDecoder,
+  setTransactionMessageFeePayer,
+  setTransactionMessageLifetimeUsingBlockhash
+} from '@solana/transaction-messages'
 import {
   createKeyPairSignerFromPrivateKeyBytes,
   setTransactionMessageFeePayerSigner,
   signTransactionMessageWithSigners
 } from '@solana/signers'
 import { getBase64EncodedWireTransaction, getTransactionDecoder } from '@solana/transactions'
-import { getBase64Decoder, getBase64Encoder } from '@solana/codecs'
-import { MEMO_PROGRAM_ADDRESS } from '@solana-program/memo'
+import { getBase58Decoder, getBase64Decoder, getBase64Encoder } from '@solana/codecs'
+import { MEMO_PROGRAM_ADDRESS, getAddMemoInstruction } from '@solana-program/memo'
 import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token'
 import { DisposalError } from '@tetherto/wdk-wallet'
 
@@ -1046,6 +1052,26 @@ describe('WalletAccountSolana', () => {
       })
 
       expect(signedTx).toBeTruthy()
+    })
+
+    it('should let the signers embedded in the transaction message sign alongside the account', async () => {
+      const coSigner = await createKeyPairSignerFromPrivateKeyBytes(new Uint8Array(32).fill(1))
+
+      let transactionMessage = createTransactionMessage({ version: 0 })
+      transactionMessage = setTransactionMessageFeePayer('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE', transactionMessage)
+      transactionMessage = setTransactionMessageLifetimeUsingBlockhash({
+        blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
+        lastValidBlockHeight: 1000000n
+      }, transactionMessage)
+      transactionMessage = appendTransactionMessageInstruction(getAddMemoInstruction({ memo: 'co-signed', signers: [coSigner] }), transactionMessage)
+
+      const signedTx = await account.signTransaction(transactionMessage)
+
+      const base58 = getBase58Decoder()
+      expect(base58.decode(signedTx.signatures['3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE']))
+        .toBe('4xsE4C6a79AaoAeTaLZwM57ce9q92gMKV1Yd53hSFhc1J2q1JVSqzCZHSNrY9uVotESpAMMvRzA3B81umcWCa3vA')
+      expect(base58.decode(signedTx.signatures[coSigner.address]))
+        .toBe('5SjRUVhgWVDvzbu1A2HKyVPCN6UxJctrUS9WZoakB1JVz8jwGwp312yNhnRjVjmPYySkvCpVpuyLsk4XS9ycnLg')
     })
   })
 
