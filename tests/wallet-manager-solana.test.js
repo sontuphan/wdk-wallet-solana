@@ -110,14 +110,14 @@ describe('WalletManagerSolana', () => {
   describe('signers', () => {
     const OTHER_SEED_PHRASE =
       'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+    const OTHER_ACCOUNT_0_ADDRESS = 'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk'
 
     it('should derive the account from the named signer', async () => {
       wallet.addSigner('other', new SeedSignerSolana(OTHER_SEED_PHRASE))
 
       const account = await wallet.getAccount(0, { signerName: 'other' })
-      const expected = new WalletAccountSolana(OTHER_SEED_PHRASE, "0'/0'")
 
-      expect(await account.getAddress()).toBe(await expected.getAddress())
+      expect(await account.getAddress()).toBe(OTHER_ACCOUNT_0_ADDRESS)
     })
 
     it('should cache accounts per signer', async () => {

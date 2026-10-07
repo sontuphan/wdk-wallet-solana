@@ -68,11 +68,15 @@ const ACCOUNT_2_ADDRESS = 'Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq'
 
 const COIN_NODE_PATH = "m/44'/501'"
 
+const COIN_NODE_ADDRESS = 'Ccy4BT4c7QRNJCpu2q3uuDgktB5kZqifuRCiueuajKL1'
+
 const PATH_ADDRESSES = {
   "0'/0'/0'": 'DPGHHHMaayXkaThUJCUnUAJCdgc9sxNh1UEGa6vJximM',
   "0'/0'/1'": 'jbhYXhWfRPqPvaKqaWCJEgBdZMquFxUvjWaWLEH3YCz',
   "1'/0'/0'": '57hwCai22XueypvXcXKotkuAQYj2eukFcY5ymWB7Arvg'
 }
+
+const PATH_000_SIGNATURE = 'ed1cc68bc191ed6c24b22654ee42d7a2b782e67b75f188a987fcc3037ee3bb0f0990c28c1b32d04da89f1be8d0a2f0da45d91ddb2f3613c8cb79263dba4c8906'
 
 const MESSAGE_SIGNATURES = {
   'Test message': '90d1d5dc7430f3efa9fa037ba2179458fad9a8bfdf42ba74fff4581ce9e0ac2fba1562483b072e9eee709ef8d59448b379d9a61e634b37a3c13858bab7754f08',
@@ -157,14 +161,13 @@ describe('WalletAccountSolana', () => {
     })
 
     describe('signer', () => {
-      it('should match the seed-constructed account when built from a derived signer', async () => {
+      it('should take the path, address and key of a derived signer', async () => {
         const signer = await new SeedSignerSolana(TEST_SEED_PHRASE).derive("0'/0'/0'")
-        const fromSigner = new WalletAccountSolana(signer, { provider: TEST_RPC_URL })
-        const fromSeed = new WalletAccountSolana(TEST_SEED_PHRASE, "0'/0'/0'", { provider: TEST_RPC_URL })
+        const account = new WalletAccountSolana(signer, { provider: TEST_RPC_URL })
 
-        expect(fromSigner.path).toBe("m/44'/501'/0'/0'/0'")
-        expect(await fromSigner.getAddress()).toBe(await fromSeed.getAddress())
-        expect(await fromSigner.sign('Hello, Solana!')).toBe(await fromSeed.sign('Hello, Solana!'))
+        expect(account.path).toBe("m/44'/501'/0'/0'/0'")
+        expect(await account.getAddress()).toBe(PATH_ADDRESSES["0'/0'/0'"])
+        expect(await account.sign('Hello, Solana!')).toBe(PATH_000_SIGNATURE)
       })
 
       it('should derive the first account when no path is given', async () => {
@@ -183,10 +186,9 @@ describe('WalletAccountSolana', () => {
 
       it('should accept a signer at the coin-type node', async () => {
         const account = new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE), {})
-        const expected = new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE, COIN_NODE_PATH), {})
 
         expect(account.path).toBe(COIN_NODE_PATH)
-        expect(await account.getAddress()).toBe(await expected.getAddress())
+        expect(await account.getAddress()).toBe(COIN_NODE_ADDRESS)
       })
 
       it('should throw if the signer path is not absolute', () => {

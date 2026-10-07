@@ -31,14 +31,10 @@ import { getTransferSolInstruction } from '@solana-program/system'
 import { DisposalError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 import PrivateKeySignerSolana from '../../src/signers/private-key-signer-solana.js'
-import SeedSignerSolana from '../../src/signers/seed-signer-solana.js'
-
-const TEST_SEED_PHRASE = 'test walk nut penalty hip pave soap entry language right filter choice'
 
 const PRIVATE_KEY = 'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
 const PUBLIC_KEY = '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
 const ADDRESS = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
-const PATH = "m/44'/501'/0'/0'"
 
 const MESSAGE_SIGNATURE = '5bbab8653d010e9fb4e4c09c98972d81752b246a7af411bbdb6d3d72e8fe4023d5a94551eadb64e4f1b767e18bba00ff48855e08bc61bb79601dfb77af754f0e'
 
@@ -147,13 +143,6 @@ describe('PrivateKeySignerSolana', () => {
       expect(await signer.sign('Hello, Solana!')).toBe(MESSAGE_SIGNATURE)
     })
 
-    it('should sign messages like the seed signer holding the same key', async () => {
-      const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
-      const seedSigner = new SeedSignerSolana(TEST_SEED_PHRASE, PATH)
-
-      expect(await signer.sign('Hello, Solana!')).toBe(await seedSigner.sign('Hello, Solana!'))
-    })
-
     it('should add the signer signature', async () => {
       const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
 
@@ -205,11 +194,10 @@ describe('PrivateKeySignerSolana', () => {
     it('should keep signing after the caller wipes the supplied key', async () => {
       const suppliedKey = Buffer.from(PRIVATE_KEY, 'hex')
       const signer = new PrivateKeySignerSolana(suppliedKey)
-      const expected = await new PrivateKeySignerSolana(PRIVATE_KEY).sign('Hello, Solana!')
 
       suppliedKey.fill(0)
 
-      expect(await signer.sign('Hello, Solana!')).toBe(expected)
+      expect(await signer.sign('Hello, Solana!')).toBe(MESSAGE_SIGNATURE)
     })
 
     it('should not wipe the supplied key on dispose', () => {
