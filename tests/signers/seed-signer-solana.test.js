@@ -44,6 +44,13 @@ const ACCOUNT_0 = {
 
 const ACCOUNT_1_ADDRESS = 'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'
 
+const TRANSACTION_SIGNATURE = 'f8fbfda5fad2d35ad6ecfcfd1d46b1f65b6baa5f3761c506964d388a13381c39064dc9ab0874bef3cc428a64306e0a5f666ad63cda72945671f712af01080f03'
+
+const COSIGNED_TRANSACTION_SIGNATURES = {
+  feePayer: '5aa384d9eb484f5d03bfde9b75b34da0215e7ee50ef395ad8314b5cfc6fd63bd769a44dd71e5c39890267fefc172314a9c12818d2fc8dcb24e173cf958d23c0b',
+  cosigner: '90bf1639c43d2999be39dfc75dc442fa6ac9ef9a47d57687664d3d51aad590ff5dd0ff3dd56691c0a2024ddc342835cf1988707d010968abdd7ec72571763803'
+}
+
 const HARDENED_PATH_MESSAGE = 'In Solana, every child path in a derivation path must be hardened.'
 
 function buildUnsignedTransaction (feePayer, cosigner) {
@@ -167,7 +174,7 @@ describe('SeedSignerSolana', () => {
 
       const signed = getTransactionDecoder().decode(await signer.signTransaction(buildUnsignedTransaction(ACCOUNT_0.address)))
 
-      expect(signed.signatures[ACCOUNT_0.address]).toHaveLength(64)
+      expect(Buffer.from(signed.signatures[ACCOUNT_0.address]).toString('hex')).toBe(TRANSACTION_SIGNATURE)
     })
 
     it('should keep the signatures the transaction already carries', async () => {
@@ -177,11 +184,9 @@ describe('SeedSignerSolana', () => {
 
       const partiallySigned = await cosigner.signTransaction(unsignedTx)
       const signed = getTransactionDecoder().decode(await feePayer.signTransaction(partiallySigned))
-      const cosignerOnly = getTransactionDecoder().decode(partiallySigned)
 
-      expect(Buffer.from(signed.signatures[ACCOUNT_1_ADDRESS]).toString('hex'))
-        .toBe(Buffer.from(cosignerOnly.signatures[ACCOUNT_1_ADDRESS]).toString('hex'))
-      expect(signed.signatures[ACCOUNT_0.address]).toHaveLength(64)
+      expect(Buffer.from(signed.signatures[ACCOUNT_1_ADDRESS]).toString('hex')).toBe(COSIGNED_TRANSACTION_SIGNATURES.cosigner)
+      expect(Buffer.from(signed.signatures[ACCOUNT_0.address]).toString('hex')).toBe(COSIGNED_TRANSACTION_SIGNATURES.feePayer)
     })
 
     it('should throw if the key is not one of the transaction signers', async () => {

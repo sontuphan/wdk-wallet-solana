@@ -39,6 +39,8 @@ const PRIVATE_KEY = 'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac14685249
 const PUBLIC_KEY = '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
 const ADDRESS = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
 
+const TRANSACTION_SIGNATURE = 'a66ef08d2cb62b13a6ff2e5f6ebe8a46b58590489dd1905754e00fbfa400da51ca6fc87bd8ebb1800d5a8d87e470b5269db4e6c04c031135ef40e238c4539909'
+
 const INVALID_PRIVATE_KEY_MESSAGE = 'The private key must be a 32-byte key (hex or bytes) or a 64-byte secret key (base58 or bytes).'
 
 const SECRET_KEY = Buffer.concat([Buffer.from(PRIVATE_KEY, 'hex'), Buffer.from(PUBLIC_KEY, 'hex')])
@@ -147,16 +149,12 @@ describe('PrivateKeySignerSolana', () => {
       expect(await signer.sign('Hello, Solana!')).toBe(await seedSigner.sign('Hello, Solana!'))
     })
 
-    it('should sign transactions like the seed signer holding the same key', async () => {
+    it('should add the signer signature', async () => {
       const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
-      const seedSigner = new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'/0'/0'")
-      const unsignedTx = buildUnsignedTransaction(ADDRESS)
 
-      const signed = getTransactionDecoder().decode(await signer.signTransaction(unsignedTx))
-      const expected = getTransactionDecoder().decode(await seedSigner.signTransaction(unsignedTx))
+      const signed = getTransactionDecoder().decode(await signer.signTransaction(buildUnsignedTransaction(ADDRESS)))
 
-      expect(Buffer.from(signed.signatures[ADDRESS]).toString('hex'))
-        .toBe(Buffer.from(expected.signatures[ADDRESS]).toString('hex'))
+      expect(Buffer.from(signed.signatures[ADDRESS]).toString('hex')).toBe(TRANSACTION_SIGNATURE)
     })
 
     it('should throw if the key is not one of the transaction signers', async () => {
