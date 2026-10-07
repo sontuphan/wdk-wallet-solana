@@ -41,10 +41,13 @@ export { default as WalletAccountSolana } from './src/wallet-account-solana.js'
 
 export {
   AssertionError,
+  DisposalError,
+  InvalidSignerError,
   MaximumFeeExceededError,
   NoSuchElementError,
   ProviderRequiredError,
   TimeoutError,
+  UnsupportedOperationError,
   ValueError,
   WdkError
 } from '@tetherto/wdk-wallet'

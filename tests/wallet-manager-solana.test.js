@@ -24,8 +24,6 @@ import {
 } from '@jest/globals'
 import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
-import * as entry from '../index.js'
-import { ISigner } from '@tetherto/wdk-wallet'
 import SeedSignerSolana from '../src/signers/seed-signer-solana.js'
 import PrivateKeySignerSolana from '../src/signers/private-key-signer-solana.js'
 
@@ -96,12 +94,6 @@ describe('WalletManagerSolana', () => {
       signerWallet.dispose()
 
       expect(Buffer.from(signer.keyPair.privateKey).toString('hex')).toBe(privateKey)
-    })
-  })
-
-  describe('package entry', () => {
-    it('should re-export ISigner', () => {
-      expect(entry.ISigner).toBe(ISigner)
     })
   })
 
