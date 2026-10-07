@@ -22,6 +22,8 @@ import {
   afterEach,
   jest
 } from '@jest/globals'
+import * as bip39 from 'bip39'
+import { InvalidSignerError } from '@tetherto/wdk-wallet'
 import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 import SeedSignerSolana from '../src/signers/seed-signer-solana.js'
@@ -31,15 +33,24 @@ const TEST_SEED_PHRASE =
   'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mock-url.com'
 
+const TEST_SEED = bip39.mnemonicToSeedSync(TEST_SEED_PHRASE)
+
 const PRIVATE_KEY = 'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
 const PRIVATE_KEY_ADDRESS = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
 
-const ACCOUNT_0_PATH = "m/44'/501'/0'/0'"
+const ACCOUNT_0 = {
+  path: "m/44'/501'/0'/0'",
+  address: '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
+}
 
 const ACCOUNT_1 = {
   path: "m/44'/501'/1'/0'",
   address: 'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'
 }
+
+const PATH_100_ADDRESS = '57hwCai22XueypvXcXKotkuAQYj2eukFcY5ymWB7Arvg'
+
+const NON_DERIVABLE_SIGNER_MESSAGE = 'The default signer must be derivable. Non-derivable signers (e.g. private-key signers) can only be registered by name via addSigner.'
 
 describe('WalletManagerSolana', () => {
   let wallet
@@ -70,6 +81,22 @@ describe('WalletManagerSolana', () => {
       })
 
       const account = await signerWallet.getAccount(1)
+
+      expect(account.path).toBe(ACCOUNT_1.path)
+      expect(await account.getAddress()).toBe(ACCOUNT_1.address)
+    })
+
+    it('should throw if the default signer is not derivable', () => {
+      expect(() => new WalletManagerSolana(new PrivateKeySignerSolana(PRIVATE_KEY)))
+        .toThrow(new InvalidSignerError(NON_DERIVABLE_SIGNER_MESSAGE))
+    })
+
+    it('should derive the accounts of a raw seed', async () => {
+      const seedWallet = new WalletManagerSolana(TEST_SEED, {
+        provider: TEST_RPC_URL
+      })
+
+      const account = await seedWallet.getAccount(1)
 
       expect(account.path).toBe(ACCOUNT_1.path)
       expect(await account.getAddress()).toBe(ACCOUNT_1.address)
@@ -111,6 +138,7 @@ describe('WalletManagerSolana', () => {
     const OTHER_SEED_PHRASE =
       'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
     const OTHER_ACCOUNT_0_ADDRESS = 'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk'
+    const OTHER_PATH_100_ADDRESS = 'H6r4dUP9Jj3CLx9NyarxjDiE1HGeWMHDv2MUTAq9nYzt'
 
     it('should derive the account from the named signer', async () => {
       wallet.addSigner('other', new SeedSignerSolana(OTHER_SEED_PHRASE))
@@ -163,6 +191,17 @@ describe('WalletManagerSolana', () => {
         .rejects.toThrow('No signer found with name "missing".')
     })
 
+    it('should derive the account at a custom path from the named signer', async () => {
+      wallet.addSigner('other', new SeedSignerSolana(OTHER_SEED_PHRASE))
+
+      const account = await wallet.getAccountByPath("1'/0'/0'", { signerName: 'other' })
+      const defaultAccount = await wallet.getAccountByPath("1'/0'/0'")
+
+      expect(account.path).toBe("m/44'/501'/1'/0'/0'")
+      expect(await account.getAddress()).toBe(OTHER_PATH_100_ADDRESS)
+      expect(await defaultAccount.getAddress()).toBe(PATH_100_ADDRESS)
+    })
+
     it('should throw if no signer is registered with the given name (signer-name overload)', async () => {
       await expect(wallet.getAccount('missing'))
         .rejects.toThrow('No signer found with name "missing".')
@@ -173,7 +212,14 @@ describe('WalletManagerSolana', () => {
     it('should return account at index 0', async () => {
       const account = await wallet.getAccount(0)
       expect(account).toBeInstanceOf(WalletAccountSolana)
-      expect(account.path).toBe(ACCOUNT_0_PATH)
+      expect(account.path).toBe(ACCOUNT_0.path)
+    })
+
+    it('should return the account at index 0 when no index is given', async () => {
+      const account = await wallet.getAccount()
+
+      expect(account.path).toBe(ACCOUNT_0.path)
+      expect(await account.getAddress()).toBe(ACCOUNT_0.address)
     })
 
     it('should return different accounts for different indices', async () => {

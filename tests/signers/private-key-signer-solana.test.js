@@ -132,7 +132,7 @@ describe('PrivateKeySignerSolana', () => {
     it('should throw on derive', async () => {
       const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
 
-      await expect(signer.derive("0'/0'")).rejects.toThrow(UnsupportedOperationError)
+      await expect(signer.derive("0'/0'")).rejects.toThrow(new UnsupportedOperationError('derive(path)'))
     })
   })
 

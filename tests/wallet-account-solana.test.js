@@ -41,6 +41,7 @@ import { MEMO_PROGRAM_ADDRESS, getAddMemoInstruction } from '@solana-program/mem
 import { SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
 import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token'
 import { DisposalError } from '@tetherto/wdk-wallet'
+import * as bip39 from 'bip39'
 
 import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
@@ -50,6 +51,8 @@ import SeedSignerSolana from '../src/signers/seed-signer-solana.js'
 const TEST_SEED_PHRASE =
   'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mockurl.com'
+
+const TEST_SEED = bip39.mnemonicToSeedSync(TEST_SEED_PHRASE)
 
 const ACCOUNT_0 = {
   path: "m/44'/501'/0'/0'",
@@ -179,6 +182,13 @@ describe('WalletAccountSolana', () => {
 
       it('should derive the first account when neither a path nor a config is given', async () => {
         const account = new WalletAccountSolana(TEST_SEED_PHRASE)
+
+        expect(account.path).toBe(ACCOUNT_0.path)
+        expect(await account.getAddress()).toBe(ACCOUNT_0.address)
+      })
+
+      it('should derive the account from a raw seed', async () => {
+        const account = new WalletAccountSolana(TEST_SEED, "0'/0'", { provider: TEST_RPC_URL })
 
         expect(account.path).toBe(ACCOUNT_0.path)
         expect(await account.getAddress()).toBe(ACCOUNT_0.address)
@@ -321,6 +331,14 @@ describe('WalletAccountSolana', () => {
 
       it('should wipe the signer it built from a seed', () => {
         const account = new WalletAccountSolana(TEST_SEED_PHRASE)
+
+        account.dispose()
+
+        expect(account.keyPair.privateKey).toBeNull()
+      })
+
+      it('should wipe the signer it built from a raw seed', () => {
+        const account = new WalletAccountSolana(TEST_SEED)
 
         account.dispose()
 
