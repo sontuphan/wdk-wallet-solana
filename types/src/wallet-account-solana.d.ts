@@ -25,7 +25,6 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      * @overload
      * @param {ISignerSolana} signer - The solana signer, derived to an account path.
      * @param {SolanaWalletConfig & SignerOptions} [config] - The configuration object.
-     * @throws {ValueError} If the signer is missing.
      */
     constructor(signer: ISignerSolana, config?: SolanaWalletConfig & SignerOptions);
     /**

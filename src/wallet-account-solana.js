@@ -69,7 +69,6 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @overload
    * @param {ISignerSolana} signer - The solana signer, derived to an account path.
    * @param {SolanaWalletConfig & SignerOptions} [config] - The configuration object.
-   * @throws {ValueError} If the signer is missing.
    */
 
   /**
@@ -106,10 +105,6 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
       signer = new SeedSignerSolana(seedOrSigner, `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${path}`)
     } else {
       config = pathOrConfig ?? {}
-    }
-
-    if (!signer) {
-      throw new ValueError('A signer is required.')
     }
 
     super(undefined, config)

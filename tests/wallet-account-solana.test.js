@@ -121,10 +121,6 @@ describe('WalletAccountSolana', () => {
         expect(await account.getAddress()).toBe('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
       })
 
-      it('should throw if the signer is missing', () => {
-        expect(() => new WalletAccountSolana(undefined, {})).toThrow('A signer is required.')
-      })
-
       it('should accept a signer at the coin-type node', async () => {
         const account = new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE), {})
         const expected = new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'"), {})
