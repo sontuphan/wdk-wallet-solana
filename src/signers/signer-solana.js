@@ -37,7 +37,7 @@ export function assertFullHardenedPath (path, absolute = false) {
     path = path.slice(2)
   }
 
-  const isValid = path.split('/').reduce((s, e) => s && e.endsWith("'"), true)
+  const isValid = path.split('/').every((segment) => /^\d+'$/.test(segment))
 
   if (!isValid) {
     throw new ValueError('In Solana, every child path in a derivation path must be hardened.')

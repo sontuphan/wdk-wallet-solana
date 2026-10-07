@@ -103,6 +103,11 @@ describe('SeedSignerSolana', () => {
       expect(() => new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'/0'/0"))
         .toThrow(new ValueError(HARDENED_PATH_MESSAGE))
     })
+
+    it('should throw if a path segment is not a decimal index', () => {
+      expect(() => new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'/1.5'/0'"))
+        .toThrow(new ValueError(HARDENED_PATH_MESSAGE))
+    })
   })
 
   describe('keyPair', () => {
@@ -139,6 +144,11 @@ describe('SeedSignerSolana', () => {
 
     it('should throw if the relative path is not fully hardened', async () => {
       await expect(new SeedSignerSolana(TEST_SEED_PHRASE).derive("0'/0"))
+        .rejects.toThrow(new ValueError(HARDENED_PATH_MESSAGE))
+    })
+
+    it('should throw if a relative path segment is not a decimal index', async () => {
+      await expect(new SeedSignerSolana(TEST_SEED_PHRASE).derive("1e3'"))
         .rejects.toThrow(new ValueError(HARDENED_PATH_MESSAGE))
     })
   })
