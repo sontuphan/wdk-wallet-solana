@@ -38,6 +38,13 @@ const TEST_SEED_PHRASE = 'test walk nut penalty hip pave soap entry language rig
 const PRIVATE_KEY = 'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
 const PUBLIC_KEY = '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
 const ADDRESS = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
+const PATH = "m/44'/501'/0'/0'"
+
+const MESSAGE_SIGNATURE = '5bbab8653d010e9fb4e4c09c98972d81752b246a7af411bbdb6d3d72e8fe4023d5a94551eadb64e4f1b767e18bba00ff48855e08bc61bb79601dfb77af754f0e'
+
+const ACCOUNT_1_ADDRESS = 'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'
+
+const BLOCKHASH = '11111111111111111111111111111111'
 
 const TRANSACTION_SIGNATURE = 'a66ef08d2cb62b13a6ff2e5f6ebe8a46b58590489dd1905754e00fbfa400da51ca6fc87bd8ebb1800d5a8d87e470b5269db4e6c04c031135ef40e238c4539909'
 
@@ -49,10 +56,10 @@ function buildUnsignedTransaction (feePayer) {
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     (tx) => setTransactionMessageFeePayer(address(feePayer), tx),
-    (tx) => setTransactionMessageLifetimeUsingBlockhash({ blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 0n }, tx),
+    (tx) => setTransactionMessageLifetimeUsingBlockhash({ blockhash: BLOCKHASH, lastValidBlockHeight: 0n }, tx),
     (tx) => appendTransactionMessageInstruction(getTransferSolInstruction({
       source: createNoopSigner(address(feePayer)),
-      destination: address('CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'),
+      destination: address(ACCOUNT_1_ADDRESS),
       amount: 1_000n
     }), tx)
   )
@@ -137,14 +144,12 @@ describe('PrivateKeySignerSolana', () => {
     it('should produce the Ed25519 signature of the message', async () => {
       const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
 
-      expect(await signer.sign('Hello, Solana!')).toBe(
-        '5bbab8653d010e9fb4e4c09c98972d81752b246a7af411bbdb6d3d72e8fe4023d5a94551eadb64e4f1b767e18bba00ff48855e08bc61bb79601dfb77af754f0e'
-      )
+      expect(await signer.sign('Hello, Solana!')).toBe(MESSAGE_SIGNATURE)
     })
 
     it('should sign messages like the seed signer holding the same key', async () => {
       const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
-      const seedSigner = new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'/0'/0'")
+      const seedSigner = new SeedSignerSolana(TEST_SEED_PHRASE, PATH)
 
       expect(await signer.sign('Hello, Solana!')).toBe(await seedSigner.sign('Hello, Solana!'))
     })
@@ -159,7 +164,7 @@ describe('PrivateKeySignerSolana', () => {
 
     it('should throw if the key is not one of the transaction signers', async () => {
       const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
-      const unsignedTx = buildUnsignedTransaction('CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK')
+      const unsignedTx = buildUnsignedTransaction(ACCOUNT_1_ADDRESS)
 
       const error = await signer.signTransaction(unsignedTx).catch((error) => error)
 

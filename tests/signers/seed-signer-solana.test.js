@@ -44,6 +44,16 @@ const ACCOUNT_0 = {
 
 const ACCOUNT_1_ADDRESS = 'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'
 
+const ACCOUNT_1_PATH = "m/44'/501'/1'/0'"
+
+const ACCOUNT_2_ADDRESS = 'Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq'
+
+const COIN_NODE_PATH = "m/44'/501'"
+
+const PARENT_PATH = "m/44'/501'/0'"
+
+const BLOCKHASH = '11111111111111111111111111111111'
+
 const TRANSACTION_SIGNATURE = 'f8fbfda5fad2d35ad6ecfcfd1d46b1f65b6baa5f3761c506964d388a13381c39064dc9ab0874bef3cc428a64306e0a5f666ad63cda72945671f712af01080f03'
 
 const COSIGNED_TRANSACTION_SIGNATURES = {
@@ -57,10 +67,10 @@ function buildUnsignedTransaction (feePayer, cosigner) {
   const message = pipe(
     createTransactionMessage({ version: 0 }),
     (tx) => setTransactionMessageFeePayer(address(feePayer), tx),
-    (tx) => setTransactionMessageLifetimeUsingBlockhash({ blockhash: '11111111111111111111111111111111', lastValidBlockHeight: 0n }, tx),
+    (tx) => setTransactionMessageLifetimeUsingBlockhash({ blockhash: BLOCKHASH, lastValidBlockHeight: 0n }, tx),
     (tx) => appendTransactionMessageInstruction(getTransferSolInstruction({
       source: createNoopSigner(address(cosigner ?? feePayer)),
-      destination: address('Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq'),
+      destination: address(ACCOUNT_2_ADDRESS),
       amount: 1_000n
     }), tx)
   )
@@ -73,7 +83,7 @@ describe('SeedSignerSolana', () => {
     it('should default to the coin-type node', () => {
       const signer = new SeedSignerSolana(TEST_SEED_PHRASE)
 
-      expect(signer.path).toBe("m/44'/501'")
+      expect(signer.path).toBe(COIN_NODE_PATH)
       expect(signer.isDerivable).toBe(true)
     })
 
@@ -137,12 +147,12 @@ describe('SeedSignerSolana', () => {
     it('should derive the same key as the absolute path, one step at a time', async () => {
       const child = await (await new SeedSignerSolana(TEST_SEED_PHRASE).derive("1'")).derive("0'")
 
-      expect(child.path).toBe("m/44'/501'/1'/0'")
+      expect(child.path).toBe(ACCOUNT_1_PATH)
       expect(await child.getAddress()).toBe(ACCOUNT_1_ADDRESS)
     })
 
     it('should leave the parent usable', async () => {
-      const parent = new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'/0'")
+      const parent = new SeedSignerSolana(TEST_SEED_PHRASE, PARENT_PATH)
 
       await parent.derive("0'")
 
@@ -179,7 +189,7 @@ describe('SeedSignerSolana', () => {
 
     it('should keep the signatures the transaction already carries', async () => {
       const feePayer = new SeedSignerSolana(TEST_SEED_PHRASE, ACCOUNT_0.path)
-      const cosigner = new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'/1'/0'")
+      const cosigner = new SeedSignerSolana(TEST_SEED_PHRASE, ACCOUNT_1_PATH)
       const unsignedTx = buildUnsignedTransaction(ACCOUNT_0.address, ACCOUNT_1_ADDRESS)
 
       const partiallySigned = await cosigner.signTransaction(unsignedTx)
@@ -261,7 +271,7 @@ describe('SeedSignerSolana', () => {
     })
 
     it('should not affect the parent', async () => {
-      const parent = new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'/0'")
+      const parent = new SeedSignerSolana(TEST_SEED_PHRASE, PARENT_PATH)
       const child = await parent.derive("0'")
 
       child.dispose()

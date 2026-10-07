@@ -38,6 +38,7 @@ import {
 import { getBase64EncodedWireTransaction, getTransactionDecoder } from '@solana/transactions'
 import { getBase58Decoder, getBase64Decoder, getBase64Encoder } from '@solana/codecs'
 import { MEMO_PROGRAM_ADDRESS, getAddMemoInstruction } from '@solana-program/memo'
+import { SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system'
 import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token'
 import { DisposalError } from '@tetherto/wdk-wallet'
 
@@ -45,11 +46,64 @@ import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 import WalletAccountReadOnlySolana from '../src/wallet-account-read-only-solana.js'
 import SeedSignerSolana from '../src/signers/seed-signer-solana.js'
-import PrivateKeySignerSolana from '../src/signers/private-key-signer-solana.js'
 
 const TEST_SEED_PHRASE =
   'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mockurl.com'
+
+const ACCOUNT_0 = {
+  path: "m/44'/501'/0'/0'",
+  address: '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE',
+  privateKey: 'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f',
+  publicKey: '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
+}
+
+const ACCOUNT_1 = {
+  address: 'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK',
+  privateKey: '4642fc818f6525a2c5ae784cc98f44d639492c21271c5f7f0ac30ee95a3357bb',
+  publicKey: 'ad3e499bc158a797574c53bcca546939f0de16242b85ed39a848092c4d9d5274'
+}
+
+const ACCOUNT_2_ADDRESS = 'Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq'
+
+const COIN_NODE_PATH = "m/44'/501'"
+
+const PATH_ADDRESSES = {
+  "0'/0'/0'": 'DPGHHHMaayXkaThUJCUnUAJCdgc9sxNh1UEGa6vJximM',
+  "0'/0'/1'": 'jbhYXhWfRPqPvaKqaWCJEgBdZMquFxUvjWaWLEH3YCz',
+  "1'/0'/0'": '57hwCai22XueypvXcXKotkuAQYj2eukFcY5ymWB7Arvg'
+}
+
+const MESSAGE_SIGNATURES = {
+  'Test message': '90d1d5dc7430f3efa9fa037ba2179458fad9a8bfdf42ba74fff4581ce9e0ac2fba1562483b072e9eee709ef8d59448b379d9a61e634b37a3c13858bab7754f08',
+  'Message 1': '06f06d64f9a5338595410825aee9ae6b04bd0069fcd36afca765f75b3c4ebb42c2ee35a62961b8edc3afc1d10b50dcdb558d9904707326236598d0b7c0385204',
+  'Message 2': 'c4d4f624a1d7ba1992cdfd6ce5a8a3e7e2ac46ad342ef8b00b8c10f73633223a882ff8230b009691d57291aa6224a648371f9208c447ed695be47ec395a6ad0d'
+}
+
+const COSIGNED_TRANSACTION_SIGNATURES = {
+  feePayer: '4xsE4C6a79AaoAeTaLZwM57ce9q92gMKV1Yd53hSFhc1J2q1JVSqzCZHSNrY9uVotESpAMMvRzA3B81umcWCa3vA',
+  cosigner: '5SjRUVhgWVDvzbu1A2HKyVPCN6UxJctrUS9WZoakB1JVz8jwGwp312yNhnRjVjmPYySkvCpVpuyLsk4XS9ycnLg'
+}
+
+const MOCK_BLOCKHASH = '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ'
+
+const MOCK_LAST_VALID_BLOCK_HEIGHT = 1000000
+
+const MOCK_FEE = 5000
+
+const MOCK_SIGNATURE = 'mock-signature'
+
+const RECIPIENT_ADDRESS = '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2'
+
+const OTHER_RECIPIENT_ADDRESS = '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP'
+
+const TOKEN_RECIPIENT_ADDRESS = 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV'
+
+const DUMMY_ADDRESS = 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb'
+
+const FOREIGN_FEE_PAYER_ADDRESS = 'DifferentAddress11111111111111111111111'
+
+const USDT_MINT_ADDRESS = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
 
 // Manually builds a fully-signed transaction using the Solana SDK directly,
 // without relying on the account's `signTransaction` method.
@@ -116,22 +170,22 @@ describe('WalletAccountSolana', () => {
       it('should derive the first account when no path is given', async () => {
         const account = new WalletAccountSolana(TEST_SEED_PHRASE, { provider: TEST_RPC_URL })
 
-        expect(account.path).toBe("m/44'/501'/0'/0'")
-        expect(await account.getAddress()).toBe('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+        expect(account.path).toBe(ACCOUNT_0.path)
+        expect(await account.getAddress()).toBe(ACCOUNT_0.address)
       })
 
       it('should derive the first account when neither a path nor a config is given', async () => {
         const account = new WalletAccountSolana(TEST_SEED_PHRASE)
 
-        expect(account.path).toBe("m/44'/501'/0'/0'")
-        expect(await account.getAddress()).toBe('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+        expect(account.path).toBe(ACCOUNT_0.path)
+        expect(await account.getAddress()).toBe(ACCOUNT_0.address)
       })
 
       it('should accept a signer at the coin-type node', async () => {
         const account = new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE), {})
-        const expected = new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'"), {})
+        const expected = new WalletAccountSolana(new SeedSignerSolana(TEST_SEED_PHRASE, COIN_NODE_PATH), {})
 
-        expect(account.path).toBe("m/44'/501'")
+        expect(account.path).toBe(COIN_NODE_PATH)
         expect(await account.getAddress()).toBe(await expected.getAddress())
       })
 
@@ -149,7 +203,7 @@ describe('WalletAccountSolana', () => {
     describe('getAddress', () => {
       it('should return a valid Solana address', async () => {
         const address = await account.getAddress()
-        expect(address).toMatch('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+        expect(address).toMatch(ACCOUNT_0.address)
       })
 
       it('should return different addresses for different account indices', async () => {
@@ -161,15 +215,9 @@ describe('WalletAccountSolana', () => {
         const address1 = await account1.getAddress()
         const address2 = await account2.getAddress()
 
-        expect(address0).toMatch(
-          '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
-        )
-        expect(address1).toMatch(
-          'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'
-        )
-        expect(address2).toMatch(
-          'Grwp8oDHgAD8PVSS51pWGCY5QRM3hqiH8QcbPRAEUABq'
-        )
+        expect(address0).toMatch(ACCOUNT_0.address)
+        expect(address1).toMatch(ACCOUNT_1.address)
+        expect(address2).toMatch(ACCOUNT_2_ADDRESS)
       })
 
       it('should return different addresses for different derivation paths', async () => {
@@ -181,25 +229,17 @@ describe('WalletAccountSolana', () => {
         const address2 = await accountPath2.getAddress()
         const address3 = await accountPath3.getAddress()
 
-        expect(address1).toMatch(
-          'DPGHHHMaayXkaThUJCUnUAJCdgc9sxNh1UEGa6vJximM'
-        )
-        expect(address2).toMatch('jbhYXhWfRPqPvaKqaWCJEgBdZMquFxUvjWaWLEH3YCz')
-        expect(address3).toMatch(
-          '57hwCai22XueypvXcXKotkuAQYj2eukFcY5ymWB7Arvg'
-        )
+        expect(address1).toMatch(PATH_ADDRESSES["0'/0'/0'"])
+        expect(address2).toMatch(PATH_ADDRESSES["0'/0'/1'"])
+        expect(address3).toMatch(PATH_ADDRESSES["1'/0'/0'"])
       })
     })
 
     describe('keyPair', () => {
       it('should have consistent keyPair', () => {
         const keyPair = account.keyPair
-        expect(Buffer.from(keyPair.publicKey).toString('hex')).toBe(
-          '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
-        )
-        expect(Buffer.from(keyPair.privateKey).toString('hex')).toBe(
-          'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
-        )
+        expect(Buffer.from(keyPair.publicKey).toString('hex')).toBe(ACCOUNT_0.publicKey)
+        expect(Buffer.from(keyPair.privateKey).toString('hex')).toBe(ACCOUNT_0.privateKey)
       })
 
       it('should have different key pairs for different accounts', async () => {
@@ -209,18 +249,10 @@ describe('WalletAccountSolana', () => {
         const keyPair0 = account0.keyPair
         const keyPair1 = account1.keyPair
 
-        expect(Buffer.from(keyPair0.publicKey).toString('hex')).toBe(
-          '2b2c715c2cf24db57e95a44df34cb424de2460e86c4f6ebe7ba62b574830de19'
-        )
-        expect(Buffer.from(keyPair0.privateKey).toString('hex')).toBe(
-          'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
-        )
-        expect(Buffer.from(keyPair1.publicKey).toString('hex')).toBe(
-          'ad3e499bc158a797574c53bcca546939f0de16242b85ed39a848092c4d9d5274'
-        )
-        expect(Buffer.from(keyPair1.privateKey).toString('hex')).toBe(
-          '4642fc818f6525a2c5ae784cc98f44d639492c21271c5f7f0ac30ee95a3357bb'
-        )
+        expect(Buffer.from(keyPair0.publicKey).toString('hex')).toBe(ACCOUNT_0.publicKey)
+        expect(Buffer.from(keyPair0.privateKey).toString('hex')).toBe(ACCOUNT_0.privateKey)
+        expect(Buffer.from(keyPair1.publicKey).toString('hex')).toBe(ACCOUNT_1.publicKey)
+        expect(Buffer.from(keyPair1.privateKey).toString('hex')).toBe(ACCOUNT_1.privateKey)
       })
     })
 
@@ -228,12 +260,12 @@ describe('WalletAccountSolana', () => {
       it('should follow SLIP-0010 Solana derivation path format', () => {
         const path = account.path
 
-        expect(path).toMatch("m/44'/501'/0'/0'")
+        expect(path).toMatch(ACCOUNT_0.path)
       })
 
       it('should have correct path for account index 0', async () => {
         const account0 = await wallet.getAccount(0)
-        expect(account0.path).toBe("m/44'/501'/0'/0'")
+        expect(account0.path).toBe(ACCOUNT_0.path)
       })
 
       it('should have correct path for account index 5', async () => {
@@ -249,15 +281,15 @@ describe('WalletAccountSolana', () => {
 
     describe('fromPrivateKey', () => {
       it('should create the account of the private key', async () => {
-        const account = WalletAccountSolana.fromPrivateKey('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f', { provider: TEST_RPC_URL })
+        const account = WalletAccountSolana.fromPrivateKey(ACCOUNT_0.privateKey, { provider: TEST_RPC_URL })
 
         expect(account).toBeInstanceOf(WalletAccountSolana)
         expect(account.path).toBeNull()
-        expect(await account.getAddress()).toBe('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+        expect(await account.getAddress()).toBe(ACCOUNT_0.address)
       })
 
       it('should wipe the signer it created on dispose', () => {
-        const account = WalletAccountSolana.fromPrivateKey('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+        const account = WalletAccountSolana.fromPrivateKey(ACCOUNT_0.privateKey)
 
         account.dispose()
 
@@ -272,7 +304,7 @@ describe('WalletAccountSolana', () => {
 
         account.dispose()
 
-        expect(Buffer.from(signer.keyPair.privateKey).toString('hex')).toBe('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+        expect(Buffer.from(signer.keyPair.privateKey).toString('hex')).toBe(ACCOUNT_0.privateKey)
         await expect(account.sign('Hello, Solana!')).rejects.toThrow(new DisposalError('The wallet account has been disposed.'))
       })
 
@@ -296,7 +328,7 @@ describe('WalletAccountSolana', () => {
 
     describe('dispose', () => {
       it('should be marked as disposed only after dispose', () => {
-        const account = WalletAccountSolana.fromPrivateKey('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+        const account = WalletAccountSolana.fromPrivateKey(ACCOUNT_0.privateKey)
 
         expect(account.disposed).toBe(false)
 
@@ -363,9 +395,7 @@ describe('WalletAccountSolana', () => {
         const message = 'Test message'
         const signature = await account.sign(message)
 
-        expect(signature).toBe(
-          '90d1d5dc7430f3efa9fa037ba2179458fad9a8bfdf42ba74fff4581ce9e0ac2fba1562483b072e9eee709ef8d59448b379d9a61e634b37a3c13858bab7754f08'
-        )
+        expect(signature).toBe(MESSAGE_SIGNATURES['Test message'])
       })
 
       it('should produce different signatures for different messages', async () => {
@@ -375,12 +405,8 @@ describe('WalletAccountSolana', () => {
         const signature1 = await account.sign(message1)
         const signature2 = await account.sign(message2)
 
-        expect(signature1).toBe(
-          '06f06d64f9a5338595410825aee9ae6b04bd0069fcd36afca765f75b3c4ebb42c2ee35a62961b8edc3afc1d10b50dcdb558d9904707326236598d0b7c0385204'
-        )
-        expect(signature2).toBe(
-          'c4d4f624a1d7ba1992cdfd6ce5a8a3e7e2ac46ad342ef8b00b8c10f73633223a882ff8230b009691d57291aa6224a648371f9208c447ed695be47ec395a6ad0d'
-        )
+        expect(signature1).toBe(MESSAGE_SIGNATURES['Message 1'])
+        expect(signature2).toBe(MESSAGE_SIGNATURES['Message 2'])
       })
 
       it('should throw error after account disposal', async () => {
@@ -414,8 +440,8 @@ describe('WalletAccountSolana', () => {
         getLatestBlockhash: jest.fn().mockReturnValue({
           send: jest.fn().mockResolvedValue({
             value: {
-              blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
-              lastValidBlockHeight: 1000000
+              blockhash: MOCK_BLOCKHASH,
+              lastValidBlockHeight: MOCK_LAST_VALID_BLOCK_HEIGHT
             }
           })
         })
@@ -454,10 +480,10 @@ describe('WalletAccountSolana', () => {
     describe('Native Transfer Transaction', () => {
       it('should accept simple {to, value} transaction format', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('mock-signature-123')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
         mockRpc.getSignatureStatuses.mockReturnValue({
           send: jest.fn().mockResolvedValue({
@@ -468,7 +494,7 @@ describe('WalletAccountSolana', () => {
         account._rpc = mockRpc
 
         const tx = {
-          to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+          to: RECIPIENT_ADDRESS,
           value: 1000000n
         }
 
@@ -477,24 +503,24 @@ describe('WalletAccountSolana', () => {
         })
 
         expect(result).toBeDefined()
-        expect(result.hash).toBe('mock-signature-123')
-        expect(result.fee).toBe(5000n)
+        expect(result.hash).toBe(MOCK_SIGNATURE)
+        expect(result.fee).toBe(BigInt(MOCK_FEE))
         expect(mockRpc.sendTransaction).toHaveBeenCalled()
       })
 
       it('should handle bigint and number values', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig1')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         account._rpc = mockRpc
 
         await account.sendTransaction(
           {
-            to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
+            to: OTHER_RECIPIENT_ADDRESS,
             value: 1000000n
           },
           { skipConfirmation: true }
@@ -502,7 +528,7 @@ describe('WalletAccountSolana', () => {
 
         await account.sendTransaction(
           {
-            to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
+            to: OTHER_RECIPIENT_ADDRESS,
             value: 1000000
           },
           { skipConfirmation: true }
@@ -515,10 +541,10 @@ describe('WalletAccountSolana', () => {
     describe('TransactionMessage Format', () => {
       it('should accept TransactionMessage with instructions', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('mock-sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         account._rpc = mockRpc
@@ -526,7 +552,7 @@ describe('WalletAccountSolana', () => {
         const txMessage = {
           instructions: [
             {
-              programAddress: '11111111111111111111111111111111',
+              programAddress: SYSTEM_PROGRAM_ADDRESS,
               accounts: [],
               data: new Uint8Array()
             }
@@ -536,16 +562,16 @@ describe('WalletAccountSolana', () => {
 
         const result = await account.sendTransaction(txMessage)
 
-        expect(result.hash).toBe('mock-sig')
+        expect(result.hash).toBe(MOCK_SIGNATURE)
         expect(mockRpc.sendTransaction).toHaveBeenCalled()
       })
 
       it('should add fee payer if missing', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('mock-sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         account._rpc = mockRpc
@@ -562,10 +588,10 @@ describe('WalletAccountSolana', () => {
 
       it('should verify fee payer matches account address (string format)', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('mock-sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         account._rpc = mockRpc
@@ -575,7 +601,7 @@ describe('WalletAccountSolana', () => {
         const txMessage = {
           instructions: [
             {
-              programAddress: '11111111111111111111111111111111',
+              programAddress: SYSTEM_PROGRAM_ADDRESS,
               accounts: [],
               data: new Uint8Array()
             }
@@ -588,7 +614,7 @@ describe('WalletAccountSolana', () => {
           skipConfirmation: true
         })
 
-        expect(result.hash).toBe('mock-sig')
+        expect(result.hash).toBe(MOCK_SIGNATURE)
         expect(mockRpc.sendTransaction).toHaveBeenCalled()
       })
 
@@ -599,7 +625,7 @@ describe('WalletAccountSolana', () => {
           instructions: [],
           version: 0,
           feePayer: {
-            address: 'DifferentAddress11111111111111111111111'
+            address: FOREIGN_FEE_PAYER_ADDRESS
           }
         }
 
@@ -623,16 +649,16 @@ describe('WalletAccountSolana', () => {
       }
 
       const TX = {
-        to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+        to: RECIPIENT_ADDRESS,
         value: 1000000n
       }
 
       beforeEach(() => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('mock-sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         account._rpc = mockRpc
@@ -646,8 +672,8 @@ describe('WalletAccountSolana', () => {
 
         const result = await account.sendTransaction(serialized)
 
-        expect(result.hash).toBe('mock-sig')
-        expect(result.fee).toBe(5000n)
+        expect(result.hash).toBe(MOCK_SIGNATURE)
+        expect(result.fee).toBe(BigInt(MOCK_FEE))
         expect(mockRpc.sendTransaction).toHaveBeenCalledWith(expected, {
           encoding: 'base64'
         })
@@ -672,7 +698,7 @@ describe('WalletAccountSolana', () => {
 
         const { fee } = await account.quoteSendTransaction(serialized)
 
-        expect(fee).toBe(5000n)
+        expect(fee).toBe(BigInt(MOCK_FEE))
         expect(mockRpc.getFeeForMessage).toHaveBeenCalledWith(expectedMessage, {
           commitment: 'processed'
         })
@@ -698,14 +724,14 @@ describe('WalletAccountSolana', () => {
           send: jest.fn().mockResolvedValue({ value: 7500 })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         account._rpc = mockRpc
 
         const result = await account.sendTransaction(
           {
-            to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
+            to: OTHER_RECIPIENT_ADDRESS,
             value: 1000n
           },
           { skipConfirmation: true }
@@ -724,7 +750,7 @@ describe('WalletAccountSolana', () => {
 
         await expect(
           account.sendTransaction({
-            to: '8KpbCiK2SfNRNqosmkfvys5itK6CbjcxLXG8e2gLgzmP',
+            to: OTHER_RECIPIENT_ADDRESS,
             value: 1000n
           })
         ).rejects.toThrow('Failed to calculate transaction fee')
@@ -734,7 +760,7 @@ describe('WalletAccountSolana', () => {
     describe('Fee Limit', () => {
       it('should throw if transaction fee exceeds the transaction max fee configuration', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
 
         const limitedWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
@@ -748,7 +774,7 @@ describe('WalletAccountSolana', () => {
 
         await expect(
           limitedAccount.sendTransaction({
-            to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+            to: RECIPIENT_ADDRESS,
             value: 1000000n
           })
         ).rejects.toThrow('Exceeded maximum fee cost for transaction operation.')
@@ -756,10 +782,10 @@ describe('WalletAccountSolana', () => {
 
       it('should allow a fee exactly equal to transactionMaxFee', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         const limitedWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
@@ -773,7 +799,7 @@ describe('WalletAccountSolana', () => {
 
         const result = await limitedAccount.sendTransaction(
           {
-            to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+            to: RECIPIENT_ADDRESS,
             value: 1000000n
           },
           { skipConfirmation: true }
@@ -784,10 +810,10 @@ describe('WalletAccountSolana', () => {
 
       it('should allow a fee below transactionMaxFee', async () => {
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         const limitedWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
@@ -801,7 +827,7 @@ describe('WalletAccountSolana', () => {
 
         const result = await limitedAccount.sendTransaction(
           {
-            to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+            to: RECIPIENT_ADDRESS,
             value: 1000000n
           },
           { skipConfirmation: true }
@@ -813,23 +839,23 @@ describe('WalletAccountSolana', () => {
 
     it('should broadcast an already-signed transaction', async () => {
       mockRpc.getFeeForMessage.mockReturnValue({
-        send: jest.fn().mockResolvedValue({ value: 5000 })
+        send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
       })
       mockRpc.sendTransaction.mockReturnValue({
-        send: jest.fn().mockResolvedValue('signed-tx-signature')
+        send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
       })
 
       account._rpc = mockRpc
 
       const signedTx = await buildSignedTransaction(account, {
-        to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+        to: RECIPIENT_ADDRESS,
         value: 1000000n
       })
 
       const result = await account.sendTransaction(signedTx)
 
-      expect(result.hash).toBe('signed-tx-signature')
-      expect(result.fee).toBe(5000n)
+      expect(result.hash).toBe(MOCK_SIGNATURE)
+      expect(result.fee).toBe(BigInt(MOCK_FEE))
       expect(mockRpc.sendTransaction).toHaveBeenCalledWith(
         getBase64EncodedWireTransaction(signedTx),
         { encoding: 'base64' }
@@ -838,16 +864,16 @@ describe('WalletAccountSolana', () => {
 
     it('should throw if a signed transaction fee exceeds the transaction max fee configuration', async () => {
       mockRpc.getFeeForMessage.mockReturnValue({
-        send: jest.fn().mockResolvedValue({ value: 5000 })
+        send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
       })
       mockRpc.sendTransaction.mockReturnValue({
-        send: jest.fn().mockResolvedValue('sig')
+        send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
       })
 
       account._rpc = mockRpc
 
       const signedTx = await buildSignedTransaction(account, {
-        to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+        to: RECIPIENT_ADDRESS,
         value: 1000000n
       })
 
@@ -880,8 +906,8 @@ describe('WalletAccountSolana', () => {
         getLatestBlockhash: jest.fn().mockReturnValue({
           send: jest.fn().mockResolvedValue({
             value: {
-              blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
-              lastValidBlockHeight: 1000000
+              blockhash: MOCK_BLOCKHASH,
+              lastValidBlockHeight: MOCK_LAST_VALID_BLOCK_HEIGHT
             }
           })
         })
@@ -894,13 +920,13 @@ describe('WalletAccountSolana', () => {
 
     it('should quote an already-signed transaction without broadcasting', async () => {
       mockRpc.getFeeForMessage.mockReturnValue({
-        send: jest.fn().mockResolvedValue({ value: 5000 })
+        send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
       })
 
       account._rpc = mockRpc
 
       const tx = {
-        to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+        to: RECIPIENT_ADDRESS,
         value: 1000000n
       }
 
@@ -910,7 +936,7 @@ describe('WalletAccountSolana', () => {
       const { fee: signedFee } = await account.quoteSendTransaction(signedTx)
 
       expect(signedFee).toBe(unsignedFee)
-      expect(signedFee).toBe(5000n)
+      expect(signedFee).toBe(BigInt(MOCK_FEE))
     })
   })
 
@@ -922,8 +948,8 @@ describe('WalletAccountSolana', () => {
         getLatestBlockhash: jest.fn().mockReturnValue({
           send: jest.fn().mockResolvedValue({
             value: {
-              blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
-              lastValidBlockHeight: 1000000
+              blockhash: MOCK_BLOCKHASH,
+              lastValidBlockHeight: MOCK_LAST_VALID_BLOCK_HEIGHT
             }
           })
         })
@@ -934,7 +960,7 @@ describe('WalletAccountSolana', () => {
 
       try {
         const TRANSACTION = {
-          to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+          to: RECIPIENT_ADDRESS,
           value: 1000000n
         }
 
@@ -942,7 +968,7 @@ describe('WalletAccountSolana', () => {
 
         const decodedMessage = getCompiledTransactionMessageDecoder().decode(signedTx.messageBytes)
 
-        expect(decodedMessage.staticAccounts).toContain('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+        expect(decodedMessage.staticAccounts).toContain(ACCOUNT_0.address)
         expect(decodedMessage.staticAccounts).toContain(TRANSACTION.to)
 
         // SystemProgram transfer instruction data: 4-byte LE discriminator (2) + 8-byte LE u64 lamports
@@ -950,7 +976,7 @@ describe('WalletAccountSolana', () => {
         const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
         expect(view.getUint32(0, true)).toBe(2)
         expect(view.getBigUint64(4, true)).toBe(TRANSACTION.value)
-        const payerSignature = signedTx.signatures['3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE']
+        const payerSignature = signedTx.signatures[ACCOUNT_0.address]
         expect(payerSignature).toBeInstanceOf(Uint8Array)
         expect(payerSignature.length).toBe(64)
       } finally {
@@ -961,13 +987,13 @@ describe('WalletAccountSolana', () => {
     it('should throw if transaction fee exceeds the transaction max fee configuration', async () => {
       const mockRpc = {
         getFeeForMessage: jest.fn().mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         }),
         getLatestBlockhash: jest.fn().mockReturnValue({
           send: jest.fn().mockResolvedValue({
             value: {
-              blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
-              lastValidBlockHeight: 1000000
+              blockhash: MOCK_BLOCKHASH,
+              lastValidBlockHeight: MOCK_LAST_VALID_BLOCK_HEIGHT
             }
           })
         })
@@ -984,7 +1010,7 @@ describe('WalletAccountSolana', () => {
 
       await expect(
         limitedAccount.signTransaction({
-          to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+          to: RECIPIENT_ADDRESS,
           value: 1000000n
         })
       ).rejects.toThrow('Exceeded maximum fee cost for transaction operation.')
@@ -993,13 +1019,13 @@ describe('WalletAccountSolana', () => {
     it('should allow a fee exactly equal to transactionMaxFee', async () => {
       const mockRpc = {
         getFeeForMessage: jest.fn().mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         }),
         getLatestBlockhash: jest.fn().mockReturnValue({
           send: jest.fn().mockResolvedValue({
             value: {
-              blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
-              lastValidBlockHeight: 1000000
+              blockhash: MOCK_BLOCKHASH,
+              lastValidBlockHeight: MOCK_LAST_VALID_BLOCK_HEIGHT
             }
           })
         })
@@ -1015,7 +1041,7 @@ describe('WalletAccountSolana', () => {
       limitedAccount._rpc = mockRpc
 
       const signedTx = await limitedAccount.signTransaction({
-        to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+        to: RECIPIENT_ADDRESS,
         value: 1000000n
       })
 
@@ -1025,13 +1051,13 @@ describe('WalletAccountSolana', () => {
     it('should allow a fee below transactionMaxFee', async () => {
       const mockRpc = {
         getFeeForMessage: jest.fn().mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         }),
         getLatestBlockhash: jest.fn().mockReturnValue({
           send: jest.fn().mockResolvedValue({
             value: {
-              blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
-              lastValidBlockHeight: 1000000
+              blockhash: MOCK_BLOCKHASH,
+              lastValidBlockHeight: MOCK_LAST_VALID_BLOCK_HEIGHT
             }
           })
         })
@@ -1047,7 +1073,7 @@ describe('WalletAccountSolana', () => {
       limitedAccount._rpc = mockRpc
 
       const signedTx = await limitedAccount.signTransaction({
-        to: '9CXtfmGEtfjmtPKnq2QZcRzCiMzE9T8NQfRicJZetvk2',
+        to: RECIPIENT_ADDRESS,
         value: 1000000n
       })
 
@@ -1058,9 +1084,9 @@ describe('WalletAccountSolana', () => {
       const coSigner = await createKeyPairSignerFromPrivateKeyBytes(new Uint8Array(32).fill(1))
 
       let transactionMessage = createTransactionMessage({ version: 0 })
-      transactionMessage = setTransactionMessageFeePayer('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE', transactionMessage)
+      transactionMessage = setTransactionMessageFeePayer(ACCOUNT_0.address, transactionMessage)
       transactionMessage = setTransactionMessageLifetimeUsingBlockhash({
-        blockhash: '6JbYxigC1rn83PMHZait5FHHpC3YqUMacnVJWFwfoayQ',
+        blockhash: MOCK_BLOCKHASH,
         lastValidBlockHeight: 1000000n
       }, transactionMessage)
       transactionMessage = appendTransactionMessageInstruction(getAddMemoInstruction({ memo: 'co-signed', signers: [coSigner] }), transactionMessage)
@@ -1068,10 +1094,20 @@ describe('WalletAccountSolana', () => {
       const signedTx = await account.signTransaction(transactionMessage)
 
       const base58 = getBase58Decoder()
-      expect(base58.decode(signedTx.signatures['3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE']))
-        .toBe('4xsE4C6a79AaoAeTaLZwM57ce9q92gMKV1Yd53hSFhc1J2q1JVSqzCZHSNrY9uVotESpAMMvRzA3B81umcWCa3vA')
+      expect(base58.decode(signedTx.signatures[ACCOUNT_0.address]))
+        .toBe(COSIGNED_TRANSACTION_SIGNATURES.feePayer)
       expect(base58.decode(signedTx.signatures[coSigner.address]))
-        .toBe('5SjRUVhgWVDvzbu1A2HKyVPCN6UxJctrUS9WZoakB1JVz8jwGwp312yNhnRjVjmPYySkvCpVpuyLsk4XS9ycnLg')
+        .toBe(COSIGNED_TRANSACTION_SIGNATURES.cosigner)
+    })
+
+    it('should throw if the account is disposed', async () => {
+      const signer = await new SeedSignerSolana(TEST_SEED_PHRASE).derive("0'/0'")
+      const account = new WalletAccountSolana(signer, { provider: TEST_RPC_URL })
+
+      account.dispose()
+
+      await expect(account.signTransaction({ to: DUMMY_ADDRESS, value: 1000n }))
+        .rejects.toThrow(new DisposalError('The wallet account has been disposed.'))
     })
   })
 
@@ -1090,8 +1126,8 @@ describe('WalletAccountSolana', () => {
         getLatestBlockhash: jest.fn().mockReturnValue({
           send: jest.fn().mockResolvedValue({
             value: {
-              blockhash: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
-              lastValidBlockHeight: 2000000
+              blockhash: MOCK_BLOCKHASH,
+              lastValidBlockHeight: MOCK_LAST_VALID_BLOCK_HEIGHT
             }
           })
         })
@@ -1109,8 +1145,8 @@ describe('WalletAccountSolana', () => {
 
         await expect(
           noRpcAccount.transfer({
-            token: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
-            recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
+            token: DUMMY_ADDRESS,
+            recipient: DUMMY_ADDRESS,
             amount: 1000n
           })
         ).rejects.toThrow('The wallet must be connected to a provider')
@@ -1127,8 +1163,8 @@ describe('WalletAccountSolana', () => {
 
         await expect(
           tempAccount.transfer({
-            token: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
-            recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
+            token: DUMMY_ADDRESS,
+            recipient: DUMMY_ADDRESS,
             amount: 1000n
           })
         ).rejects.toThrow(new DisposalError('The wallet account has been disposed.'))
@@ -1137,8 +1173,8 @@ describe('WalletAccountSolana', () => {
       it('should throw if amount exceeds u64 maximum', async () => {
         await expect(
           account.transfer({
-            token: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
-            recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
+            token: DUMMY_ADDRESS,
+            recipient: DUMMY_ADDRESS,
             amount: 0xffffffffffffffffn + 1n
           })
         ).rejects.toThrow('Amount exceeds u64 maximum value')
@@ -1147,8 +1183,8 @@ describe('WalletAccountSolana', () => {
       it('should throw if number amount exceeds safe integer', async () => {
         await expect(
           account.transfer({
-            token: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
-            recipient: 'FzFRHEc1tWLGa2doGw2KAKrfNrBH3QwGTnjm37o2HQGb',
+            token: DUMMY_ADDRESS,
+            recipient: DUMMY_ADDRESS,
             amount: Number.MAX_SAFE_INTEGER + 1
           })
         ).rejects.toThrow('Amount exceeds safe integer range')
@@ -1164,18 +1200,18 @@ describe('WalletAccountSolana', () => {
           })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         account._rpc = mockRpc
 
         await account.transfer(
           {
-            token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
+            token: TOKEN_PROGRAM_ADDRESS,
+            recipient: TOKEN_RECIPIENT_ADDRESS,
             amount: 1000000n
           },
           { skipConfirmation: true }
@@ -1183,8 +1219,8 @@ describe('WalletAccountSolana', () => {
 
         await account.transfer(
           {
-            token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
+            token: TOKEN_PROGRAM_ADDRESS,
+            recipient: TOKEN_RECIPIENT_ADDRESS,
             amount: 1000000
           },
           { skipConfirmation: true }
@@ -1219,8 +1255,8 @@ describe('WalletAccountSolana', () => {
 
         await expect(
           limitedAccount.transfer({
-            token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
+            token: TOKEN_PROGRAM_ADDRESS,
+            recipient: TOKEN_RECIPIENT_ADDRESS,
             amount: 1000n
           })
         ).rejects.toThrow('Exceeded maximum fee cost')
@@ -1243,24 +1279,24 @@ describe('WalletAccountSolana', () => {
           })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         limitedAccount._rpc = mockRpc
 
         const result = await limitedAccount.transfer(
           {
-            token: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-            recipient: 'ASbM8cPUrBxgjgNuu3hQSK2JSDDG6HhQ9FqU3ofprkMV',
+            token: TOKEN_PROGRAM_ADDRESS,
+            recipient: TOKEN_RECIPIENT_ADDRESS,
             amount: 1000n
           },
           { skipConfirmation: true }
         )
 
-        expect(result.hash).toBe('sig')
+        expect(result.hash).toBe(MOCK_SIGNATURE)
         expect(mockRpc.sendTransaction).toHaveBeenCalled()
       })
     })
@@ -1274,25 +1310,25 @@ describe('WalletAccountSolana', () => {
           })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('transfer-sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         account._rpc = mockRpc
 
         const result = await account.transfer(
           {
-            token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-            recipient: '11111111111111111111111111111111',
+            token: USDT_MINT_ADDRESS,
+            recipient: SYSTEM_PROGRAM_ADDRESS,
             amount: 1000000n
           },
           { skipConfirmation: true }
         )
 
-        expect(result.hash).toBe('transfer-sig')
-        expect(result.fee).toBe(5000n)
+        expect(result.hash).toBe(MOCK_SIGNATURE)
+        expect(result.fee).toBe(BigInt(MOCK_FEE))
         expect(mockRpc.sendTransaction).toHaveBeenCalled()
       })
 
@@ -1307,18 +1343,18 @@ describe('WalletAccountSolana', () => {
           })
         })
         mockRpc.getFeeForMessage.mockReturnValue({
-          send: jest.fn().mockResolvedValue({ value: 5000 })
+          send: jest.fn().mockResolvedValue({ value: MOCK_FEE })
         })
         mockRpc.sendTransaction.mockReturnValue({
-          send: jest.fn().mockResolvedValue('memo-transfer-sig')
+          send: jest.fn().mockResolvedValue(MOCK_SIGNATURE)
         })
 
         account._rpc = mockRpc
 
         const result = await account.transfer(
           {
-            token: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-            recipient: '11111111111111111111111111111111',
+            token: USDT_MINT_ADDRESS,
+            recipient: SYSTEM_PROGRAM_ADDRESS,
             amount: 1000000n
           },
           { memo: 'wdk memo' }
@@ -1335,8 +1371,8 @@ describe('WalletAccountSolana', () => {
 
         expect(programs).toEqual([MEMO_PROGRAM_ADDRESS, TOKEN_PROGRAM_ADDRESS])
         expect(compiledMessage.instructions[0].data).toEqual(EXPECTED_MEMO_DATA)
-        expect(result.hash).toBe('memo-transfer-sig')
-        expect(result.fee).toBe(5000n)
+        expect(result.hash).toBe(MOCK_SIGNATURE)
+        expect(result.fee).toBe(BigInt(MOCK_FEE))
       })
     })
   })

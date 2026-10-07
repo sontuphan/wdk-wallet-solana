@@ -31,6 +31,16 @@ const TEST_SEED_PHRASE =
   'test walk nut penalty hip pave soap entry language right filter choice'
 const TEST_RPC_URL = 'https://mock-url.com'
 
+const PRIVATE_KEY = 'de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'
+const PRIVATE_KEY_ADDRESS = '3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE'
+
+const ACCOUNT_0_PATH = "m/44'/501'/0'/0'"
+
+const ACCOUNT_1 = {
+  path: "m/44'/501'/1'/0'",
+  address: 'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'
+}
+
 describe('WalletManagerSolana', () => {
   let wallet
 
@@ -61,8 +71,8 @@ describe('WalletManagerSolana', () => {
 
       const account = await signerWallet.getAccount(1)
 
-      expect(account.path).toBe("m/44'/501'/1'/0'")
-      expect(await account.getAddress()).toBe('CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK')
+      expect(account.path).toBe(ACCOUNT_1.path)
+      expect(await account.getAddress()).toBe(ACCOUNT_1.address)
     })
   })
 
@@ -121,23 +131,23 @@ describe('WalletManagerSolana', () => {
     })
 
     it('should return the account of a named private-key signer without deriving', async () => {
-      wallet.addSigner('treasury', new PrivateKeySignerSolana('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f'))
+      wallet.addSigner('treasury', new PrivateKeySignerSolana(PRIVATE_KEY))
 
       const account = await wallet.getAccount('treasury')
 
       expect(account.path).toBeNull()
-      expect(await account.getAddress()).toBe('3uXqWpwgqKVdiHAwF6Vmu4G4vdQzpR66xjPkz1G7zMKE')
+      expect(await account.getAddress()).toBe(PRIVATE_KEY_ADDRESS)
       expect(await wallet.getAccount('treasury')).toBe(account)
     })
 
     it('should not wipe a registered signer on dispose', async () => {
-      const signer = new PrivateKeySignerSolana('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+      const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
       wallet.addSigner('treasury', signer)
       await wallet.getAccount('treasury')
 
       wallet.dispose()
 
-      expect(Buffer.from(signer.keyPair.privateKey).toString('hex')).toBe('de705bcaa34a2ea50c0b7e6e584006f2458652fa9d6e20994ac146852490c76f')
+      expect(Buffer.from(signer.keyPair.privateKey).toString('hex')).toBe(PRIVATE_KEY)
     })
 
     it('should wipe the accounts it derived on dispose', async () => {
@@ -163,7 +173,7 @@ describe('WalletManagerSolana', () => {
     it('should return account at index 0', async () => {
       const account = await wallet.getAccount(0)
       expect(account).toBeInstanceOf(WalletAccountSolana)
-      expect(account.path).toBe("m/44'/501'/0'/0'")
+      expect(account.path).toBe(ACCOUNT_0_PATH)
     })
 
     it('should return different accounts for different indices', async () => {
