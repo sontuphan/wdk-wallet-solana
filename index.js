@@ -31,6 +31,7 @@
 
 /** @typedef {import('./src/wallet-account-solana.js').SolanaTransaction} SolanaTransaction */
 /** @typedef {import('./src/wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
+/** @typedef {import('./src/wallet-account-solana.js').SignerOptions} SignerOptions */
 
 export { default } from './src/wallet-manager-solana.js'
 
