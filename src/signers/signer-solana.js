@@ -17,11 +17,13 @@
 import { ISigner, NotImplementedError, ValueError } from '@tetherto/wdk-wallet'
 
 /** @typedef {import('@tetherto/wdk-wallet').DisposalError} DisposalError */
+/** @typedef {import('@tetherto/wdk-wallet').UnsupportedOperationError} UnsupportedOperationError */
 
 /**
- * Assert every child path in the derivation path is hardened.
- * @param {string} path The derivation path.
- * @param {boolean} [absolute] If true, the path must also be absolute ("m" or "m/...").
+ * Asserts that every child path in the derivation path is hardened.
+ *
+ * @param {string} path - The derivation path.
+ * @param {boolean} [absolute] - If true, the path must also be absolute ("m" or "m/...") (default: false).
  * @throws {ValueError} If the path is required to be absolute and is not, or if any child path is not hardened.
  */
 export function assertFullHardenedPath (path, absolute = false) {
@@ -50,6 +52,19 @@ export function assertFullHardenedPath (path, absolute = false) {
  * @interface
  */
 export class ISignerSolana extends ISigner {
+  /**
+   * Derive a child signer using a relative path (e.g., "0'/0'").
+   *
+   * @param {string} path - The relative derivation path.
+   * @returns {Promise<ISignerSolana>} The derived signer.
+   * @throws {UnsupportedOperationError} If the signer does not support account derivation.
+   * @throws {ValueError} If the path is not valid.
+   * @throws {DisposalError} If the signer has been disposed.
+   */
+  async derive (path) {
+    throw new NotImplementedError('derive(path)')
+  }
+
   /**
    * Signs a transaction, keeping any signatures it already carries.
    *

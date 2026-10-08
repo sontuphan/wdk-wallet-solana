@@ -47,6 +47,13 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      */
     constructor(seed: string | Uint8Array, config?: SolanaWalletConfig);
     /**
+     * The wallet account configuration.
+     *
+     * @protected
+     * @type {SolanaWalletConfig}
+     */
+    protected _config: SolanaWalletConfig;
+    /**
      * The solana signer.
      *
      * @private
@@ -79,7 +86,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
     /**
      * The account's key pair.
      *
-     * The uint8 arrays are bound to the wallet account, so any external change will reflect to the internal representation. For this reason,
+     * The uint8 arrays are the signer's own, so any external change will reflect to the signer's internal representation. For this reason,
      * it's strongly recommended to treat the key pair as a read-only view of the keys. While it's still technically possible to alter their
      * content, client code should never do so.
      *
@@ -189,8 +196,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
     toReadOnlyAccount(): Promise<WalletAccountReadOnlySolana>;
     _solanaReadOnlyAccount: WalletAccountReadOnlySolana;
     /**
-     * Disposes the wallet account, erasing the private key from the memory.
-     * The signer given at construction is wiped only if the account owns it (see {@link SignerOptions}).
+     * Disposes the wallet account. The signer given at construction, and its private key, is wiped only if the
+     * account owns it (see {@link SignerOptions}); a caller-owned signer is left for the caller to dispose.
      */
     dispose(): void;
 }

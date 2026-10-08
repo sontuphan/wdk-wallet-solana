@@ -1,4 +1,4 @@
-export default class WalletManagerSolana extends WalletManager {
+export default class WalletManagerSolana extends WalletManager<ISignerSolana> {
     /**
      * Creates a new wallet manager for the solana blockchain from a seed.
      *
@@ -32,7 +32,15 @@ export default class WalletManagerSolana extends WalletManager {
      */
     protected _shouldWipeDefaultSignerOnDisposal: boolean;
     /**
-     * A Solana RPC client for HTTP requests.
+     * The solana wallet configuration.
+     *
+     * @protected
+     * @type {SolanaWalletConfig}
+     */
+    protected _config: SolanaWalletConfig;
+    /**
+     * A Solana RPC client for HTTP requests. Shared with every account this manager creates,
+     * so two accounts never open two clients for the same endpoint.
      *
      * @protected
      * @type {SolanaRpc | undefined}
@@ -58,13 +66,10 @@ export default class WalletManagerSolana extends WalletManager {
      * const account = await wallet.getAccount(1);
      * @overload
      * @param {number} [index] - The index of the account to get (default: 0).
-     * @param {Object} [options] - Account options.
-     * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
+     * @param {AccountOptions} [options] - Account options.
      * @returns {Promise<WalletAccountSolana>} The account.
      */
-    getAccount(index?: number, options?: {
-        signerName?: string;
-    }): Promise<WalletAccountSolana>;
+    getAccount(index?: number, options?: AccountOptions): Promise<WalletAccountSolana>;
     /**
      * Returns the wallet account backed by a registered signer, without further derivation.
      * Use it for non-derivable signers, such as {@link PrivateKeySignerSolana}.
@@ -84,13 +89,10 @@ export default class WalletManagerSolana extends WalletManager {
      * // Returns the account with derivation path m/44'/501'/0'/0'/1'
      * const account = await wallet.getAccountByPath("0'/0'/1'");
      * @param {string} path - The derivation path (e.g. "0'/0'/0'").
-     * @param {Object} [options] - Account options.
-     * @param {string} [options.signerName] - The signer name. Omit to use the default signer.
+     * @param {AccountOptions} [options] - Account options.
      * @returns {Promise<WalletAccountSolana>} The account.
      */
-    getAccountByPath(path: string, options?: {
-        signerName?: string;
-    }): Promise<WalletAccountSolana>;
+    getAccountByPath(path: string, options?: AccountOptions): Promise<WalletAccountSolana>;
     /**
      * Builds the account config, injecting the manager's shared rpc client so accounts reuse
      * it instead of opening their own.
@@ -118,5 +120,11 @@ export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type SolanaWalletConfig = import("./wallet-account-solana.js").SolanaWalletConfig;
 export type ISignerSolana = import("./signers/signer-solana.js").ISignerSolana;
 export type PrivateKeySignerSolana = import("./signers/private-key-signer-solana.js").default;
+export type AccountOptions = {
+    /**
+     * - The name of a signer registered via `addSigner`. Omit to use the default signer.
+     */
+    signerName?: string;
+};
 import WalletManager from "@tetherto/wdk-wallet";
 import WalletAccountSolana from "./wallet-account-solana.js";
