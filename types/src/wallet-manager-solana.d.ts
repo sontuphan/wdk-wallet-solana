@@ -1,16 +1,5 @@
 export default class WalletManagerSolana extends WalletManager<ISignerSolana> {
     /**
-     * Creates a new wallet manager for the solana blockchain from a seed.
-     *
-     * The manager wraps the seed in a {@link SeedSignerSolana} at "m/44'/501'", owns it, and wipes it on
-     * {@link dispose}. The seed itself is not kept.
-     *
-     * @overload
-     * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
-     * @param {SolanaWalletConfig} [config] - The configuration object.
-     */
-    constructor(seed: string | Uint8Array, config?: SolanaWalletConfig);
-    /**
      * Creates a new wallet manager for the solana blockchain from a default signer.
      *
      * The default signer must be derivable (it must be able to derive child accounts);
@@ -24,6 +13,17 @@ export default class WalletManagerSolana extends WalletManager<ISignerSolana> {
      * @param {SolanaWalletConfig} [config] - The configuration object.
      */
     constructor(signer: ISignerSolana, config?: SolanaWalletConfig);
+    /**
+     * Creates a new wallet manager for the solana blockchain from a seed.
+     *
+     * The manager wraps the seed in a {@link SeedSignerSolana} at "m/44'/501'", owns it, and wipes it on
+     * {@link dispose}. The seed itself is not kept.
+     *
+     * @overload
+     * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
+     * @param {SolanaWalletConfig} [config] - The configuration object.
+     */
+    constructor(seed: string | Uint8Array, config?: SolanaWalletConfig);
     /**
      * If true, disposes the default signer on calls to the 'dispose' method.
      *
