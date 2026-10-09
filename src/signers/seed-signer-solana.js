@@ -49,7 +49,8 @@ function scrub (node) {
 
 /**
  * Derives an HD node along the given path segments, erasing every node it leaves behind,
- * including the starting one, so that only the returned node holds key material.
+ * including the starting one, so that only the returned node holds key material. A node is
+ * erased even when deriving its child throws, so a failed derivation leaves no key material behind.
  *
  * @param {HDKey} node - The starting HD node.
  * @param {string[]} segments - The path segments to derive.
@@ -57,8 +58,14 @@ function scrub (node) {
  */
 function deriveAndScrub (node, segments) {
   for (const segment of segments) {
-    const child = node.deriveChild(HARDENED_OFFSET + parseInt(segment, 10))
-    scrub(node)
+    let child
+
+    try {
+      child = node.deriveChild(HARDENED_OFFSET + parseInt(segment, 10))
+    } finally {
+      scrub(node)
+    }
+
     node = child
   }
 
@@ -83,16 +90,27 @@ export default class SeedSignerSolana {
    * @throws {ValueError} If the seed phrase is invalid, or if the path is not absolute or not fully hardened.
    */
   constructor (seed, path = BIP_44_SOL_DERIVATION_PATH_PREFIX) {
-    if (typeof seed === 'string') {
+    const ownsSeed = typeof seed === 'string'
+
+    if (ownsSeed) {
       if (!bip39.validateMnemonic(seed)) {
         throw new ValueError('The seed phrase is invalid.')
       }
       seed = bip39.mnemonicToSeedSync(seed)
     }
 
-    assertFullHardenedPath(path, true)
+    let master
 
-    const master = HDKey.fromMasterSeed(seed)
+    try {
+      assertFullHardenedPath(path, true)
+
+      master = HDKey.fromMasterSeed(seed)
+    } finally {
+      if (ownsSeed) {
+        sodium_memzero(seed)
+      }
+    }
+
     const node = path === 'm' ? master : deriveAndScrub(master, path.slice(2).split('/'))
 
     this._init(node, path)
