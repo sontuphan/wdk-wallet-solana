@@ -14,7 +14,7 @@
 
 'use strict'
 
-import WalletManager, { ProviderRequiredError } from '@tetherto/wdk-wallet'
+import WalletManager, { InvalidSignerError, ProviderRequiredError } from '@tetherto/wdk-wallet'
 
 import WalletAccountSolana from './wallet-account-solana.js'
 import SeedSignerSolana from './signers/seed-signer-solana.js'
@@ -164,13 +164,20 @@ export default class WalletManagerSolana extends WalletManager {
    * @param {string} path - The derivation path (e.g. "0'/0'/0'").
    * @param {AccountOptions} [options] - Account options.
    * @returns {Promise<WalletAccountSolana>} The account.
+   * @throws {InvalidSignerError} If the signer doesn't support account derivation.
    */
   async getAccountByPath (path, options = {}) {
     const { signerName } = options
     const key = signerName === undefined ? path : `${signerName}:${path}`
 
     if (!this._accounts[key]) {
-      const signer = await this.getSigner(signerName).derive(path)
+      const rootSigner = this.getSigner(signerName)
+
+      if (!rootSigner.isDerivable) {
+        throw new InvalidSignerError('The signer does not support account derivation.')
+      }
+
+      const signer = await rootSigner.derive(path)
 
       this._accounts[key] = new WalletAccountSolana(signer, { ...this._accountConfig(), shouldWipeSignerOnDisposal: true })
     }

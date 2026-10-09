@@ -91,6 +91,7 @@ export default class WalletManagerSolana extends WalletManager<ISignerSolana> {
      * @param {string} path - The derivation path (e.g. "0'/0'/0'").
      * @param {AccountOptions} [options] - Account options.
      * @returns {Promise<WalletAccountSolana>} The account.
+     * @throws {InvalidSignerError} If the signer doesn't support account derivation.
      */
     getAccountByPath(path: string, options?: AccountOptions): Promise<WalletAccountSolana>;
     /**

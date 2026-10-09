@@ -50,6 +50,8 @@ const ACCOUNT_1 = {
 
 const PATH_100_ADDRESS = '57hwCai22XueypvXcXKotkuAQYj2eukFcY5ymWB7Arvg'
 
+const UNSUPPORTED_DERIVATION_MESSAGE = 'The signer does not support account derivation.'
+
 const NON_DERIVABLE_SIGNER_MESSAGE = 'The default signer must be derivable. Non-derivable signers (e.g. private-key signers) can only be registered by name via addSigner.'
 
 describe('WalletManagerSolana', () => {
@@ -184,6 +186,13 @@ describe('WalletManagerSolana', () => {
       wallet.dispose()
 
       expect(account.keyPair.privateKey).toBeNull()
+    })
+
+    it('should throw if the named signer does not support account derivation', async () => {
+      wallet.addSigner('treasury', new PrivateKeySignerSolana(PRIVATE_KEY))
+
+      await expect(wallet.getAccountByPath("0'/0'", { signerName: 'treasury' }))
+        .rejects.toThrow(new InvalidSignerError(UNSUPPORTED_DERIVATION_MESSAGE))
     })
 
     it('should throw if no signer is registered with the given name', async () => {
