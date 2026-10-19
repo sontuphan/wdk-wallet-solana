@@ -88,7 +88,7 @@ export default class SeedSignerSolana {
    *
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {string} [path] - An absolute SLIP-0010 path; every segment must be hardened (default: "m/44'/501'").
-   * @throws {ValueError} If the seed phrase is invalid, or if the path is not absolute or not fully hardened.
+   * @throws {ValueError} If the seed phrase is invalid, if the seed is not between 16 and 64 bytes, or if the path is not absolute or not fully hardened.
    */
   constructor (seed, path = BIP_44_SOL_DERIVATION_PATH_PREFIX) {
     const ownsSeed = typeof seed === 'string'
@@ -105,7 +105,11 @@ export default class SeedSignerSolana {
     try {
       assertFullHardenedPath(path, true)
 
-      master = HDKey.fromMasterSeed(seed)
+      try {
+        master = HDKey.fromMasterSeed(seed)
+      } catch (error) {
+        throw new ValueError('The seed must be between 16 and 64 bytes.', { cause: error })
+      }
     } finally {
       if (ownsSeed) {
         sodium_memzero(seed)

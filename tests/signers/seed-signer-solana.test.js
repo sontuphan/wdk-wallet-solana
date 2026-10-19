@@ -111,6 +111,13 @@ describe('SeedSignerSolana', () => {
         .toThrow(new ValueError('The seed phrase is invalid.'))
     })
 
+    it('should throw if the seed bytes have an invalid length', () => {
+      const construct = () => new SeedSignerSolana(new Uint8Array(15), ACCOUNT_0.path)
+
+      expect(construct).toThrow(ValueError)
+      expect(construct).toThrow('The seed must be between 16 and 64 bytes.')
+    })
+
     it('should throw if the path is not absolute', () => {
       expect(() => new SeedSignerSolana(TEST_SEED_PHRASE, "44'/501'"))
         .toThrow('The derivation path must be absolute')
