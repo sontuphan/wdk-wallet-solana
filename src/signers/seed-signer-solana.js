@@ -143,8 +143,7 @@ export default class SeedSignerSolana {
   }
 
   /**
-   * Whether this signer can derive child signers. Always true: every seed signer holds an
-   * HD node and can derive below its own path.
+   * Whether this signer can derive child signers.
    *
    * @type {true}
    */
