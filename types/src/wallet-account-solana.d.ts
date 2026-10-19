@@ -53,12 +53,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      * @type {SolanaWalletConfig}
      */
     protected _config: SolanaWalletConfig;
-    /**
-     * The solana signer.
-     *
-     * @private
-     * @type {ISignerSolana}
-     */
+    /** @private */
     private _signer;
     /**
      * If true, disposes the signer on calls to the 'dispose' method.
@@ -67,9 +62,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
      * @type {boolean}
      */
     protected _shouldWipeSignerOnDisposal: boolean;
-    /**
-     * @private
-     */
+    /** @private */
     private _disposed;
     /**
      * True if the wallet account has been disposed.
@@ -135,14 +128,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana imp
     private _sendTransactionMessage;
     /** @private */
     private _signTransactionMessage;
-    /**
-     * Has the signer add its signature to a compiled transaction.
-     *
-     * @private
-     * @param {Transaction} transaction - The compiled transaction.
-     * @returns {Promise<FullySignedTransaction>} The signed transaction.
-     * @throws {SolanaError} With code `SOLANA_ERROR__TRANSACTION__SIGNATURES_MISSING` if the transaction still misses signatures the account cannot provide.
-     */
+    /** @private */
     private _signCompiledTransaction;
     /** @private */
     private _broadcastSignedTransaction;

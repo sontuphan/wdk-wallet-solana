@@ -117,12 +117,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      */
     this._config = config
 
-    /**
-     * The solana signer.
-     *
-     * @private
-     * @type {ISignerSolana}
-     */
+    /** @private */
     this._signer = signer
 
     /**
@@ -133,9 +128,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      */
     this._shouldWipeSignerOnDisposal = isSeed || Boolean(config.shouldWipeSignerOnDisposal)
 
-    /**
-     * @private
-     */
+    /** @private */
     this._disposed = false
   }
 
@@ -348,14 +341,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     return await this._signCompiledTransaction(compiledTransaction)
   }
 
-  /**
-   * Has the signer add its signature to a compiled transaction.
-   *
-   * @private
-   * @param {Transaction} transaction - The compiled transaction.
-   * @returns {Promise<FullySignedTransaction>} The signed transaction.
-   * @throws {SolanaError} With code `SOLANA_ERROR__TRANSACTION__SIGNATURES_MISSING` if the transaction still misses signatures the account cannot provide.
-   */
+  /** @private */
   async _signCompiledTransaction (transaction) {
     const unsignedBytes = Uint8Array.from(getTransactionEncoder().encode(transaction))
     const signedBytes = await this._signer.signTransaction(unsignedBytes)
@@ -433,7 +419,8 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
     if (Array.isArray(transactionMessage.instructions)) {
       transactionMessage = await this._ensureLifetime(transactionMessage)
       await this._assertFeePayer(transactionMessage)
-      transactionMessage = setTransactionMessageFeePayer(address(await this.getAddress()), transactionMessage)
+      const addr = address(await this.getAddress())
+      transactionMessage = setTransactionMessageFeePayer(addr, transactionMessage)
     }
 
     return transactionMessage
