@@ -16,6 +16,7 @@
 
 import { getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
 import { SolanaError, SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION } from '@solana/errors'
+import { getUtf8Encoder } from '@solana/codecs'
 
 import * as curve from '@noble/ed25519'
 import { sha512 } from '@noble/hashes/sha2.js'
@@ -33,7 +34,7 @@ curve.hashes.sha512 = sha512
  * @returns {string} The message's signature, as a hex string.
  */
 export function signMessage (privateKey, message) {
-  return Buffer.from(curve.sign(Buffer.from(message, 'utf8'), privateKey)).toString('hex')
+  return Buffer.from(curve.sign(getUtf8Encoder().encode(message), privateKey)).toString('hex')
 }
 
 /**

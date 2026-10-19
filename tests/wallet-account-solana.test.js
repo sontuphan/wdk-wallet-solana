@@ -418,6 +418,14 @@ describe('WalletAccountSolana', () => {
         expect(signature).toBe(MESSAGE_SIGNATURES['Test message'])
       })
 
+      it('should sign a message containing non-ASCII characters as UTF-8 text', async () => {
+        const signature = await account.sign('Héllo WDK ✓')
+
+        expect(signature).toBe(
+          '9808247b0401af3aa18f50fd9308a1c1af0f47efc36071dfd6fe5e090688611b342f3ead2576dd9d81a2dbc762f6285f862ac7772f211758288ba7817f27230b'
+        )
+      })
+
       it('should produce different signatures for different messages', async () => {
         const message1 = 'Message 1'
         const message2 = 'Message 2'
