@@ -16,31 +16,15 @@ export default class SeedSignerSolana implements ISignerSolana {
      * @throws {ValueError} If the seed phrase is invalid, if the seed is not between 16 and 64 bytes, or if the path is not absolute or not fully hardened.
      */
     constructor(seed: string | Uint8Array, path?: string);
-    /**
-     * Binds the signer to an HD node.
-     *
-     * @private
-     * @param {HDKey} node - The HD node at the signer's path.
-     * @param {string} path - The signer's absolute path.
-     */
+    /** @private */
     private _init;
     /** @private */
     private _node;
     /** @private */
     private _path;
-    /**
-     * Raw Ed25519 private key bytes (32 bytes).
-     *
-     * @private
-     * @type {Uint8Array | undefined}
-     */
+    /** @private */
     private _rawPrivateKey;
-    /**
-     * Raw Ed25519 public key bytes (32 bytes).
-     *
-     * @private
-     * @type {Uint8Array}
-     */
+    /** @private */
     private _rawPublicKey;
     /** @private */
     private _address;

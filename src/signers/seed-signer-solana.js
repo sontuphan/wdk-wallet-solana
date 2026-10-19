@@ -121,13 +121,7 @@ export default class SeedSignerSolana {
     this._init(node, path)
   }
 
-  /**
-   * Binds the signer to an HD node.
-   *
-   * @private
-   * @param {HDKey} node - The HD node at the signer's path.
-   * @param {string} path - The signer's absolute path.
-   */
+  /** @private */
   _init (node, path) {
     /** @private */
     this._node = node
@@ -135,20 +129,10 @@ export default class SeedSignerSolana {
     /** @private */
     this._path = path
 
-    /**
-     * Raw Ed25519 private key bytes (32 bytes).
-     *
-     * @private
-     * @type {Uint8Array | undefined}
-     */
+    /** @private */
     this._rawPrivateKey = node.privateKey
 
-    /**
-     * Raw Ed25519 public key bytes (32 bytes).
-     *
-     * @private
-     * @type {Uint8Array}
-     */
+    /** @private */
     this._rawPublicKey = curve.getPublicKey(node.privateKey)
 
     /** @private */
