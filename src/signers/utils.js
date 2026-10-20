@@ -15,11 +15,12 @@
 'use strict'
 
 import { getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
-import { SolanaError, SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION } from '@solana/errors'
 import { getUtf8Encoder } from '@solana/codecs'
 
 import * as curve from '@noble/ed25519'
 import { sha512 } from '@noble/hashes/sha2.js'
+
+import { InvalidSignerError } from '@tetherto/wdk-wallet'
 
 // To enable @noble's synchronous methods
 curve.hashes.sha512 = sha512
@@ -45,16 +46,13 @@ export function signMessage (privateKey, message) {
  * @param {string} address - The key's address.
  * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
  * @returns {Uint8Array} The wire-encoded transaction with the key's signature added.
- * @throws {SolanaError} With code `SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION` if the address is not one of the transaction's signers.
+ * @throws {InvalidSignerError} If the address is not one of the transaction's signers.
  */
 export function signTransactionBytes (privateKey, address, unsignedTx) {
   const transaction = getTransactionDecoder().decode(unsignedTx)
 
   if (transaction.signatures[address] === undefined) {
-    throw new SolanaError(SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION, {
-      expectedAddresses: Object.keys(transaction.signatures),
-      unexpectedAddresses: [address]
-    })
+    throw new InvalidSignerError('The signer is not one of the transaction\'s signers.')
   }
 
   const signedTransaction = {

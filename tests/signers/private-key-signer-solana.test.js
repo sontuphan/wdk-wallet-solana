@@ -26,9 +26,8 @@ import {
 } from '@solana/transaction-messages'
 import { compileTransaction, getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
 import { getBase58Decoder } from '@solana/codecs'
-import { isSolanaError, SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION } from '@solana/errors'
 import { getTransferSolInstruction } from '@solana-program/system'
-import { DisposalError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, InvalidSignerError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
 import PrivateKeySignerSolana from '../../src/signers/private-key-signer-solana.js'
 
@@ -43,6 +42,8 @@ const ACCOUNT_1_ADDRESS = 'CfGcujEkPVDx7yGyn1PUjxn2e353MXbLk8ixzwuJUktK'
 const BLOCKHASH = '11111111111111111111111111111111'
 
 const TRANSACTION_SIGNATURE = 'a66ef08d2cb62b13a6ff2e5f6ebe8a46b58590489dd1905754e00fbfa400da51ca6fc87bd8ebb1800d5a8d87e470b5269db4e6c04c031135ef40e238c4539909'
+
+const NOT_A_SIGNER_MESSAGE = 'The signer is not one of the transaction\'s signers.'
 
 const INVALID_PRIVATE_KEY_MESSAGE = 'The private key must be a 32-byte key (hex or bytes) or a 64-byte secret key (base58 or bytes).'
 
@@ -155,9 +156,7 @@ describe('PrivateKeySignerSolana', () => {
       const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
       const unsignedTx = buildUnsignedTransaction(ACCOUNT_1_ADDRESS)
 
-      const error = await signer.signTransaction(unsignedTx).catch((error) => error)
-
-      expect(isSolanaError(error, SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION)).toBe(true)
+      await expect(signer.signTransaction(unsignedTx)).rejects.toThrow(new InvalidSignerError(NOT_A_SIGNER_MESSAGE))
     })
   })
 

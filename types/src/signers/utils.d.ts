@@ -16,6 +16,6 @@ export function signMessage(privateKey: Uint8Array, message: string): string;
  * @param {string} address - The key's address.
  * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
  * @returns {Uint8Array} The wire-encoded transaction with the key's signature added.
- * @throws {SolanaError} With code `SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION` if the address is not one of the transaction's signers.
+ * @throws {InvalidSignerError} If the address is not one of the transaction's signers.
  */
 export function signTransactionBytes(privateKey: Uint8Array, address: string, unsignedTx: Uint8Array): Uint8Array;

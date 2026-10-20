@@ -26,9 +26,8 @@ import {
   setTransactionMessageLifetimeUsingBlockhash
 } from '@solana/transaction-messages'
 import { compileTransaction, getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
-import { isSolanaError, SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION } from '@solana/errors'
 import { getTransferSolInstruction } from '@solana-program/system'
-import { DisposalError, ValueError } from '@tetherto/wdk-wallet'
+import { DisposalError, InvalidSignerError, ValueError } from '@tetherto/wdk-wallet'
 
 import SeedSignerSolana from '../../src/signers/seed-signer-solana.js'
 
@@ -60,6 +59,8 @@ const COSIGNED_TRANSACTION_SIGNATURES = {
   feePayer: '5aa384d9eb484f5d03bfde9b75b34da0215e7ee50ef395ad8314b5cfc6fd63bd769a44dd71e5c39890267fefc172314a9c12818d2fc8dcb24e173cf958d23c0b',
   cosigner: '90bf1639c43d2999be39dfc75dc442fa6ac9ef9a47d57687664d3d51aad590ff5dd0ff3dd56691c0a2024ddc342835cf1988707d010968abdd7ec72571763803'
 }
+
+const NOT_A_SIGNER_MESSAGE = 'The signer is not one of the transaction\'s signers.'
 
 const HARDENED_PATH_MESSAGE = 'In Solana, every child path in a derivation path must be hardened.'
 
@@ -209,9 +210,7 @@ describe('SeedSignerSolana', () => {
     it('should throw if the key is not one of the transaction signers', async () => {
       const signer = new SeedSignerSolana(TEST_SEED_PHRASE, ACCOUNT_0.path)
 
-      const error = await signer.signTransaction(buildUnsignedTransaction(ACCOUNT_1_ADDRESS)).catch((error) => error)
-
-      expect(isSolanaError(error, SOLANA_ERROR__TRANSACTION__ADDRESSES_CANNOT_SIGN_TRANSACTION)).toBe(true)
+      await expect(signer.signTransaction(buildUnsignedTransaction(ACCOUNT_1_ADDRESS))).rejects.toThrow(new InvalidSignerError(NOT_A_SIGNER_MESSAGE))
     })
   })
 

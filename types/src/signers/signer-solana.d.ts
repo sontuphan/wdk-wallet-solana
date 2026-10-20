@@ -19,10 +19,12 @@ export class ISignerSolana extends ISigner {
      *
      * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
      * @returns {Promise<Uint8Array>} The wire-encoded transaction with this signer's signature added.
+     * @throws {InvalidSignerError} If the signer is not one of the transaction's signers.
      * @throws {DisposalError} If the signer has been disposed.
      */
     signTransaction(unsignedTx: Uint8Array): Promise<Uint8Array>;
 }
 import { ISigner } from "@tetherto/wdk-wallet";
 export type DisposalError = import("@tetherto/wdk-wallet").DisposalError;
+export type InvalidSignerError = import("@tetherto/wdk-wallet").InvalidSignerError;
 export type UnsupportedOperationError = import("@tetherto/wdk-wallet").UnsupportedOperationError;
