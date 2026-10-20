@@ -23,6 +23,8 @@ import SeedSignerSolana from './signers/seed-signer-solana.js'
 /** @typedef {import('@solana/rpc-types').Commitment} Commitment */
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
+/** @typedef {import('@tetherto/wdk-wallet').DisposalError} DisposalError */
+/** @typedef {import('@tetherto/wdk-wallet').NoSuchElementError} NoSuchElementError */
 
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
@@ -118,6 +120,9 @@ export default class WalletManagerSolana extends WalletManager {
    * @param {Object} [options] - Account options.
    * @param {string} [options.signerName] - The name of a signer registered via `addSigner`. Omit to use the default signer.
    * @returns {Promise<WalletAccountSolana>} The account.
+   * @throws {NoSuchElementError} If a signer name is given but no signer exists with that name.
+   * @throws {InvalidSignerError} If the signer doesn't support account derivation.
+   * @throws {DisposalError} If the wallet manager or the given signer has been disposed.
    */
 
   /**
@@ -130,6 +135,8 @@ export default class WalletManagerSolana extends WalletManager {
    * @overload
    * @param {string} signerName - The signer name registered via {@link addSigner}.
    * @returns {Promise<WalletAccountSolana>} The account.
+   * @throws {NoSuchElementError} If no signer exists with the given name.
+   * @throws {DisposalError} If the wallet manager or the given signer has been disposed.
    */
 
   /**

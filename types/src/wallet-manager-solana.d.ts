@@ -69,6 +69,9 @@ export default class WalletManagerSolana extends WalletManager<ISignerSolana> {
      * @param {Object} [options] - Account options.
      * @param {string} [options.signerName] - The name of a signer registered via `addSigner`. Omit to use the default signer.
      * @returns {Promise<WalletAccountSolana>} The account.
+     * @throws {NoSuchElementError} If a signer name is given but no signer exists with that name.
+     * @throws {InvalidSignerError} If the signer doesn't support account derivation.
+     * @throws {DisposalError} If the wallet manager or the given signer has been disposed.
      */
     getAccount(index?: number, options?: {
         signerName?: string;
@@ -83,6 +86,8 @@ export default class WalletManagerSolana extends WalletManager<ISignerSolana> {
      * @overload
      * @param {string} signerName - The signer name registered via {@link addSigner}.
      * @returns {Promise<WalletAccountSolana>} The account.
+     * @throws {NoSuchElementError} If no signer exists with the given name.
+     * @throws {DisposalError} If the wallet manager or the given signer has been disposed.
      */
     getAccount(signerName: string): Promise<WalletAccountSolana>;
     /**
@@ -124,6 +129,8 @@ export default class WalletManagerSolana extends WalletManager<ISignerSolana> {
 export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>;
 export type Commitment = import("@solana/rpc-types").Commitment;
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
+export type DisposalError = import("@tetherto/wdk-wallet").DisposalError;
+export type NoSuchElementError = import("@tetherto/wdk-wallet").NoSuchElementError;
 export type SolanaWalletConfig = import("./wallet-account-solana.js").SolanaWalletConfig;
 export type ISignerSolana = import("./signers/signer-solana.js").ISignerSolana;
 export type PrivateKeySignerSolana = import("./signers/private-key-signer-solana.js").default;
