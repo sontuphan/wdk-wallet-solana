@@ -14,7 +14,7 @@
 
 'use strict'
 
-import WalletManager, { InvalidSignerError, ProviderRequiredError } from '@tetherto/wdk-wallet'
+import WalletManager, { DisposalError, InvalidSignerError, ProviderRequiredError } from '@tetherto/wdk-wallet'
 
 import WalletAccountSolana from './wallet-account-solana.js'
 import SeedSignerSolana from './signers/seed-signer-solana.js'
@@ -23,7 +23,6 @@ import SeedSignerSolana from './signers/seed-signer-solana.js'
 /** @typedef {import('@solana/rpc-types').Commitment} Commitment */
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
-/** @typedef {import('@tetherto/wdk-wallet').DisposalError} DisposalError */
 /** @typedef {import('@tetherto/wdk-wallet').NoSuchElementError} NoSuchElementError */
 
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
@@ -139,18 +138,22 @@ export default class WalletManagerSolana extends WalletManager {
    * @throws {DisposalError} If the wallet manager or the given signer has been disposed.
    */
 
-  /**
-   * @param {number | string} [indexOrSignerName] - The account index, or a registered signer name (default: 0).
-   * @param {Object} [options] - Account options.
-   * @param {string} [options.signerName] - The name of a signer registered via `addSigner`. Omit to use the default signer.
-   * @returns {Promise<WalletAccountSolana>} The account.
-   */
   async getAccount (indexOrSignerName = 0, options = {}) {
     if (typeof indexOrSignerName === 'string') {
       const signerName = indexOrSignerName
 
+      if (this.disposed) {
+        throw new DisposalError('The wallet manager has been disposed.')
+      }
+
       if (!this._accounts[signerName]) {
-        this._accounts[signerName] = new WalletAccountSolana(this.getSigner(signerName), this._accountConfig())
+        const signer = this.getSigner(signerName)
+
+        if (signer.disposed) {
+          throw new DisposalError('The given signer has been disposed.')
+        }
+
+        this._accounts[signerName] = new WalletAccountSolana(signer, this._accountConfig())
       }
 
       return this._accounts[signerName]
@@ -169,9 +172,15 @@ export default class WalletManagerSolana extends WalletManager {
    * @param {Object} [options] - Account options.
    * @param {string} [options.signerName] - The name of a signer registered via `addSigner`. Omit to use the default signer.
    * @returns {Promise<WalletAccountSolana>} The account.
+   * @throws {NoSuchElementError} If a signer name is given but no signer exists with that name.
    * @throws {InvalidSignerError} If the signer doesn't support account derivation.
+   * @throws {DisposalError} If the wallet manager or the given signer has been disposed.
    */
   async getAccountByPath (path, options = {}) {
+    if (this.disposed) {
+      throw new DisposalError('The wallet manager has been disposed.')
+    }
+
     const { signerName } = options
     const key = signerName === undefined ? path : `${signerName}:${path}`
 

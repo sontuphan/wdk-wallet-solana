@@ -23,7 +23,7 @@ import {
   jest
 } from '@jest/globals'
 import * as bip39 from 'bip39'
-import { InvalidSignerError } from '@tetherto/wdk-wallet'
+import { DisposalError, InvalidSignerError } from '@tetherto/wdk-wallet'
 import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 import SeedSignerSolana from '../src/signers/seed-signer-solana.js'
@@ -170,6 +170,25 @@ describe('WalletManagerSolana', () => {
       expect(await wallet.getAccount('treasury')).toBe(account)
     })
 
+    it('should throw if the wallet manager has been disposed', async () => {
+      wallet.addSigner('treasury', new PrivateKeySignerSolana(PRIVATE_KEY))
+
+      wallet.dispose()
+
+      await expect(wallet.getAccount('treasury'))
+        .rejects.toThrow(new DisposalError('The wallet manager has been disposed.'))
+    })
+
+    it('should throw if the named signer has been disposed', async () => {
+      const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
+      wallet.addSigner('treasury', signer)
+
+      signer.dispose()
+
+      await expect(wallet.getAccount('treasury'))
+        .rejects.toThrow(new DisposalError('The given signer has been disposed.'))
+    })
+
     it('should not wipe a registered signer on dispose', async () => {
       const signer = new PrivateKeySignerSolana(PRIVATE_KEY)
       wallet.addSigner('treasury', signer)
@@ -245,6 +264,15 @@ describe('WalletManagerSolana', () => {
   })
 
   describe('getAccountByPath', () => {
+    it('should throw if the wallet manager has been disposed', async () => {
+      const signerWallet = new WalletManagerSolana(new SeedSignerSolana(TEST_SEED_PHRASE))
+
+      signerWallet.dispose()
+
+      await expect(signerWallet.getAccountByPath("0'/0'"))
+        .rejects.toThrow(new DisposalError('The wallet manager has been disposed.'))
+    })
+
     it("should return account for path \"0'/0'/0'\"", async () => {
       const account = await wallet.getAccountByPath("0'/0'/0'")
       expect(account).toBeInstanceOf(WalletAccountSolana)
