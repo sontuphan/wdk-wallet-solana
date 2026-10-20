@@ -28,7 +28,7 @@ import { getBase64Decoder } from '@solana/codecs'
 import { DisposalError, MaximumFeeExceededError, ProviderRequiredError, ValueError } from '@tetherto/wdk-wallet'
 
 import WalletAccountReadOnlySolana from './wallet-account-read-only-solana.js'
-import SeedSignerSolana from './signers/seed-signer-solana.js'
+import SeedSignerSolana, { BIP_44_SOL_DERIVATION_PATH_PREFIX } from './signers/seed-signer-solana.js'
 import PrivateKeySignerSolana from './signers/private-key-signer-solana.js'
 
 /**
@@ -56,8 +56,6 @@ import PrivateKeySignerSolana from './signers/private-key-signer-solana.js'
  * @typedef {Object} SignerOptions
  * @property {boolean} [shouldWipeSignerOnDisposal] - If true, wipes the signer given at construction on calls to the 'dispose' method.
  */
-
-const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
 const DEFAULT_ACCOUNT_PATH = "0'/0'"
 

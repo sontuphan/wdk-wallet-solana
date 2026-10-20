@@ -34,7 +34,8 @@ import { assertFullHardenedPath, signMessage, signTransactionBytes } from './sig
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */
 /** @typedef {import('micro-key-producer/slip10.js').HDKey} HDKey */
 
-const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
+/** @internal */
+export const BIP_44_SOL_DERIVATION_PATH_PREFIX = "m/44'/501'"
 
 /**
  * Securely erases an HD node's private key and chain code from memory.
