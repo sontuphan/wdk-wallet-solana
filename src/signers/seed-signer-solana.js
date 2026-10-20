@@ -25,8 +25,7 @@ import * as curve from '@noble/ed25519'
 
 import { DisposalError, ValueError } from '@tetherto/wdk-wallet'
 
-import { assertFullHardenedPath } from './signer-solana.js'
-import { signMessage, signTransactionBytes } from './utils.js'
+import { assertFullHardenedPath, signMessage, signTransactionBytes } from './signer-solana.js'
 
 /**
  * @typedef {import("./signer-solana.js").ISignerSolana} ISignerSolana

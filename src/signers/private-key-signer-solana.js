@@ -24,7 +24,7 @@ import * as curve from '@noble/ed25519'
 
 import { DisposalError, UnsupportedOperationError, ValueError } from '@tetherto/wdk-wallet'
 
-import { signMessage, signTransactionBytes } from './utils.js'
+import { signMessage, signTransactionBytes } from './signer-solana.js'
 
 /** @typedef {import('./signer-solana.js').ISignerSolana} ISignerSolana */
 /** @typedef {import('@tetherto/wdk-wallet').KeyPair} KeyPair */

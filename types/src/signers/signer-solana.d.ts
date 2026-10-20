@@ -26,5 +26,4 @@ export class ISignerSolana extends ISigner {
 }
 import { ISigner } from "@tetherto/wdk-wallet";
 export type DisposalError = import("@tetherto/wdk-wallet").DisposalError;
-export type InvalidSignerError = import("@tetherto/wdk-wallet").InvalidSignerError;
 export type UnsupportedOperationError = import("@tetherto/wdk-wallet").UnsupportedOperationError;

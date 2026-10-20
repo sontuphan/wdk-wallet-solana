@@ -14,11 +14,20 @@
 
 'use strict'
 
-import { ISigner, NotImplementedError, ValueError } from '@tetherto/wdk-wallet'
+import { getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
+import { getAddressDecoder } from '@solana/addresses'
+import { getUtf8Encoder } from '@solana/codecs'
+
+import * as curve from '@noble/ed25519'
+import { sha512 } from '@noble/hashes/sha2.js'
+
+import { ISigner, InvalidSignerError, NotImplementedError, ValueError } from '@tetherto/wdk-wallet'
 
 /** @typedef {import('@tetherto/wdk-wallet').DisposalError} DisposalError */
-/** @typedef {import('@tetherto/wdk-wallet').InvalidSignerError} InvalidSignerError */
 /** @typedef {import('@tetherto/wdk-wallet').UnsupportedOperationError} UnsupportedOperationError */
+
+// To enable @noble's synchronous methods
+curve.hashes.sha512 = sha512
 
 /**
  * Asserts that every child path in the derivation path is hardened.
@@ -46,6 +55,49 @@ export function assertFullHardenedPath (path, absolute = false) {
   if (!isValid) {
     throw new ValueError('In Solana, every child path in a derivation path must be hardened.')
   }
+}
+
+/**
+ * Signs a message with a raw Ed25519 private key.
+ *
+ * The key is used in place: no `CryptoKey`, PKCS#8 or JWK copy of it is ever created.
+ *
+ * @internal
+ * @param {Uint8Array} privateKey - The raw Ed25519 private key (32 bytes).
+ * @param {string} message - The message to sign.
+ * @returns {string} The message's signature, as a hex string.
+ */
+export function signMessage (privateKey, message) {
+  return Buffer.from(curve.sign(getUtf8Encoder().encode(message), privateKey)).toString('hex')
+}
+
+/**
+ * Adds a raw Ed25519 private key's signature to a wire-encoded transaction, keeping the
+ * signatures it already carries.
+ *
+ * @internal
+ * @param {Uint8Array} privateKey - The raw Ed25519 private key (32 bytes).
+ * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
+ * @returns {Uint8Array} The wire-encoded transaction with the key's signature added.
+ * @throws {InvalidSignerError} If the key's address is not one of the transaction's signers.
+ */
+export function signTransactionBytes (privateKey, unsignedTx) {
+  const address = getAddressDecoder().decode(curve.getPublicKey(privateKey))
+  const transaction = getTransactionDecoder().decode(unsignedTx)
+
+  if (transaction.signatures[address] === undefined) {
+    throw new InvalidSignerError('The signer is not one of the transaction\'s signers.')
+  }
+
+  const signedTransaction = {
+    ...transaction,
+    signatures: {
+      ...transaction.signatures,
+      [address]: curve.sign(transaction.messageBytes, privateKey)
+    }
+  }
+
+  return Uint8Array.from(getTransactionEncoder().encode(signedTransaction))
 }
 
 /**
