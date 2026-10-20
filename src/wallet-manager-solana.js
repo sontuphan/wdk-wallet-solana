@@ -29,11 +29,6 @@ import SeedSignerSolana from './signers/seed-signer-solana.js'
 /** @typedef {import('./signers/signer-solana.js').ISignerSolana} ISignerSolana */
 /** @typedef {import('./signers/private-key-signer-solana.js').default} PrivateKeySignerSolana */
 
-/**
- * @typedef {Object} AccountOptions
- * @property {string} [signerName] - The name of a signer registered via `addSigner`. Omit to use the default signer.
- */
-
 const FEE_RATE_NORMAL_MULTIPLIER = 110n
 
 const FEE_RATE_FAST_MULTIPLIER = 200n
@@ -120,7 +115,8 @@ export default class WalletManagerSolana extends WalletManager {
    * const account = await wallet.getAccount(1);
    * @overload
    * @param {number} [index] - The index of the account to get (default: 0).
-   * @param {AccountOptions} [options] - Account options.
+   * @param {Object} [options] - Account options.
+   * @param {string} [options.signerName] - The name of a signer registered via `addSigner`. Omit to use the default signer.
    * @returns {Promise<WalletAccountSolana>} The account.
    */
 
@@ -138,7 +134,8 @@ export default class WalletManagerSolana extends WalletManager {
 
   /**
    * @param {number | string} [indexOrSignerName] - The account index, or a registered signer name (default: 0).
-   * @param {AccountOptions} [options] - Account options.
+   * @param {Object} [options] - Account options.
+   * @param {string} [options.signerName] - The name of a signer registered via `addSigner`. Omit to use the default signer.
    * @returns {Promise<WalletAccountSolana>} The account.
    */
   async getAccount (indexOrSignerName = 0, options = {}) {
@@ -162,7 +159,8 @@ export default class WalletManagerSolana extends WalletManager {
    * // Returns the account with derivation path m/44'/501'/0'/0'/1'
    * const account = await wallet.getAccountByPath("0'/0'/1'");
    * @param {string} path - The derivation path (e.g. "0'/0'/0'").
-   * @param {AccountOptions} [options] - Account options.
+   * @param {Object} [options] - Account options.
+   * @param {string} [options.signerName] - The name of a signer registered via `addSigner`. Omit to use the default signer.
    * @returns {Promise<WalletAccountSolana>} The account.
    * @throws {InvalidSignerError} If the signer doesn't support account derivation.
    */
