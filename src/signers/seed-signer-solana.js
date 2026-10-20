@@ -117,11 +117,11 @@ export default class SeedSignerSolana {
 
     const node = path === 'm' ? master : deriveAndScrub(master, path.slice(2).split('/'))
 
-    this._init(node, path)
+    this._init(path, node)
   }
 
   /** @private */
-  _init (node, path) {
+  _init (path, node) {
     /** @private */
     this._node = node
 
@@ -204,7 +204,7 @@ export default class SeedSignerSolana {
     const node = deriveAndScrub(this._node.deriveChild(HARDENED_OFFSET + parseInt(first, 10)), rest)
 
     const signer = Object.create(SeedSignerSolana.prototype)
-    signer._init(node, `${this._path}/${relPath}`)
+    signer._init(`${this._path}/${relPath}`, node)
 
     return signer
   }
