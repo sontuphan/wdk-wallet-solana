@@ -33,24 +33,25 @@ curve.hashes.sha512 = sha512
  * Asserts that every child path in the derivation path is hardened.
  *
  * @internal
- * @param {string} path - The derivation path.
- * @param {boolean} [absolute] - If true, the path must also be absolute ("m" or "m/...") (default: false).
+ * @param {string} path - The derivation path, absolute ("m" or "m/...") or relative.
+ * @param {Object} [options] - The assertion's options.
+ * @param {boolean} [options.requireAbsolute] - If true, the path must also be absolute (default: false).
  * @throws {ValueError} If the path is required to be absolute and is not, if it is not a valid BIP-32 path, or if any child path is not hardened.
  */
-export function assertFullHardenedPath (path, absolute = false) {
-  if (absolute) {
-    if (path === 'm') {
-      return
-    }
+export function assertFullHardenedPath (path, options = {}) {
+  const { requireAbsolute = false } = options
 
-    if (!path.startsWith('m/')) {
-      throw new ValueError('The derivation path must be absolute (e.g. "m/44\'/501\'").')
-    }
+  const isAbsolute = path === 'm' || path.startsWith('m/')
 
-    path = path.slice(2)
+  if (requireAbsolute && !isAbsolute) {
+    throw new ValueError('The derivation path must be absolute (e.g. "m/44\'/501\'").')
   }
 
-  const segments = path.split('/')
+  if (path === 'm') {
+    return
+  }
+
+  const segments = (isAbsolute ? path.slice(2) : path).split('/')
 
   if (!segments.every((segment) => /^\d+'?$/.test(segment))) {
     throw new ValueError('The derivation path is not a valid BIP-32 path.')

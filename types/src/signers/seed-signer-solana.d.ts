@@ -64,7 +64,7 @@ export default class SeedSignerSolana implements ISignerSolana {
      *
      * @param {string} relPath - The path segment to derive, relative to this signer's own path.
      * @returns {Promise<SeedSignerSolana>} The derived child signer.
-     * @throws {ValueError} If the path is not a valid BIP-32 path or not fully hardened.
+     * @throws {ValueError} If the path is absolute, not a valid BIP-32 path or not fully hardened.
      * @throws {DisposalError} If the signer has been disposed.
      */
     derive(relPath: string): Promise<SeedSignerSolana>;
