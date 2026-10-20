@@ -24,6 +24,7 @@ import SeedSignerSolana from './signers/seed-signer-solana.js'
 
 /** @typedef {import('@tetherto/wdk-wallet').FeeRates} FeeRates */
 /** @typedef {import('@tetherto/wdk-wallet').NoSuchElementError} NoSuchElementError */
+/** @typedef {import('@tetherto/wdk-wallet').ValueError} ValueError */
 
 /** @typedef {import('./wallet-account-solana.js').SolanaWalletConfig} SolanaWalletConfig */
 
@@ -50,6 +51,7 @@ export default class WalletManagerSolana extends WalletManager {
    * @overload
    * @param {ISignerSolana} signer - The default root signer.
    * @param {SolanaWalletConfig} [config] - The configuration object.
+   * @throws {InvalidSignerError} If the given signer doesn't support account derivation.
    */
 
   /**
@@ -61,6 +63,7 @@ export default class WalletManagerSolana extends WalletManager {
    * @overload
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {SolanaWalletConfig} [config] - The configuration object.
+   * @throws {ValueError} If the seed is not a valid seed or BIP-39 seed phrase.
    */
   constructor (seedOrSigner, config = {}) {
     const isSeed = typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array

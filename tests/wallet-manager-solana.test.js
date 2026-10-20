@@ -23,7 +23,7 @@ import {
   jest
 } from '@jest/globals'
 import * as bip39 from 'bip39'
-import { DisposalError, InvalidSignerError } from '@tetherto/wdk-wallet'
+import { DisposalError, InvalidSignerError, ValueError } from '@tetherto/wdk-wallet'
 import WalletManagerSolana from '../src/wallet-manager-solana.js'
 import WalletAccountSolana from '../src/wallet-account-solana.js'
 import SeedSignerSolana from '../src/signers/seed-signer-solana.js'
@@ -86,6 +86,18 @@ describe('WalletManagerSolana', () => {
 
       expect(account.path).toBe(ACCOUNT_1.path)
       expect(await account.getAddress()).toBe(ACCOUNT_1.address)
+    })
+
+    it('should throw if the seed phrase is invalid', () => {
+      expect(() => new WalletManagerSolana('invalid word that does not exist test test test test test test test'))
+        .toThrow(new ValueError('The seed phrase is invalid.'))
+    })
+
+    it('should throw if the seed bytes have an invalid length', () => {
+      const construct = () => new WalletManagerSolana(new Uint8Array(15))
+
+      expect(construct).toThrow(ValueError)
+      expect(construct).toThrow('The seed must be between 16 and 64 bytes.')
     })
 
     it('should throw if the default signer is not derivable', () => {

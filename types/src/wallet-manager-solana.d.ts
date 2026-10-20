@@ -11,6 +11,7 @@ export default class WalletManagerSolana extends WalletManager<ISignerSolana> {
      * @overload
      * @param {ISignerSolana} signer - The default root signer.
      * @param {SolanaWalletConfig} [config] - The configuration object.
+     * @throws {InvalidSignerError} If the given signer doesn't support account derivation.
      */
     constructor(signer: ISignerSolana, config?: SolanaWalletConfig);
     /**
@@ -22,6 +23,7 @@ export default class WalletManagerSolana extends WalletManager<ISignerSolana> {
      * @overload
      * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
      * @param {SolanaWalletConfig} [config] - The configuration object.
+     * @throws {ValueError} If the seed is not a valid seed or BIP-39 seed phrase.
      */
     constructor(seed: string | Uint8Array, config?: SolanaWalletConfig);
     /**
@@ -132,6 +134,7 @@ export type SolanaRpc = ReturnType<typeof import("@solana/rpc").createSolanaRpc>
 export type Commitment = import("@solana/rpc-types").Commitment;
 export type FeeRates = import("@tetherto/wdk-wallet").FeeRates;
 export type NoSuchElementError = import("@tetherto/wdk-wallet").NoSuchElementError;
+export type ValueError = import("@tetherto/wdk-wallet").ValueError;
 export type SolanaWalletConfig = import("./wallet-account-solana.js").SolanaWalletConfig;
 export type ISignerSolana = import("./signers/signer-solana.js").ISignerSolana;
 export type PrivateKeySignerSolana = import("./signers/private-key-signer-solana.js").default;

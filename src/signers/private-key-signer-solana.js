@@ -44,11 +44,7 @@ const INVALID_PRIVATE_KEY_MESSAGE = 'The private key must be a 32-byte key (hex 
  */
 function decodePrivateKeyString (privateKey) {
   if (HEX_PRIVATE_KEY_PATTERN.test(privateKey)) {
-    const decoded = Buffer.from(privateKey, 'hex')
-    const bytes = Uint8Array.from(decoded)
-    sodium_memzero(decoded)
-
-    return bytes
+    return Buffer.from(privateKey, 'hex')
   }
 
   if (BASE58_PATTERN.test(privateKey)) {
