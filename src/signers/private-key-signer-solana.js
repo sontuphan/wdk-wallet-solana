@@ -232,7 +232,7 @@ export default class PrivateKeySignerSolana {
       throw new DisposalError('The signer has been disposed.')
     }
 
-    return signTransactionBytes(this._rawPrivateKey, this._address, unsignedTx)
+    return signTransactionBytes(this._rawPrivateKey, unsignedTx)
   }
 
   /**

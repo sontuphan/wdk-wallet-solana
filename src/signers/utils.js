@@ -15,6 +15,7 @@
 'use strict'
 
 import { getTransactionDecoder, getTransactionEncoder } from '@solana/transactions'
+import { getAddressDecoder } from '@solana/addresses'
 import { getUtf8Encoder } from '@solana/codecs'
 
 import * as curve from '@noble/ed25519'
@@ -43,12 +44,12 @@ export function signMessage (privateKey, message) {
  * signatures it already carries.
  *
  * @param {Uint8Array} privateKey - The raw Ed25519 private key (32 bytes).
- * @param {string} address - The key's address.
  * @param {Uint8Array} unsignedTx - The wire-encoded transaction.
  * @returns {Uint8Array} The wire-encoded transaction with the key's signature added.
- * @throws {InvalidSignerError} If the address is not one of the transaction's signers.
+ * @throws {InvalidSignerError} If the key's address is not one of the transaction's signers.
  */
-export function signTransactionBytes (privateKey, address, unsignedTx) {
+export function signTransactionBytes (privateKey, unsignedTx) {
+  const address = getAddressDecoder().decode(curve.getPublicKey(privateKey))
   const transaction = getTransactionDecoder().decode(unsignedTx)
 
   if (transaction.signatures[address] === undefined) {
