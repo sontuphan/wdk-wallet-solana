@@ -35,7 +35,7 @@ curve.hashes.sha512 = sha512
  * @internal
  * @param {string} path - The derivation path.
  * @param {boolean} [absolute] - If true, the path must also be absolute ("m" or "m/...") (default: false).
- * @throws {ValueError} If the path is required to be absolute and is not, or if any child path is not hardened.
+ * @throws {ValueError} If the path is required to be absolute and is not, if it is not a valid BIP-32 path, or if any child path is not hardened.
  */
 export function assertFullHardenedPath (path, absolute = false) {
   if (absolute) {
@@ -50,9 +50,13 @@ export function assertFullHardenedPath (path, absolute = false) {
     path = path.slice(2)
   }
 
-  const isValid = path.split('/').every((segment) => /^\d+'$/.test(segment))
+  const segments = path.split('/')
 
-  if (!isValid) {
+  if (!segments.every((segment) => /^\d+'?$/.test(segment))) {
+    throw new ValueError('The derivation path is not a valid BIP-32 path.')
+  }
+
+  if (!segments.every((segment) => segment.endsWith("'"))) {
     throw new ValueError('In Solana, every child path in a derivation path must be hardened.')
   }
 }

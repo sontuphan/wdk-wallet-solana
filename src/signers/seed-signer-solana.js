@@ -87,7 +87,7 @@ export default class SeedSignerSolana {
    *
    * @param {string | Uint8Array} seed - A [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) mnemonic seed phrase, or a raw BIP-32 master seed (16-64 bytes).
    * @param {string} [path] - An absolute SLIP-0010 path; every segment must be hardened (default: "m/44'/501'").
-   * @throws {ValueError} If the seed phrase is invalid, if the seed is not between 16 and 64 bytes, or if the path is not absolute or not fully hardened.
+   * @throws {ValueError} If the seed phrase is invalid, if the seed is not between 16 and 64 bytes, or if the path is not absolute, not a valid BIP-32 path or not fully hardened.
    */
   constructor (seed, path = BIP_44_SOL_DERIVATION_PATH_PREFIX) {
     const ownsSeed = typeof seed === 'string'
@@ -190,7 +190,7 @@ export default class SeedSignerSolana {
    *
    * @param {string} relPath - The path segment to derive, relative to this signer's own path.
    * @returns {Promise<SeedSignerSolana>} The derived child signer.
-   * @throws {ValueError} If the path is not fully hardened.
+   * @throws {ValueError} If the path is not a valid BIP-32 path or not fully hardened.
    * @throws {DisposalError} If the signer has been disposed.
    */
   async derive (relPath) {

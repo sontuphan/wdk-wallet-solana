@@ -64,6 +64,8 @@ const NOT_A_SIGNER_MESSAGE = 'The signer is not one of the transaction\'s signer
 
 const HARDENED_PATH_MESSAGE = 'In Solana, every child path in a derivation path must be hardened.'
 
+const INVALID_PATH_MESSAGE = 'The derivation path is not a valid BIP-32 path.'
+
 function buildUnsignedTransaction (feePayer, cosigner) {
   const message = pipe(
     createTransactionMessage({ version: 0 }),
@@ -131,7 +133,7 @@ describe('SeedSignerSolana', () => {
 
     it('should throw if a path segment is not a decimal index', () => {
       expect(() => new SeedSignerSolana(TEST_SEED_PHRASE, "m/44'/501'/1.5'/0'"))
-        .toThrow(new ValueError(HARDENED_PATH_MESSAGE))
+        .toThrow(new ValueError(INVALID_PATH_MESSAGE))
     })
   })
 
@@ -174,7 +176,12 @@ describe('SeedSignerSolana', () => {
 
     it('should throw if a relative path segment is not a decimal index', async () => {
       await expect(new SeedSignerSolana(TEST_SEED_PHRASE).derive("1e3'"))
-        .rejects.toThrow(new ValueError(HARDENED_PATH_MESSAGE))
+        .rejects.toThrow(new ValueError(INVALID_PATH_MESSAGE))
+    })
+
+    it('should report an invalid path before a non-hardened one', async () => {
+      await expect(new SeedSignerSolana(TEST_SEED_PHRASE).derive('a/b/0'))
+        .rejects.toThrow(new ValueError(INVALID_PATH_MESSAGE))
     })
   })
 
