@@ -87,25 +87,17 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
    * @param {SolanaWalletConfig} [config] - The configuration object.
    * @throws {ValueError} If the seed phrase is not a valid BIP-39 seed phrase.
    */
-  constructor (seedOrSigner, pathOrConfig, config = {}) {
+  constructor (seedOrSigner, pathOrConfig = {}, config = {}) {
     const isSeed = typeof seedOrSigner === 'string' || seedOrSigner instanceof Uint8Array
+    const hasPath = typeof pathOrConfig === 'string'
+    const [signer, configuration] = isSeed
+      ? [
+          new SeedSignerSolana(seedOrSigner, `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${hasPath ? pathOrConfig : DEFAULT_ACCOUNT_PATH}`),
+          hasPath ? config : pathOrConfig
+        ]
+      : [seedOrSigner, pathOrConfig]
 
-    let signer = seedOrSigner
-
-    if (isSeed) {
-      let path = pathOrConfig
-
-      if (typeof pathOrConfig !== 'string') {
-        path = DEFAULT_ACCOUNT_PATH
-        config = pathOrConfig ?? {}
-      }
-
-      signer = new SeedSignerSolana(seedOrSigner, `${BIP_44_SOL_DERIVATION_PATH_PREFIX}/${path}`)
-    } else {
-      config = pathOrConfig ?? {}
-    }
-
-    super(undefined, config)
+    super(undefined, configuration)
 
     /**
      * The wallet account configuration.
@@ -113,7 +105,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      * @protected
      * @type {SolanaWalletConfig}
      */
-    this._config = config
+    this._config = configuration
 
     /** @private */
     this._signer = signer
@@ -124,7 +116,7 @@ export default class WalletAccountSolana extends WalletAccountReadOnlySolana {
      * @protected
      * @type {boolean}
      */
-    this._shouldWipeSignerOnDisposal = isSeed || Boolean(config.shouldWipeSignerOnDisposal)
+    this._shouldWipeSignerOnDisposal = isSeed || Boolean(configuration.shouldWipeSignerOnDisposal)
 
     /** @private */
     this._disposed = false
