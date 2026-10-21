@@ -136,6 +136,17 @@ describe('WalletManagerSolana', () => {
       expect(wallet.seed).toBeUndefined()
     })
 
+    it('should keep deriving accounts after the caller wipes the seed', async () => {
+      const seed = Uint8Array.from(TEST_SEED)
+      const seedWallet = new WalletManagerSolana(seed)
+
+      seed.fill(0)
+
+      const account = await seedWallet.getAccount(0)
+
+      expect(await account.getAddress()).toBe(ACCOUNT_0.address)
+    })
+
     it('should not wipe a default signer supplied by the caller', async () => {
       const signer = new SeedSignerSolana(TEST_SEED_PHRASE)
       const privateKey = Buffer.from(signer.keyPair.privateKey).toString('hex')
