@@ -357,6 +357,17 @@ describe('WalletAccountSolana', () => {
         expect(account.disposed).toBe(true)
       })
 
+      it('should dispose an owned signer only once when called twice', () => {
+        const signer = new SeedSignerSolana(TEST_SEED_PHRASE, ACCOUNT_0.path)
+        const disposeSpy = jest.spyOn(signer, 'dispose')
+        const account = new WalletAccountSolana(signer, { shouldWipeSignerOnDisposal: true })
+
+        account.dispose()
+        account.dispose()
+
+        expect(disposeSpy).toHaveBeenCalledTimes(1)
+      })
+
       it('should clear private key from memory', async () => {
         const tempWallet = new WalletManagerSolana(TEST_SEED_PHRASE, {
           provider: TEST_RPC_URL,

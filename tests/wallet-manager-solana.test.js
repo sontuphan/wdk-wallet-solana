@@ -118,6 +118,15 @@ describe('WalletManagerSolana', () => {
   })
 
   describe('dispose', () => {
+    it('should dispose the default signer only once when called twice', () => {
+      const disposeSpy = jest.spyOn(wallet.getSigner(), 'dispose')
+
+      wallet.dispose()
+      wallet.dispose()
+
+      expect(disposeSpy).toHaveBeenCalledTimes(1)
+    })
+
     it('should wipe the default signer it built from the seed', () => {
       const defaultSigner = wallet.getSigner()
 
